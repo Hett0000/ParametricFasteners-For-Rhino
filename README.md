@@ -11,6 +11,7 @@ RhinoMM 是一款面向 FDM 3D 打印的 Rhino 8 Windows 插件。它用于快�
 - [产品需求文档](docs/PRODUCT_REQUIREMENTS.md)
 - [用户流程](docs/USER_FLOWS.md)
 - [技术基础文档](docs/TECHNICAL_FOUNDATION.md)
+- [每宿主孔配合实现设计](docs/PER_TARGET_FIT_DESIGN.md)
 - [开发准备](docs/DEVELOPMENT.md)
 - [产品草图](docs/PRODUCT_SKETCHES.md)
 - [决策记录](docs/DECISIONS.md)
@@ -19,9 +20,10 @@ RhinoMM 是一款面向 FDM 3D 打印的 Rhino 8 Windows 插件。它用于快�
 
 - Rhino 8.20+ Windows，.NET 8，RhinoCommon 与 Eto UI。
 - 支持封闭 Brep 和 Extrusion 宿主。
-- 支持 M2、M2.5、M3、M4、M5、M6、M8、M10、M12。
+- 支持 M1.6、M2、M2.5、M3、M4、M5、M6、M8、M10、M12。
 - 支持内六角圆柱头、内六角沉头、六角头螺栓和 1 型六角螺母槽。
 - 支持曲面/平面放置、起点与轴向放置、贯穿/盲孔、方向翻转。
+- 同一颗螺丝可绑定多个宿主，并为每个宿主分别指定“穿过通孔”或“螺纹咬合预孔”。
 - 支持全局打印配置和单组件 XY、Z 补偿覆盖。
 - 支持非破坏式 STEP/STL 导出与原子失败处理。
 
