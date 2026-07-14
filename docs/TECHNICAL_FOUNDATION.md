@@ -34,6 +34,7 @@ docs/
 | `RhinoMMPanel` | 打开或聚焦停靠面板 |
 | `RhinoMMPlaceHole` | 通过命令行选项放置组件 |
 | `RhinoMMEditHole` | 编辑现有组件 |
+| `RhinoMMAdoptFastener` | 将当前普通螺丝对象接管为 RhinoMM 组件 |
 | `RhinoMMRelinkHole` | 重新绑定宿主 |
 | `RhinoMMExportPrint` | 无损导出 STEP/STL |
 | `RhinoMMValidate` | 检查预设、组件和宿主状态 |
@@ -82,6 +83,8 @@ presetId
 presetDataVersion
 nominalSize
 fitClass
+proxyObjectId
+adoptedSourceObjectId?
 profileSnapshot
 xyOverrideMm?
 zOverrideMm?
@@ -110,6 +113,19 @@ includeHeadSeat           每个组件最多一个 true
 ```
 
 同一组件内 `targetObjectId` 必须唯一。首版 `threadEngagement` 表示直接拧入打印材料的无螺纹圆柱预孔，不等同于标准 6H 内螺纹；数据模型为未来的 `tapPilot` 或真实螺纹策略预留版本字段，但首版不暴露未实现模式。
+
+### 4.5 FastenerProxy
+
+`FastenerProxy` 是组件在 Rhino 视口中的可选择代表，使用标准公称尺寸生成简化头部和杆部，不生成螺旋牙型。它与 `HoleComponentData` 共享稳定 `componentId`，并满足：
+
+- 选择代理、任一切割体或对象属性中的组件链接，都能解析到同一个组件。
+- 代理变换更新 `placementPlane`，随后重建全部绑定切割体并重新验证相交。
+- 代理默认不参与打印导出，只作为放置、选择和装配检查的可视对象。
+- 更新几何时优先使用 `ObjectTable.Replace` 保持 `proxyObjectId`；若 Rhino 必须产生新 ID，则在同一事务中修正所有反向索引。
+
+### 4.6 组件索引
+
+维护文档级运行时索引：`componentId -> proxyObjectId/cutterObjectIds/targetBindings`，以及 `RhinoObjectId -> componentId` 反向索引。索引只用于选择与性能优化，3DM 中的 UserData 才是持久化事实来源；打开文档、Undo/Redo 或索引不一致时必须从 UserData 重建。
 
 ## 5. 几何规则
 
@@ -148,9 +164,27 @@ includeHeadSeat           每个组件最多一个 true
 - 多个宿主发生不同变换、宿主替换为不支持类型或 GUID 消失时，将组件标记为 `brokenLink`。
 - 事件处理必须防止递归，并把自动同步纳入同一 Undo 记录。
 
+### 选择读取与编辑同步
+
+- 监听 Rhino 选择变化，但用短延迟合并连续事件，避免框选时反复刷新面板。
+- 选中一个 RhinoMM 代理或切割体时，通过反向索引读取 `HoleComponentData`，面板切换为编辑状态并显示组件 ID、预设版本和绑定列表。
+- 选中宿主时只列出关联组件；存在多个关联项时必须由用户明确选择。
+- 面板编辑写入独立草稿模型；输入变化只更新预览，不立即覆盖 UserData。
+- 用户点击“应用”后执行 `Validate -> Build proxy -> Build per-target cutters -> BeginUndoRecord -> Replace geometry and UserData -> Rebuild index -> Redraw`。
+- 构建或验证在写入前失败时不触碰文档；写入阶段异常时撤销整个记录，旧组件继续有效。
+
+### 普通模型接管
+
+1. 接受单个闭合 Brep、Extrusion 或 InstanceReference；若已有 RhinoMM UserData，直接转入编辑。
+2. 从圆柱面、旋转对称候选、包围盒和头部轮廓估算轴线、杆径及头型，只产生候选，不直接提交。
+3. 将候选尺寸与预设表做容差范围匹配；显示候选标准、规格、偏差和“自动候选/手动选择”状态。
+4. 用户确认预设、规格、入口和轴向后，生成简化代理与切割预览。
+5. 应用时默认隐藏源对象、保存 `adoptedSourceObjectId` 并创建 RhinoMM 组件；块实例不修改共享定义。
+6. 源对象被删除或无法恢复不影响已接管组件，但面板显示“源备份不可用”。
+
 ## 7. 导出管线
 
-1. **收集**：仅接受用户选择的闭合 Brep/Extrusion，并查找显式绑定组件及每个宿主的孔配合角色。
+1. **收集**：仅接受用户选择的闭合 Brep/Extrusion，并查找显式绑定组件及每个宿主的孔配合角色；排除 `RhinoMM::Fasteners` 代理、`RhinoMM::Cutters` 和隐藏的接管源对象。
 2. **预检**：验证单位、对象类型、闭合状态、组件版本、绑定唯一性、头部承座唯一性、最终孔径、链接与相交。
 3. **复制**：创建临时 Headless `RhinoDoc`，复制宿主并转换 Extrusion 为 Brep。
 4. **重建**：为每个宿主从其 `HoleTargetBinding` 生成专属切割体，不依赖文档中可能过期的显示 Brep。
@@ -177,6 +211,8 @@ RhinoCommon 提供官方的 [STEP 写出接口](https://developer.rhino3d.com/ap
 - **几何测试**：四类孔型的 M1.6/M2/M6/M12、平面/曲面、翻转、盲孔/贯穿。
 - **多宿主测试**：同一轴线的通孔宿主与咬合宿主得到不同孔径；切割体不跨宿主误用；承座只出现在指定宿主。
 - **文档测试**：UserData 保存重开、复制、变换、删除、Undo/Redo 和版本迁移。
+- **读取编辑测试**：分别选择代理、切割体和宿主；验证面板读取结果、歧义列表、原子更新、ID 保持、失败回滚和 Undo/Redo。
+- **接管测试**：普通 Brep、Extrusion、块实例、已有 RhinoMM 对象、无法识别对象、源对象隐藏/恢复和手动映射。
 - **导出测试**：STEP/STL 复读、闭合性、单位、几何体积、切割体排除、源对象不变。
 - **失败测试**：无交集、非闭合、尺寸退化、布尔失败、目标文件已存在和临时写入失败。
 
