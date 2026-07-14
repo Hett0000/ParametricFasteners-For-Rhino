@@ -1,0 +1,13 @@
+name: RhinoMM
+version: 0.1.0
+authors:
+  - RhinoMM
+description: >
+  Parametric fastener holes for Rhino 8 and FDM printing, with per-target
+  clearance or thread-engagement compensation and non-destructive STL/STEP export.
+keywords:
+  - 3d-printing
+  - fastener
+  - screw
+  - hole
+  - fdm

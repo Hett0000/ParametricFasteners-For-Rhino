@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>false</UseWPF>
+    <AssemblyName>RhinoMM</AssemblyName>
+    <RootNamespace>RhinoMM.Plugin</RootNamespace>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\RhinoMM.Core\RhinoMM.Core.csproj" />
+    <PackageReference Include="RhinoCommon" Version="8.19.25132.1001" />
+    <PackageReference Include="Eto.Forms" Version="2.8.3" />
+  </ItemGroup>
+  <Target Name="CreateRhp" AfterTargets="Build">
+    <Copy SourceFiles="$(TargetPath)" DestinationFiles="$(TargetDir)RhinoMM.rhp" />
+  </Target>
+</Project>

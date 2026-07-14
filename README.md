@@ -1,37 +1,43 @@
 # RhinoMM
 
-RhinoMM 是一款面向 FDM 3D 打印的 Rhino 8 Windows 插件。它用于快速放置螺钉通孔、沉孔、沉头孔和螺母槽，并把这些孔保存为可编辑的非破坏式组件。
+RhinoMM 是面向 Rhino 8 Windows 与 FDM 3D 打印的参数化紧固件孔插件。它把螺丝代理、每个被切割体的孔配合关系和打印补偿保存为可编辑组件；导出 STL/STEP 时只对临时副本做布尔，原始 3DM 保持可修改。
 
-导出 STEP 或 STL 时，插件在临时副本中自动完成布尔切割；原始 3DM 模型和孔组件保持不变，便于继续调整规格、位置和打印补偿。
+## 已实现的 MVP
 
-> 当前仓库处于产品与技术设计基线阶段，尚未生成可编译插件代码。
+- M1.6、M2、M2.5、M3、M4、M5、M6、M8、M10、M12 预设。
+- 内六角圆柱头、沉头、六角头螺栓和六角螺母简化代理体。
+- 一颗螺丝可同时绑定两类实体：
+  - 穿过实体：标准间隙孔 + FDM 打印修正 + 单绑定修正，最终孔径必须大于公称直径。
+  - 咬合实体：公称直径 − 经试片校准的咬合缩减 + FDM 打印修正 + 单绑定修正，最终孔径必须小于公称直径。
+- 选择面自动取得位置与法向，或按 Enter 使用起始点与轴向放置。
+- 选择代理体或切割体后读取参数；修改后可应用重建全部关联几何。
+- 把普通 Brep、Extrusion 或块实例接管为 RhinoMM 参数化螺丝；源对象默认隐藏保留。
+- 选择实体并导出 STL/STEP 时，在无界面的临时文档中布尔，不破坏原模型。
+- 文档级组件校验。
 
-## 文档入口
+## 构建
 
-- [产品需求文档](docs/PRODUCT_REQUIREMENTS.md)
+要求 Rhino 8.20+ Windows 与 .NET 8 SDK：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./build/build.ps1
+```
+
+输出位于 `artifacts/plugin/`。在 Rhino 中运行 `PluginManager`，安装 `RhinoMM.rhp`；打开面板可运行 `RhinoMMPanel`。
+
+主要命令：`RhinoMMPanel`、`RhinoMMPlaceHole`、`RhinoMMEditHole`、`RhinoMMApplyUpdate`、`RhinoMMAdoptFastener`、`RhinoMMValidate`、`RhinoMMExportPrint`。
+
+## 数据声明
+
+当前预设是 ISO 等效工程尺寸，尚未逐项对照有授权的现行 GB/T 原文，因此不能宣称“已通过国标核验”。打印补偿也必须按打印机、材料、喷嘴和层高用试片校准。
+
+## 文档
+
+- [产品需求](docs/PRODUCT_REQUIREMENTS.md)
 - [用户流程](docs/USER_FLOWS.md)
-- [技术基础文档](docs/TECHNICAL_FOUNDATION.md)
-- [每宿主孔配合实现设计](docs/PER_TARGET_FIT_DESIGN.md)
+- [技术基础](docs/TECHNICAL_FOUNDATION.md)
+- [每宿主孔配合设计](docs/PER_TARGET_FIT_DESIGN.md)
 - [选择、读取与接管设计](docs/SELECTION_AND_ADOPTION_DESIGN.md)
 - [开发准备](docs/DEVELOPMENT.md)
 - [产品草图](docs/PRODUCT_SKETCHES.md)
 - [决策记录](docs/DECISIONS.md)
-
-## 首版范围
-
-- Rhino 8.20+ Windows，.NET 8，RhinoCommon 与 Eto UI。
-- 支持封闭 Brep 和 Extrusion 宿主。
-- 支持 M1.6、M2、M2.5、M3、M4、M5、M6、M8、M10、M12。
-- 支持内六角圆柱头、内六角沉头、六角头螺栓和 1 型六角螺母槽。
-- 支持曲面/平面放置、起点与轴向放置、贯穿/盲孔、方向翻转。
-- 同一颗螺丝可绑定多个宿主，并为每个宿主分别指定“穿过通孔”或“螺纹咬合预孔”。
-- 从 Rhino 视口选择 RhinoMM 螺丝即可读取参数；修改后自动重建螺丝代理和全部关联切割体。
-- 可将选中的普通螺丝模型接管为 RhinoMM 参数化组件，默认保留隐藏的源对象备份。
-- 支持全局打印配置和单组件 XY、Z 补偿覆盖。
-- 支持非破坏式 STEP/STL 导出与原子失败处理。
-
-首版不包含真实螺纹、Mesh/SubD 宿主、侧向螺母插槽或立即破坏式切割。
-
-## 数据声明
-
-首版规格库计划采用公开的 ISO 等效尺寸，并明确标记为“国标兼容数据，待 GB 原文复核”。在取得合法授权的国标尺寸表并完成逐项校验前，产品不得宣称严格符合国标。

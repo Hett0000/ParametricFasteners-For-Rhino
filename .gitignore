@@ -4,6 +4,8 @@ obj/
 artifacts/
 packages/
 TestResults/
+.dotnet/
+.tools/
 *.user
 *.suo
 *.rsuser

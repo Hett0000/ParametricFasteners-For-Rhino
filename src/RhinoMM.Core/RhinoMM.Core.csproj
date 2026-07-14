@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>RhinoMM.Core</AssemblyName>
+    <RootNamespace>RhinoMM.Core</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\data\fastener-presets.v1.json" Link="Data\fastener-presets.v1.json" />
+  </ItemGroup>
+</Project>
