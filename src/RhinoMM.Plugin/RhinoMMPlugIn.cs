@@ -14,7 +14,16 @@ public sealed class RhinoMMPlugIn : PlugIn
 
     protected override LoadReturnCode OnLoad(ref string errorMessage)
     {
-        Panels.RegisterPanel(this, typeof(RhinoMMPanel), "RhinoMM 3D 打印紧固件", null);
-        return LoadReturnCode.Success;
+        try
+        {
+            Panels.RegisterPanel(this, typeof(RhinoMMPanel), "RhinoMM 3D 打印紧固件", null);
+            return LoadReturnCode.Success;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"RhinoMM 初始化失败：{ex}";
+            Rhino.RhinoApp.WriteLine(errorMessage);
+            return LoadReturnCode.ErrorShowDialog;
+        }
     }
 }

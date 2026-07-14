@@ -17,13 +17,15 @@ RhinoMM 是面向 Rhino 8 Windows 与 FDM 3D 打印的参数化紧固件孔插�
 
 ## 构建
 
-要求 Rhino 8.20+ Windows 与 .NET 8 SDK：
+运行要求为 Rhino 8.18+ Windows；插件以 Rhino 8.18 默认的 .NET 7 为最低运行时，源码可使用 .NET 8 SDK 构建：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./build/build.ps1
 ```
 
 输出位于 `artifacts/plugin/`。在 Rhino 中运行 `PluginManager`，安装 `RhinoMM.rhp`；打开面板可运行 `RhinoMMPanel`。
+
+加载新版前必须完全退出所有 Rhino 进程，确保旧 `.rhp` 不再被锁定，再从新构建目录安装。Rhino 8.18 默认使用 .NET Core 7；如果曾通过 `SetDotNetRuntime` 切换到 `NETFramework`，请改回 `NETCore` 并重启 Rhino。
 
 主要命令：`RhinoMMPanel`、`RhinoMMPlaceHole`、`RhinoMMEditHole`、`RhinoMMApplyUpdate`、`RhinoMMAdoptFastener`、`RhinoMMValidate`、`RhinoMMExportPrint`。
 

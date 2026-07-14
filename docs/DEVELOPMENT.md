@@ -13,7 +13,7 @@
 ## 2. 必需环境
 
 - Windows 10 或更新版本。
-- Rhino 8.20 或更新的 Rhino 8 服务版本。
+- Rhino 8.18 或更新的 Rhino 8 服务版本。
 - .NET 8 SDK x64。
 - Visual Studio 2022（`.NET desktop development`）或 VS Code＋C# Dev Kit。
 - Rhino Visual Studio Extension 或 `Rhino.Templates`。
@@ -31,7 +31,7 @@ dotnet --list-sdks
 Get-Item 'C:\Program Files\Rhino 8\System\RhinoCommon.dll'
 ```
 
-最低通过条件：存在 8.x SDK、RhinoCommon 文件可读，并能启动 Rhino 8 的 .NET Core/.NET 8 运行时。
+最低通过条件：存在 8.x SDK、RhinoCommon 文件可读，并能启动 Rhino 8 的 .NET Core 7 或更新运行时。
 
 ## 4. 计划中的构建命令
 

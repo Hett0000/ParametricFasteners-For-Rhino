@@ -2,13 +2,13 @@
 
 ## 1. 技术基线
 
-- **运行环境**：Rhino 8.20+ Windows。
-- **目标框架**：`.NET 8`，`AnyCPU`。
+- **运行环境**：Rhino 8.18+ Windows。
+- **目标框架**：以 `.NET 7` 为最低目标，`AnyCPU`；兼容 Rhino 8.20+ 的 .NET 8 运行时。
 - **插件 SDK**：RhinoCommon；界面使用 Eto Forms。
 - **插件类型**：General Utility `.rhp`，最终通过 Yak 分发。
-- **当前工作机状态**：未检测到 Rhino 安装，且没有 .NET SDK；进入编码阶段前必须安装环境。
+- **当前工作机状态**：已检测到 Rhino 8.18.25098.11001，并使用本地 .NET 8 SDK 完成构建。
 
-Rhino 8.20 起默认使用 .NET 8，技术实现应避免新的 `.NET Framework` 依赖。参考 [RhinoCommon 指南](https://developer.rhino3d.com/guides/rhinocommon/)和[迁移到 .NET Core](https://developer.rhino3d.com/en/guides/rhinocommon/moving-to-dotnet-core/)。
+Rhino 8.18 默认使用 .NET 7；Rhino 8.20 起默认使用 .NET 8。插件针对 .NET 7 编译，以覆盖当前工作机，同时避免新的 `.NET Framework` 依赖。参考 [RhinoCommon 指南](https://developer.rhino3d.com/guides/rhinocommon/)和[迁移到 .NET Core](https://developer.rhino3d.com/en/guides/rhinocommon/moving-to-dotnet-core/)。
 
 ## 2. 建议解决方案结构
 
