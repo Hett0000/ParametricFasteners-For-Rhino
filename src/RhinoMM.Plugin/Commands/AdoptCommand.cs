@@ -16,7 +16,7 @@ public sealed class RhinoMMAdoptFastenerCommand : Command
     protected override Result RunCommand(RhinoDoc doc, RunMode mode)
     {
         using var go = new GetObject();
-        go.SetCommandPrompt("选择要转换为 RhinoMM 参数化螺丝的现有模型");
+        go.SetCommandPrompt("选择要转换为参数化紧固件的现有模型");
         go.GeometryFilter = ObjectType.Brep | ObjectType.Extrusion | ObjectType.InstanceReference;
         go.Get();
         if (go.CommandResult() != Result.Success)
@@ -26,7 +26,7 @@ public sealed class RhinoMMAdoptFastenerCommand : Command
         if (ComponentRepository.TryRead(source, out var existing))
         {
             EditorState.Current.Load(existing);
-            RhinoApp.WriteLine("该对象已经是 RhinoMM 组件，参数已读取到面板。");
+            RhinoApp.WriteLine("该对象已经是参数化紧固件组件，参数已读取到面板。");
             return Result.Success;
         }
 

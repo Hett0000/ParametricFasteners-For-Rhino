@@ -84,4 +84,62 @@ public class HoleDiameterCalculatorTests
         var validation = FastenerComponentValidator.Validate(component, Catalog.Get("M4"));
         Assert.Contains(validation.Issues, issue => issue.Code == "head-seat");
     }
+
+    [Fact]
+    public void SchemaV1MigratesAppearanceAndPreviewDefaults()
+    {
+        var componentId = Guid.NewGuid();
+        var bindingId = Guid.NewGuid();
+        var targetId = Guid.NewGuid();
+        var json = $$"""
+        {
+          "schemaVersion": 1,
+          "componentId": "{{componentId}}",
+          "kind": "SocketCap",
+          "size": "M3",
+          "length": 12,
+          "bindings": [
+            {
+              "bindingId": "{{bindingId}}",
+              "targetObjectId": "{{targetId}}",
+              "role": "Clearance"
+            }
+          ]
+        }
+        """;
+
+        var migrated = ComponentJson.Deserialize(json);
+
+        Assert.Equal(2, migrated.SchemaVersion);
+        Assert.Equal(70, migrated.FastenerOpacityPercent);
+        Assert.Equal(35, migrated.CutterOpacityPercent);
+        Assert.True(migrated.Bindings.Single().IsPreviewVisible);
+    }
+
+    [Theory]
+    [InlineData(FastenerKind.SocketCap, "内六角圆柱头螺钉")]
+    [InlineData(FastenerKind.Countersunk, "内六角沉头螺钉")]
+    [InlineData(FastenerKind.HexBolt, "六角头螺栓")]
+    [InlineData(FastenerKind.HexNut, "六角螺母")]
+    public void FastenerKindsHaveChineseLabels(FastenerKind kind, string expected)
+    {
+        Assert.Equal(expected, FastenerLabels.Kind(kind));
+    }
+
+    [Fact]
+    public void PreviewVisibilityDoesNotChangeHoleDiameter()
+    {
+        var visible = new HoleTargetBinding
+        {
+            TargetObjectId = Guid.NewGuid(),
+            Role = ShaftFitRole.Clearance,
+            IsPreviewVisible = true
+        };
+        var hidden = visible with { IsPreviewVisible = false };
+        var profile = new PrintProfileSnapshot("PLA", 0.2);
+
+        Assert.Equal(
+            HoleDiameterCalculator.Calculate(Catalog.Get("M3"), visible, profile).FinalDiameter,
+            HoleDiameterCalculator.Calculate(Catalog.Get("M3"), hidden, profile).FinalDiameter);
+    }
 }

@@ -99,12 +99,13 @@ public sealed record HoleTargetBinding
     public DepthMode DepthMode { get; init; } = DepthMode.ThroughTarget;
     public double BlindDepth { get; init; }
     public bool IncludeHeadSeat { get; init; }
+    public bool IsPreviewVisible { get; init; } = true;
     public Guid CutterObjectId { get; init; }
 }
 
 public sealed record FastenerComponentData
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
     public Guid ComponentId { get; init; } = Guid.NewGuid();
@@ -113,6 +114,8 @@ public sealed record FastenerComponentData
     public double Length { get; init; } = 12;
     public PlacementFrame Placement { get; init; } = PlacementFrame.WorldXY;
     public PrintProfileSnapshot PrintProfile { get; init; } = new("默认 FDM", 0.2);
+    public double FastenerOpacityPercent { get; init; } = 70;
+    public double CutterOpacityPercent { get; init; } = 35;
     public IReadOnlyList<HoleTargetBinding> Bindings { get; init; } = Array.Empty<HoleTargetBinding>();
     public Guid ProxyObjectId { get; init; }
     public Guid AdoptedSourceObjectId { get; init; }

@@ -2,9 +2,11 @@
   <PropertyGroup>
     <TargetFramework>net7.0-windows</TargetFramework>
     <UseWPF>false</UseWPF>
-    <AssemblyName>RhinoMM</AssemblyName>
+    <AssemblyName>ParametricFasteners</AssemblyName>
+    <AssemblyTitle>参数化紧固件</AssemblyTitle>
+    <Product>参数化紧固件</Product>
     <RootNamespace>RhinoMM.Plugin</RootNamespace>
-    <Version>0.1.1</Version>
+    <Version>0.2.0</Version>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\RhinoMM.Core\RhinoMM.Core.csproj" />
@@ -14,6 +16,6 @@
     <PackageReference Include="System.Drawing.Common" Version="7.0.0" PrivateAssets="all" />
   </ItemGroup>
   <Target Name="CreateRhp" AfterTargets="Build">
-    <Copy SourceFiles="$(TargetPath)" DestinationFiles="$(TargetDir)RhinoMM.rhp" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFiles="$(TargetDir)参数化紧固件.rhp" />
   </Target>
 </Project>

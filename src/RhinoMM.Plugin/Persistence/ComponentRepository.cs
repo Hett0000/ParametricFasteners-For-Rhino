@@ -11,21 +11,45 @@ public static class ComponentRepository
     public const string ComponentIdKey = "RhinoMM.ComponentId";
     public const string RoleKey = "RhinoMM.Role";
     public const string TargetIdKey = "RhinoMM.TargetId";
+    public const string BindingIdKey = "RhinoMM.BindingId";
 
-    public static ObjectAttributes CreateAttributes(FastenerComponentData data, string role, Guid targetId = default)
+    public static ObjectAttributes CreateAttributes(
+        FastenerComponentData data,
+        string role,
+        Guid targetId = default,
+        Guid bindingId = default)
     {
-        var attributes = new ObjectAttributes { Name = $"RhinoMM {data.Size} {role}" };
-        Write(attributes, data, role, targetId);
+        var attributes = new ObjectAttributes { Name = ObjectName(data, role) };
+        Write(attributes, data, role, targetId, bindingId);
         return attributes;
     }
 
-    public static void Write(ObjectAttributes attributes, FastenerComponentData data, string role, Guid targetId = default)
+    public static string ObjectName(FastenerComponentData data, string role)
+    {
+        var roleName = role switch
+        {
+            "Proxy" => "紧固件",
+            "Cutter" => "轴孔切割模块",
+            "HeadCutter" => "头部切割模块",
+            _ => role
+        };
+        return $"参数化紧固件 {data.Size} {roleName}";
+    }
+
+    public static void Write(
+        ObjectAttributes attributes,
+        FastenerComponentData data,
+        string role,
+        Guid targetId = default,
+        Guid bindingId = default)
     {
         attributes.SetUserString(ComponentKey, ComponentJson.Serialize(data));
         attributes.SetUserString(ComponentIdKey, data.ComponentId.ToString("D"));
         attributes.SetUserString(RoleKey, role);
         if (targetId != Guid.Empty)
             attributes.SetUserString(TargetIdKey, targetId.ToString("D"));
+        if (bindingId != Guid.Empty)
+            attributes.SetUserString(BindingIdKey, bindingId.ToString("D"));
     }
 
     public static bool TryRead(RhinoObject? obj, out FastenerComponentData data)

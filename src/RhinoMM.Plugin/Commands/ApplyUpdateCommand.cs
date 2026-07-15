@@ -14,7 +14,7 @@ public sealed class RhinoMMApplyUpdateCommand : Command
         FastenerComponentDataFromSelection(doc, out var existing);
         if (existing is null)
         {
-            RhinoApp.WriteLine("请先选择一个 RhinoMM 代理体或切割体。");
+            RhinoApp.WriteLine("请先选择一个参数化紧固件或切割模块。");
             return Result.Nothing;
         }
 

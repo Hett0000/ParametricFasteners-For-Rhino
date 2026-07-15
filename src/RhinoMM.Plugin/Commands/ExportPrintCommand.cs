@@ -16,7 +16,7 @@ public sealed class RhinoMMExportPrintCommand : Command
     protected override Result RunCommand(RhinoDoc doc, RunMode mode)
     {
         using var go = new GetObject();
-        go.SetCommandPrompt("选择要导出的实体（将对临时副本应用 RhinoMM 孔）");
+        go.SetCommandPrompt("选择要导出的实体（将对临时副本应用参数化紧固件孔）");
         go.GeometryFilter = ObjectType.Brep | ObjectType.Extrusion;
         go.GroupSelect = true;
         go.GetMultiple(1, 0);
@@ -85,7 +85,7 @@ public sealed class RhinoMMExportPrintCommand : Command
 
     private static string _lastPath = Path.Combine(
         System.Environment.GetFolderPath(System.Environment.SpecialFolder.DesktopDirectory),
-        "RhinoMM-export.stl");
+        "参数化紧固件-导出.stl");
 
     private static List<Brep> ToBreps(GeometryBase geometry) => geometry switch
     {

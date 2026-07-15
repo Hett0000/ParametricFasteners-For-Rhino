@@ -14,6 +14,8 @@ public sealed class EditorState
     public ShaftFitRole DefaultRole { get; set; } = ShaftFitRole.Clearance;
     public ClearanceFitClass ClearanceFit { get; set; } = ClearanceFitClass.Normal;
     public double BiteReduction { get; set; } = 0.35;
+    public double FastenerOpacityPercent { get; set; } = 70;
+    public double CutterOpacityPercent { get; set; } = 35;
     public Guid LoadedComponentId { get; set; }
 
     public FastenerComponentData CreateDraft(PlacementFrame placement, IReadOnlyList<HoleTargetBinding> bindings) => new()
@@ -24,6 +26,8 @@ public sealed class EditorState
         Length = Length,
         Placement = placement,
         PrintProfile = new PrintProfileSnapshot("当前 FDM 配置", PrinterCorrection),
+        FastenerOpacityPercent = FastenerOpacityPercent,
+        CutterOpacityPercent = CutterOpacityPercent,
         Bindings = bindings,
         UpdatedAt = DateTimeOffset.UtcNow
     };
@@ -34,6 +38,8 @@ public sealed class EditorState
         Size = component.Size;
         Length = component.Length;
         PrinterCorrection = component.PrintProfile.HoleDiameterCorrection;
+        FastenerOpacityPercent = component.FastenerOpacityPercent;
+        CutterOpacityPercent = component.CutterOpacityPercent;
         LoadedComponentId = component.ComponentId;
         if (component.Bindings.Count > 0)
         {

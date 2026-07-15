@@ -3,6 +3,7 @@ using Eto.Forms;
 using Rhino;
 using Rhino.UI;
 using RhinoMM.Core.Domain;
+using RhinoMM.Core.Services;
 using RhinoMM.Plugin.Persistence;
 using RhinoMM.Plugin.Services;
 
@@ -17,17 +18,25 @@ public sealed class RhinoMMPanel : Panel, IPanel
     private readonly NumericStepper _printerCorrection = new() { MinValue = -2, MaxValue = 2, DecimalPlaces = 3, Increment = 0.05 };
     private readonly DropDown _clearanceFit = new();
     private readonly NumericStepper _bite = new() { MinValue = 0, MaxValue = 5, DecimalPlaces = 3, Increment = 0.05 };
+    private readonly Slider _fastenerOpacity = new() { MinValue = 0, MaxValue = 100, Value = 70 };
+    private readonly Slider _cutterOpacity = new() { MinValue = 0, MaxValue = 100, Value = 35 };
+    private readonly Label _fastenerOpacityValue = new() { Text = "70%", Width = 42 };
+    private readonly Label _cutterOpacityValue = new() { Text = "35%", Width = 42 };
+    private readonly StackLayout _moduleList = new() { Orientation = Orientation.Vertical, Spacing = 4 };
     private readonly CheckBox _autoUpdate = new() { Text = "修改参数后自动重建", Checked = true };
     private readonly Label _status = new() { Text = "选择现有组件可读取并修改。" };
     private readonly UITimer _updateTimer = new() { Interval = 0.5 };
+    private readonly UITimer _displayTimer = new() { Interval = 0.1 };
     private FastenerComponentData? _loadedComponent;
     private bool _loadingControls;
 
     public RhinoMMPanel()
     {
-        foreach (var value in Enum.GetNames<FastenerKind>()) _kind.Items.Add(value);
+        foreach (var value in Enum.GetValues<FastenerKind>())
+            _kind.Items.Add(new ListItem { Key = value.ToString(), Text = FastenerLabels.Kind(value) });
         foreach (var spec in RhinoMMPlugIn.Catalog.Sizes) _size.Items.Add(spec.Designation);
-        foreach (var value in Enum.GetNames<ClearanceFitClass>()) _clearanceFit.Items.Add(value);
+        foreach (var value in Enum.GetValues<ClearanceFitClass>())
+            _clearanceFit.Items.Add(new ListItem { Key = value.ToString(), Text = FastenerLabels.ClearanceFit(value) });
 
         var load = MakeButton("读取选中组件", (_, _) => LoadSelection());
         var place = MakeButton("放置 / 绑定孔", (_, _) => Run("_-RhinoMMPlaceHole"));
@@ -44,7 +53,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
                 Spacing = new Size(6, 8),
                 Rows =
                 {
-                    new Label { Text = "RhinoMM", Font = new Font(SystemFont.Bold, 16) },
+                    new Label { Text = "参数化紧固件", Font = new Font(SystemFont.Bold, 16) },
                     new Label { Text = "FDM 紧固件与可延迟布尔孔" },
                     Row("类型", _kind),
                     Row("规格", _size),
@@ -52,7 +61,13 @@ public sealed class RhinoMMPanel : Panel, IPanel
                     Row("打印孔径修正 mm", _printerCorrection),
                     Row("通孔配合", _clearanceFit),
                     Row("咬合缩减 mm", _bite),
+                    Row("紧固件不透明度", OpacityControl(_fastenerOpacity, _fastenerOpacityValue)),
+                    Row("切割模块不透明度", OpacityControl(_cutterOpacity, _cutterOpacityValue)),
                     _autoUpdate,
+                    new Label { Text = "────────────────────" },
+                    new Label { Text = "补偿切割模块", Font = new Font(SystemFont.Bold, 12) },
+                    _moduleList,
+                    new Label { Text = "关闭仅隐藏预览，导出时仍参与布尔。", TextColor = Colors.Gray },
                     new Label { Text = "────────────────────" },
                     load,
                     place,
@@ -71,10 +86,16 @@ public sealed class RhinoMMPanel : Panel, IPanel
             }
         };
         LoadControls();
+        LoadModules();
         _updateTimer.Elapsed += (_, _) =>
         {
             _updateTimer.Stop();
             ApplyLoaded();
+        };
+        _displayTimer.Elapsed += (_, _) =>
+        {
+            _displayTimer.Stop();
+            ApplyDisplaySettings();
         };
         _kind.SelectedIndexChanged += (_, _) => ScheduleUpdate();
         _size.SelectedIndexChanged += (_, _) => ScheduleUpdate();
@@ -82,6 +103,8 @@ public sealed class RhinoMMPanel : Panel, IPanel
         _printerCorrection.ValueChanged += (_, _) => ScheduleUpdate();
         _clearanceFit.SelectedIndexChanged += (_, _) => ScheduleUpdate();
         _bite.ValueChanged += (_, _) => ScheduleUpdate();
+        _fastenerOpacity.ValueChanged += (_, _) => ScheduleDisplayUpdate();
+        _cutterOpacity.ValueChanged += (_, _) => ScheduleDisplayUpdate();
     }
 
     public void PanelShown(uint documentSerialNumber, ShowPanelReason reason) => LoadSelection(silent: true);
@@ -106,6 +129,17 @@ public sealed class RhinoMMPanel : Panel, IPanel
         return button;
     }
 
+    private static StackLayout OpacityControl(Slider slider, Label value) => new()
+    {
+        Orientation = Orientation.Horizontal,
+        Spacing = 6,
+        Items =
+        {
+            new StackLayoutItem(slider, true),
+            new StackLayoutItem(value)
+        }
+    };
+
     private void LoadSelection(bool silent = false)
     {
         var doc = RhinoDoc.ActiveDoc;
@@ -114,11 +148,12 @@ public sealed class RhinoMMPanel : Panel, IPanel
             _loadedComponent = component;
             EditorState.Current.Load(component);
             LoadControls();
-            _status.Text = $"已读取 {component.Size} / {component.Kind} / {component.Bindings.Count} 个绑定体";
+            LoadModules();
+            _status.Text = $"已读取 {component.Size} / {FastenerLabels.Kind(component.Kind)} / {component.Bindings.Count} 个绑定体";
         }
         else if (!silent)
         {
-            _status.Text = "未选中 RhinoMM 代理体或切割体。";
+            _status.Text = "未选中参数化紧固件或切割模块。";
         }
     }
 
@@ -132,6 +167,9 @@ public sealed class RhinoMMPanel : Panel, IPanel
         _printerCorrection.Value = state.PrinterCorrection;
         _clearanceFit.SelectedKey = state.ClearanceFit.ToString();
         _bite.Value = state.BiteReduction;
+        _fastenerOpacity.Value = (int)Math.Round(state.FastenerOpacityPercent);
+        _cutterOpacity.Value = (int)Math.Round(state.CutterOpacityPercent);
+        UpdateOpacityLabels();
         _loadingControls = false;
     }
 
@@ -144,6 +182,8 @@ public sealed class RhinoMMPanel : Panel, IPanel
         state.PrinterCorrection = _printerCorrection.Value;
         if (Enum.TryParse<ClearanceFitClass>(_clearanceFit.SelectedKey, out var fit)) state.ClearanceFit = fit;
         state.BiteReduction = _bite.Value;
+        state.FastenerOpacityPercent = _fastenerOpacity.Value;
+        state.CutterOpacityPercent = _cutterOpacity.Value;
     }
 
     private void Run(string command)
@@ -160,6 +200,83 @@ public sealed class RhinoMMPanel : Panel, IPanel
         _updateTimer.Stop();
         _updateTimer.Start();
         _status.Text = "参数已修改，准备重建…";
+    }
+
+    private void ScheduleDisplayUpdate()
+    {
+        UpdateOpacityLabels();
+        if (_loadingControls || _loadedComponent is null)
+            return;
+        SaveControls();
+        _displayTimer.Stop();
+        _displayTimer.Start();
+    }
+
+    private void UpdateOpacityLabels()
+    {
+        _fastenerOpacityValue.Text = $"{_fastenerOpacity.Value}%";
+        _cutterOpacityValue.Text = $"{_cutterOpacity.Value}%";
+    }
+
+    private void LoadModules()
+    {
+        _moduleList.Items.Clear();
+        if (_loadedComponent is null || _loadedComponent.Bindings.Count == 0)
+        {
+            _moduleList.Items.Add(new Label { Text = "当前组件没有绑定切割模块。", TextColor = Colors.Gray });
+            return;
+        }
+
+        var doc = RhinoDoc.ActiveDoc;
+        var spec = RhinoMMPlugIn.Catalog.Get(_loadedComponent.Size);
+        foreach (var binding in _loadedComponent.Bindings)
+        {
+            var targetName = doc?.Objects.FindId(binding.TargetObjectId)?.Attributes.Name;
+            if (string.IsNullOrWhiteSpace(targetName))
+                targetName = $"实体 {binding.TargetObjectId.ToString("N")[..8]}";
+            var diameter = HoleDiameterCalculator.Calculate(spec, binding, _loadedComponent.PrintProfile).FinalDiameter;
+            var checkBox = new CheckBox
+            {
+                Checked = binding.IsPreviewVisible,
+                Text = $"{targetName} · {FastenerLabels.Role(binding.Role)} · Ø{diameter:0.###} mm"
+            };
+            var bindingId = binding.BindingId;
+            checkBox.CheckedChanged += (_, _) => SetModuleVisibility(bindingId, checkBox.Checked == true);
+            _moduleList.Items.Add(checkBox);
+        }
+    }
+
+    private void SetModuleVisibility(Guid bindingId, bool visible)
+    {
+        if (_loadingControls || _loadedComponent is null)
+            return;
+        _loadedComponent = _loadedComponent with
+        {
+            Bindings = _loadedComponent.Bindings
+                .Select(binding => binding.BindingId == bindingId ? binding with { IsPreviewVisible = visible } : binding)
+                .ToArray(),
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+        ApplyDisplaySettings();
+    }
+
+    private void ApplyDisplaySettings()
+    {
+        if (_loadedComponent is null || RhinoDoc.ActiveDoc is not { } doc)
+            return;
+        SaveControls();
+        var updated = _loadedComponent with
+        {
+            FastenerOpacityPercent = EditorState.Current.FastenerOpacityPercent,
+            CutterOpacityPercent = EditorState.Current.CutterOpacityPercent,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+        if (ComponentPresentationService.ApplyDisplaySettings(doc, updated, out var message))
+        {
+            _loadedComponent = updated;
+            EditorState.Current.Load(updated);
+        }
+        _status.Text = message;
     }
 
     private void ApplyLoaded()
@@ -179,6 +296,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
         {
             _loadedComponent = saved;
             EditorState.Current.Load(saved);
+            LoadModules();
         }
         _status.Text = message;
     }

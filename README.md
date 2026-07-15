@@ -1,21 +1,20 @@
-# RhinoMM
+# 参数化紧固件
 
-RhinoMM 是面向 Rhino 8 Windows 与 FDM 3D 打印的参数化紧固件孔插件。它把螺丝代理、每个被切割体的孔配合关系和打印补偿保存为可编辑组件；导出 STL/STEP 时只对临时副本做布尔，原始 3DM 保持可修改。
+“参数化紧固件”是面向 Rhino 8 Windows 与 FDM 3D 打印的螺丝、螺母和补偿孔插件。紧固件本体与按宿主生成的切割模块保存在一个可整体选择的 Rhino 组件组中；导出 STL/STEP 时只对临时副本做布尔，原始 3DM 保持可编辑。
 
-## 已实现的 MVP
+## 已实现功能
 
 - M1.6、M2、M2.5、M3、M4、M5、M6、M8、M10、M12 预设。
-- 内六角圆柱头、沉头、六角头螺栓和六角螺母简化代理体。
-- 一颗螺丝可同时绑定两类实体：
-  - 穿过实体：标准间隙孔 + FDM 打印修正 + 单绑定修正，最终孔径必须大于公称直径。
-  - 咬合实体：公称直径 − 经试片校准的咬合缩减 + FDM 打印修正 + 单绑定修正，最终孔径必须小于公称直径。
-- 选择面自动取得位置与法向，或按 Enter 使用起始点与轴向放置。
-- 选择代理体或切割体后读取参数；修改后可应用重建全部关联几何。
-- 把普通 Brep、Extrusion 或块实例接管为 RhinoMM 参数化螺丝；源对象默认隐藏保留。
-- 选择实体并导出 STL/STEP 时，在无界面的临时文档中布尔，不破坏原模型。
-- 文档级组件校验。
+- 内六角圆柱头螺钉、内六角沉头螺钉、六角头螺栓和六角螺母。
+- 一颗紧固件可同时绑定穿过通孔与螺纹咬合孔，两类宿主分别计算补偿。
+- 紧固件与全部切割模块组成一个 Rhino Group，点击任一可见成员均可整体选择。
+- 紧固件本体和切割模块分别调节不透明度，并随 3DM 保存。
+- 每个被切割体可独立隐藏切割预览；隐藏不会影响 STL/STEP 导出布尔。
+- 选择面自动取得位置与法向，或使用起始点与轴向放置。
+- 选择既有组件后读取并自动更新；普通模型可转换为参数化紧固件。
+- 文档级校验和不修改原模型的 STL/STEP 导出。
 
-## 构建
+## 构建与安装
 
 运行要求为 Rhino 8.18+ Windows；插件以 Rhino 8.18 默认的 .NET 7 为最低运行时，源码可使用 .NET 8 SDK 构建：
 
@@ -23,15 +22,15 @@ RhinoMM 是面向 Rhino 8 Windows 与 FDM 3D 打印的参数化紧固件孔插�
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./build/build.ps1
 ```
 
-输出位于 `artifacts/plugin/`。在 Rhino 中运行 `PluginManager`，安装 `RhinoMM.rhp`；打开面板可运行 `RhinoMMPanel`。
+输出位于 `artifacts/plugin/`。完全退出旧 Rhino 进程后，在 `PluginManager` 中安装 `参数化紧固件.rhp`，运行主命令 `ParametricFasteners` 打开面板。
 
-加载新版前必须完全退出所有 Rhino 进程，确保旧 `.rhp` 不再被锁定，再从新构建目录安装。Rhino 8.18 默认使用 .NET Core 7；如果曾通过 `SetDotNetRuntime` 切换到 `NETFramework`，请改回 `NETCore` 并重启 Rhino。
+旧版 `RhinoMMPanel`、`RhinoMMPlaceHole`、`RhinoMMEditHole`、`RhinoMMApplyUpdate`、`RhinoMMAdoptFastener`、`RhinoMMValidate` 和 `RhinoMMExportPrint` 命令继续保留，用于兼容既有工作流。内部 `RhinoMM.*` 元数据键同样保留，以便读取旧 3DM。
 
-主要命令：`RhinoMMPanel`、`RhinoMMPlaceHole`、`RhinoMMEditHole`、`RhinoMMApplyUpdate`、`RhinoMMAdoptFastener`、`RhinoMMValidate`、`RhinoMMExportPrint`。
+如果曾通过 `SetDotNetRuntime` 切换到 `NETFramework`，请改回 `NETCore` 并重启 Rhino。
 
 ## 数据声明
 
-当前预设是 ISO 等效工程尺寸，尚未逐项对照有授权的现行 GB/T 原文，因此不能宣称“已通过国标核验”。打印补偿也必须按打印机、材料、喷嘴和层高用试片校准。
+当前预设是 ISO 等效工程尺寸，尚未逐项对照有授权的现行 GB/T 原文，因此不能宣称“已通过国标核验”。打印补偿必须按打印机、材料、喷嘴和层高用试片校准。
 
 ## 文档
 

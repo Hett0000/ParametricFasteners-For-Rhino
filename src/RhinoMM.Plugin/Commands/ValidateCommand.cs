@@ -34,7 +34,7 @@ public sealed class RhinoMMValidateCommand : Command
             }
         }
 
-        RhinoApp.WriteLine($"RhinoMM 校验完成：{components.Count} 个组件，{errors} 个错误。");
+        RhinoApp.WriteLine($"参数化紧固件校验完成：{components.Count} 个组件，{errors} 个错误。");
         return errors == 0 ? Result.Success : Result.Failure;
     }
 }

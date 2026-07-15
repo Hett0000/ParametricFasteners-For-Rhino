@@ -31,10 +31,25 @@ public static class FastenerGeometryFactory
                 break;
         }
 
+        var tolerance = RhinoDoc.ActiveDoc?.ModelAbsoluteTolerance ?? 0.001;
+        IReadOnlyList<Brep> result = local;
+        if (local.Count > 1)
+        {
+            var union = Brep.CreateBooleanUnion(local, tolerance);
+            if (union is { Length: 1 })
+                result = union;
+            else
+            {
+                var joined = Brep.JoinBreps(local, tolerance);
+                if (joined is { Length: 1 })
+                    result = joined;
+            }
+        }
+
         var transform = Transform.PlaneToPlane(Plane.WorldXY, ToPlane(data.Placement));
-        foreach (var brep in local)
+        foreach (var brep in result)
             brep.Transform(transform);
-        return local;
+        return result;
     }
 
     public static Brep CreateShaftCutter(

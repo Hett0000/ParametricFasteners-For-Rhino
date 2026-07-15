@@ -15,3 +15,14 @@ public sealed class RhinoMMPanelCommand : Command
         return Result.Success;
     }
 }
+
+public sealed class ParametricFastenersCommand : Command
+{
+    public override string EnglishName => "ParametricFasteners";
+
+    protected override Result RunCommand(RhinoDoc doc, RunMode mode)
+    {
+        Panels.OpenPanel(typeof(RhinoMMPanel).GUID);
+        return Result.Success;
+    }
+}

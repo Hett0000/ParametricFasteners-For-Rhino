@@ -54,29 +54,52 @@ public static class FastenerComponentService
             return false;
         }
 
-        var undo = doc.BeginUndoRecord("RhinoMM 更新紧固件组件");
+        var undo = doc.BeginUndoRecord("参数化紧固件：更新组件");
+        if (undo == 0)
+        {
+            message = "无法创建 Rhino 撤销记录，组件未更新。";
+            return false;
+        }
         try
         {
+            ComponentPresentationService.RemoveGroup(doc, draft.ComponentId);
             foreach (var old in ComponentRepository.FindComponentObjects(doc, draft.ComponentId).ToList())
                 doc.Objects.Delete(old, true);
 
             var proxyIds = new List<Guid>();
             foreach (var proxy in proxies)
             {
-                var id = doc.Objects.AddBrep(proxy, ComponentRepository.CreateAttributes(draft, "Proxy"));
+                var attributes = ComponentRepository.CreateAttributes(draft, "Proxy");
+                ComponentPresentationService.ConfigureAttributes(doc, attributes, draft, false, true);
+                var id = doc.Objects.AddBrep(proxy, attributes);
                 if (id == Guid.Empty)
                     throw new InvalidOperationException("无法写入螺丝代理体。");
                 proxyIds.Add(id);
             }
 
             var bindings = new List<HoleTargetBinding>();
+            var componentObjectIds = new List<Guid>(proxyIds);
             foreach (var item in cutters)
             {
-                var cutterId = doc.Objects.AddBrep(item.Shaft, ComponentRepository.CreateAttributes(draft, "Cutter", item.Binding.TargetObjectId));
+                var cutterAttributes = ComponentRepository.CreateAttributes(
+                    draft, "Cutter", item.Binding.TargetObjectId, item.Binding.BindingId);
+                ComponentPresentationService.ConfigureAttributes(
+                    doc, cutterAttributes, draft, true, item.Binding.IsPreviewVisible);
+                var cutterId = doc.Objects.AddBrep(item.Shaft, cutterAttributes);
                 if (cutterId == Guid.Empty)
                     throw new InvalidOperationException("无法写入孔切割体。");
+                componentObjectIds.Add(cutterId);
                 if (item.Head is not null)
-                    doc.Objects.AddBrep(item.Head, ComponentRepository.CreateAttributes(draft, "HeadCutter", item.Binding.TargetObjectId));
+                {
+                    var headAttributes = ComponentRepository.CreateAttributes(
+                        draft, "HeadCutter", item.Binding.TargetObjectId, item.Binding.BindingId);
+                    ComponentPresentationService.ConfigureAttributes(
+                        doc, headAttributes, draft, true, item.Binding.IsPreviewVisible);
+                    var headId = doc.Objects.AddBrep(item.Head, headAttributes);
+                    if (headId == Guid.Empty)
+                        throw new InvalidOperationException("无法写入头部切割体。");
+                    componentObjectIds.Add(headId);
+                }
                 bindings.Add(item.Binding with { CutterObjectId = cutterId });
             }
 
@@ -92,9 +115,12 @@ public static class FastenerComponentService
                 var attributes = obj.Attributes.Duplicate();
                 ComponentRepository.Write(attributes, saved,
                     obj.Attributes.GetUserString(ComponentRepository.RoleKey) ?? "Proxy",
-                    Guid.TryParse(obj.Attributes.GetUserString(ComponentRepository.TargetIdKey), out var targetId) ? targetId : Guid.Empty);
+                    Guid.TryParse(obj.Attributes.GetUserString(ComponentRepository.TargetIdKey), out var targetId) ? targetId : Guid.Empty,
+                    Guid.TryParse(obj.Attributes.GetUserString(ComponentRepository.BindingIdKey), out var bindingId) ? bindingId : Guid.Empty);
                 doc.Objects.ModifyAttributes(obj, attributes, true);
             }
+
+            ComponentPresentationService.RecreateGroup(doc, saved.ComponentId, componentObjectIds);
 
             doc.Views.Redraw();
             message = $"已生成 {saved.Size}，绑定 {saved.Bindings.Count} 个被切割体。";

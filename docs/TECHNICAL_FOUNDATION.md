@@ -31,7 +31,8 @@ docs/
 
 | 命令 | 用途 |
 | --- | --- |
-| `RhinoMMPanel` | 打开或聚焦停靠面板 |
+| `ParametricFasteners` | 打开或聚焦“参数化紧固件”停靠面板 |
+| `RhinoMMPanel` | 兼容旧工作流的面板命令 |
 | `RhinoMMPlaceHole` | 通过命令行选项放置组件 |
 | `RhinoMMEditHole` | 编辑现有组件 |
 | `RhinoMMAdoptFastener` | 将当前普通螺丝对象接管为 RhinoMM 组件 |
@@ -86,6 +87,8 @@ fitClass
 proxyObjectId
 adoptedSourceObjectId?
 profileSnapshot
+fastenerOpacityPercent   0..100，默认 70
+cutterOpacityPercent     0..100，默认 35
 xyOverrideMm?
 zOverrideMm?
 depthMode
@@ -110,6 +113,7 @@ xyCorrectionOverrideMm?
 depthMode                 throughTarget | blind
 blindDepthMm?
 includeHeadSeat           每个组件最多一个 true
+isPreviewVisible          仅控制视口显示，默认 true
 ```
 
 同一组件内 `targetObjectId` 必须唯一。首版 `threadEngagement` 表示直接拧入打印材料的无螺纹圆柱预孔，不等同于标准 6H 内螺纹；数据模型为未来的 `tapPilot` 或真实螺纹策略预留版本字段，但首版不暴露未实现模式。
@@ -119,6 +123,8 @@ includeHeadSeat           每个组件最多一个 true
 `FastenerProxy` 是组件在 Rhino 视口中的可选择代表，使用标准公称尺寸生成简化头部和杆部，不生成螺旋牙型。它与 `HoleComponentData` 共享稳定 `componentId`，并满足：
 
 - 选择代理、任一切割体或对象属性中的组件链接，都能解析到同一个组件。
+- 代理和全部切割体加入 `参数化紧固件::<componentId>` 原生组，点击任一可见成员时整体选择。
+- 本体和切割模块使用按组件稳定命名的两套材质；修改透明度只更新材质，不重建几何。
 - 代理变换更新 `placementPlane`，随后重建全部绑定切割体并重新验证相交。
 - 代理默认不参与打印导出，只作为放置、选择和装配检查的可视对象。
 - 更新几何时优先使用 `ObjectTable.Replace` 保持 `proxyObjectId`；若 Rhino 必须产生新 ID，则在同一事务中修正所有反向索引。

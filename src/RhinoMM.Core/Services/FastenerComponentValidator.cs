@@ -11,6 +11,12 @@ public static class FastenerComponentValidator
         if (component.Length <= 0)
             result.Issues.Add(new("length", "螺丝长度必须大于 0。"));
 
+        if (component.FastenerOpacityPercent is < 0 or > 100)
+            result.Issues.Add(new("fastener-opacity", "紧固件不透明度必须在 0–100% 之间。"));
+
+        if (component.CutterOpacityPercent is < 0 or > 100)
+            result.Issues.Add(new("cutter-opacity", "切割模块不透明度必须在 0–100% 之间。"));
+
         if (component.Kind == FastenerKind.HexNut && component.Bindings.Count > 0)
             result.Issues.Add(new("nut-binding", "螺母预览暂不应直接绑定轴孔；请使用螺丝组件定义孔位。", false));
 

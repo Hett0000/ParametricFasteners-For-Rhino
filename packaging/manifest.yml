@@ -1,10 +1,10 @@
-name: RhinoMM
-version: 0.1.1
+name: parametric-fasteners
+version: 0.2.0
 authors:
-  - RhinoMM
+  - 参数化紧固件
 description: >
-  Parametric fastener holes for Rhino 8 and FDM printing, with per-target
-  clearance or thread-engagement compensation and non-destructive STL/STEP export.
+  参数化紧固件：面向 Rhino 8 与 FDM 打印的螺丝、螺母及补偿孔组件，
+  支持逐目标配合、整体选择和无损 STL/STEP 导出。
 keywords:
   - 3d-printing
   - fastener

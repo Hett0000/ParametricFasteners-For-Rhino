@@ -16,12 +16,12 @@ public sealed class RhinoMMPlugIn : PlugIn
     {
         try
         {
-            Panels.RegisterPanel(this, typeof(RhinoMMPanel), "RhinoMM 3D 打印紧固件", null);
+            Panels.RegisterPanel(this, typeof(RhinoMMPanel), "参数化紧固件", null);
             return LoadReturnCode.Success;
         }
         catch (Exception ex)
         {
-            errorMessage = $"RhinoMM 初始化失败：{ex}";
+            errorMessage = $"参数化紧固件初始化失败：{ex}";
             Rhino.RhinoApp.WriteLine(errorMessage);
             return LoadReturnCode.ErrorShowDialog;
         }
