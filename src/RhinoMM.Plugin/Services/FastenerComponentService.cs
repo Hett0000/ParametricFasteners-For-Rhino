@@ -55,11 +55,7 @@ public static class FastenerComponentService
         }
 
         var undo = doc.BeginUndoRecord("参数化紧固件：更新组件");
-        if (undo == 0)
-        {
-            message = "无法创建 Rhino 撤销记录，组件未更新。";
-            return false;
-        }
+        var ownsUndoRecord = undo != 0;
         try
         {
             ComponentPresentationService.RemoveGroup(doc, draft.ComponentId);
@@ -128,18 +124,20 @@ public static class FastenerComponentService
         }
         catch (Exception ex)
         {
-            if (undo != 0)
+            if (ownsUndoRecord && undo != 0)
             {
                 doc.EndUndoRecord(undo);
                 undo = 0;
+                doc.Undo();
             }
-            doc.Undo();
-            message = $"更新失败，已回滚：{ex.Message}";
+            message = ownsUndoRecord
+                ? $"更新失败，已回滚：{ex.Message}"
+                : $"更新失败：{ex.Message}。当前操作由 Rhino 命令撤销记录管理。";
             return false;
         }
         finally
         {
-            if (undo != 0)
+            if (ownsUndoRecord && undo != 0)
                 doc.EndUndoRecord(undo);
         }
     }
