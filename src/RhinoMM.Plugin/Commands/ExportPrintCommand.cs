@@ -47,6 +47,7 @@ public sealed class RhinoMMExportPrintCommand : Command
 
             var cutterBreps = allObjects
                 .Where(obj => string.Equals(obj.Attributes.GetUserString(ComponentRepository.TargetIdKey), host.Id.ToString("D"), StringComparison.OrdinalIgnoreCase))
+                .Where(IsBooleanEnabled)
                 .SelectMany(obj => ToBreps(obj.Geometry))
                 .ToList();
 
@@ -93,4 +94,13 @@ public sealed class RhinoMMExportPrintCommand : Command
         Extrusion extrusion => [extrusion.ToBrep()],
         _ => []
     };
+
+    private static bool IsBooleanEnabled(RhinoObject obj)
+    {
+        if (!ComponentRepository.TryRead(obj, out var component))
+            return false;
+        if (!Guid.TryParse(obj.Attributes.GetUserString(ComponentRepository.BindingIdKey), out var bindingId))
+            return false;
+        return component.Bindings.FirstOrDefault(binding => binding.BindingId == bindingId)?.IsBooleanEnabled == true;
+    }
 }

@@ -20,12 +20,17 @@ public static class ComponentJson
         if (data.SchemaVersion >= FastenerComponentData.CurrentSchemaVersion)
             return data;
 
+        var sourceVersion = data.SchemaVersion;
         return data with
         {
             SchemaVersion = FastenerComponentData.CurrentSchemaVersion,
-            FastenerOpacityPercent = 70,
-            CutterOpacityPercent = 35,
-            Bindings = data.Bindings.Select(binding => binding with { IsPreviewVisible = true }).ToArray()
+            FastenerOpacityPercent = sourceVersion < 2 ? 70 : data.FastenerOpacityPercent,
+            CutterOpacityPercent = sourceVersion < 2 ? 35 : data.CutterOpacityPercent,
+            Bindings = data.Bindings.Select(binding => binding with
+            {
+                IsPreviewVisible = sourceVersion < 2 || binding.IsPreviewVisible,
+                IsBooleanEnabled = true
+            }).ToArray()
         };
     }
 }

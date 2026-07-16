@@ -27,4 +27,12 @@ public static class FastenerLabels
         ShaftFitRole.ThreadEngagement => "螺纹咬合孔",
         _ => role.ToString()
     };
+
+    public static string Depth(DepthMode mode) => mode switch
+    {
+        DepthMode.ThroughTarget => "贯穿宿主",
+        DepthMode.FastenerLengthPlusTwoDiameters => "螺杆长度 + 2D",
+        DepthMode.Blind => "自定义深度",
+        _ => mode.ToString()
+    };
 }

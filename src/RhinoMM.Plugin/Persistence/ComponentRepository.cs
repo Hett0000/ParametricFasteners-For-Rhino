@@ -82,6 +82,17 @@ public static class ComponentRepository
         return false;
     }
 
+    public static bool TryReadComponent(RhinoDoc doc, Guid componentId, out FastenerComponentData data)
+    {
+        foreach (var obj in FindComponentObjects(doc, componentId))
+        {
+            if (TryRead(obj, out data))
+                return true;
+        }
+        data = new FastenerComponentData();
+        return false;
+    }
+
     public static RhinoObject? FindProxy(RhinoDoc doc, Guid componentId) =>
         doc.Objects.FirstOrDefault(obj =>
             string.Equals(obj.Attributes.GetUserString(ComponentIdKey), componentId.ToString("D"), StringComparison.OrdinalIgnoreCase)

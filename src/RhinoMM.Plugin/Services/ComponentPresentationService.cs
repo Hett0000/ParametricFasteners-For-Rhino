@@ -24,7 +24,9 @@ public static class ComponentPresentationService
     {
         attributes.LayerIndex = EnsureLayer(doc, isCutter ? CutterLayerPath : FastenerLayerPath, isCutter ? CutterColor : FastenerColor);
         attributes.MaterialSource = ObjectMaterialSource.MaterialFromObject;
-        attributes.MaterialIndex = EnsureMaterial(doc, data, isCutter);
+        var materialIndex = EnsureMaterial(doc, data, isCutter);
+        attributes.MaterialIndex = materialIndex;
+        attributes.RenderMaterial = doc.Materials[materialIndex].RenderMaterial;
         attributes.Visible = visible;
     }
 

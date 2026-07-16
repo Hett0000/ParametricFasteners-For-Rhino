@@ -24,6 +24,7 @@ public enum ShaftFitRole
 public enum DepthMode
 {
     ThroughTarget,
+    FastenerLengthPlusTwoDiameters,
     Blind
 }
 
@@ -100,12 +101,13 @@ public sealed record HoleTargetBinding
     public double BlindDepth { get; init; }
     public bool IncludeHeadSeat { get; init; }
     public bool IsPreviewVisible { get; init; } = true;
+    public bool IsBooleanEnabled { get; init; } = true;
     public Guid CutterObjectId { get; init; }
 }
 
 public sealed record FastenerComponentData
 {
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
     public Guid ComponentId { get; init; } = Guid.NewGuid();

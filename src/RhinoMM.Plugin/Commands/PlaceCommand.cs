@@ -16,33 +16,38 @@ public sealed class RhinoMMPlaceHoleCommand : Command
 
     protected override Result RunCommand(RhinoDoc doc, RunMode mode)
     {
-        var clearanceTargets = SelectTargets("选择螺丝穿过的物体（正补偿通孔），按 Enter 跳过");
-        var engagementTargets = SelectTargets("选择需要与螺丝咬合的物体（负补偿孔），按 Enter 跳过");
+        var clearanceTargets = SelectTargets("选择螺丝穿过的物体（正补偿通孔）");
+        var engagementTargets = SelectTargets("选择需要与螺丝咬合的物体（负补偿孔）");
         if (clearanceTargets.Count + engagementTargets.Count == 0)
         {
             RhinoApp.WriteLine("至少需要选择一个被切割体。");
             return Result.Cancel;
         }
 
-        var placementResult = GetPlacementPlane(out var plane);
+        var placementResult = GetPlacementPlane(out var plane, out var placementObjectId);
         if (placementResult != Result.Success)
             return placementResult;
 
         var state = EditorState.Current;
         var bindings = new List<HoleTargetBinding>();
-        bindings.AddRange(clearanceTargets.Select((id, index) => new HoleTargetBinding
+        var headSeatTarget = clearanceTargets.Contains(placementObjectId)
+            ? placementObjectId
+            : engagementTargets.Contains(placementObjectId)
+                ? placementObjectId
+                : clearanceTargets.FirstOrDefault(engagementTargets.FirstOrDefault());
+        bindings.AddRange(clearanceTargets.Select(id => new HoleTargetBinding
         {
             TargetObjectId = id,
             Role = ShaftFitRole.Clearance,
             ClearanceFit = state.ClearanceFit,
-            IncludeHeadSeat = index == 0
+            IncludeHeadSeat = id == headSeatTarget
         }));
-        bindings.AddRange(engagementTargets.Select((id, index) => new HoleTargetBinding
+        bindings.AddRange(engagementTargets.Select(id => new HoleTargetBinding
         {
             TargetObjectId = id,
             Role = ShaftFitRole.ThreadEngagement,
             BiteReduction = state.BiteReduction,
-            IncludeHeadSeat = clearanceTargets.Count == 0 && index == 0
+            IncludeHeadSeat = id == headSeatTarget
         }));
 
         state.LoadedComponentId = Guid.Empty;
@@ -53,7 +58,7 @@ public sealed class RhinoMMPlaceHoleCommand : Command
             return Result.Failure;
         }
 
-        state.Load(saved);
+        ComponentEditorSession.Activate(doc, saved);
         RhinoApp.WriteLine(message);
         return Result.Success;
     }
@@ -75,11 +80,12 @@ public sealed class RhinoMMPlaceHoleCommand : Command
         return Enumerable.Range(0, go.ObjectCount).Select(i => go.Object(i).ObjectId).Distinct().ToList();
     }
 
-    private static Result GetPlacementPlane(out Plane plane)
+    private static Result GetPlacementPlane(out Plane plane, out Guid placementObjectId)
     {
         plane = Plane.WorldXY;
+        placementObjectId = Guid.Empty;
         using var faceGetter = new GetObject();
-        faceGetter.SetCommandPrompt("选择放置面；按 Enter 改用起始点和轴向");
+        faceGetter.SetCommandPrompt("选择放置面，或按 Enter 改用起始点和轴向");
         faceGetter.GeometryFilter = ObjectType.Surface;
         faceGetter.SubObjectSelect = true;
         faceGetter.AcceptNothing(true);
@@ -91,8 +97,31 @@ public sealed class RhinoMMPlaceHoleCommand : Command
             var point = reference.SelectionPoint();
             if (face is null || !point.IsValid || !face.ClosestPoint(point, out var u, out var v))
                 return Result.Failure;
-            if (!face.FrameAt(u, v, out plane))
-                plane = new Plane(point, face.NormalAt(u, v));
+            var faceOrigin = face.PointAt(u, v);
+            if (!face.FrameAt(u, v, out var frame))
+                frame = new Plane(faceOrigin, face.NormalAt(u, v));
+            var normal = face.NormalAt(u, v);
+            if (face.OrientationIsReversed)
+                normal.Reverse();
+            var inwardAxis = normal;
+            if (face.Brep.IsSolid)
+                inwardAxis.Reverse();
+            else
+            {
+                var flip = false;
+                var directionResult = RhinoGet.GetBool(
+                    "开放曲面无法判断内外，是否翻转当前方向", true, "保持", "翻转", ref flip);
+                if (directionResult is not Result.Success and not Result.Nothing)
+                    return directionResult;
+                if (flip)
+                    inwardAxis.Reverse();
+            }
+            var xAxis = frame.XAxis;
+            var yAxis = Vector3d.CrossProduct(inwardAxis, xAxis);
+            if (!yAxis.Unitize())
+                return Result.Failure;
+            plane = new Plane(faceOrigin, xAxis, yAxis);
+            placementObjectId = reference.ObjectId;
             return Result.Success;
         }
         if (faceResult != GetResult.Nothing)

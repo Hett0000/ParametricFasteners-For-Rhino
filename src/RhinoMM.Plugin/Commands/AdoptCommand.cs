@@ -25,7 +25,7 @@ public sealed class RhinoMMAdoptFastenerCommand : Command
         var source = go.Object(0).Object();
         if (ComponentRepository.TryRead(source, out var existing))
         {
-            EditorState.Current.Load(existing);
+            ComponentEditorSession.Activate(doc, existing, true);
             RhinoApp.WriteLine("该对象已经是参数化紧固件组件，参数已读取到面板。");
             return Result.Success;
         }
@@ -55,7 +55,7 @@ public sealed class RhinoMMAdoptFastenerCommand : Command
 
         source.Attributes.Visible = false;
         doc.Objects.ModifyAttributes(source, source.Attributes, true);
-        state.Load(saved);
+        ComponentEditorSession.Activate(doc, saved);
         RhinoApp.WriteLine($"已按当前面板规格转换；原对象已隐藏并保留。{message}");
         return Result.Success;
     }

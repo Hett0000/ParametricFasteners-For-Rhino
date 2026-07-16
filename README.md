@@ -9,7 +9,8 @@
 - 一颗紧固件可同时绑定穿过通孔与螺纹咬合孔，两类宿主分别计算补偿。
 - 紧固件与全部切割模块组成一个 Rhino Group，点击任一可见成员均可整体选择。
 - 紧固件本体和切割模块分别调节不透明度，并随 3DM 保存。
-- 每个被切割体可独立隐藏切割预览；隐藏不会影响 STL/STEP 导出布尔。
+- 每个被切割体可独立控制切割预览和是否参与 STL/STEP 导出布尔。
+- 咬合孔可逐宿主选择贯穿、`螺杆长度 + 2D` 或自定义深度；`D` 为公称直径。
 - 选择面自动取得位置与法向，或使用起始点与轴向放置。
 - 选择既有组件后读取并自动更新；普通模型可转换为参数化紧固件。
 - 文档级校验和不修改原模型的 STL/STEP 导出。
@@ -22,7 +23,7 @@
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./build/build.ps1
 ```
 
-输出位于 `artifacts/plugin/`。完全退出旧 Rhino 进程后，在 `PluginManager` 中安装 `参数化紧固件.rhp`，运行主命令 `ParametricFasteners` 打开面板。
+输出位于 `artifacts/plugin/`。构建会先完成测试、工具列生成和 Rhino 兼容检查，再把旧目录完整备份到 `artifacts/backups/` 并原子替换；Rhino 占用旧文件时不会修改原位置。完全退出旧 Rhino 进程后，在 `PluginManager` 中安装 `参数化紧固件.rhp`，运行主命令 `ParametricFasteners` 打开面板。同名 `参数化紧固件.rui` 包含六按钮中文工具列。
 
 旧版 `RhinoMMPanel`、`RhinoMMPlaceHole`、`RhinoMMEditHole`、`RhinoMMApplyUpdate`、`RhinoMMAdoptFastener`、`RhinoMMValidate` 和 `RhinoMMExportPrint` 命令继续保留，用于兼容既有工作流。内部 `RhinoMM.*` 元数据键同样保留，以便读取旧 3DM。
 

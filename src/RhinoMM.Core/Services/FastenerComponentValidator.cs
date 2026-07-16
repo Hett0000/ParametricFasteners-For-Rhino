@@ -31,6 +31,9 @@ public static class FastenerComponentValidator
             if (binding.DepthMode == DepthMode.Blind && binding.BlindDepth <= 0)
                 result.Issues.Add(new("blind-depth", "盲孔深度必须大于 0。"));
 
+            if (binding.Role == ShaftFitRole.Clearance && binding.DepthMode != DepthMode.ThroughTarget)
+                result.Issues.Add(new("clearance-depth", "穿过通孔只能使用贯穿宿主深度模式。"));
+
             if (binding.Role == ShaftFitRole.ThreadEngagement && binding.BiteReduction <= 0)
                 result.Issues.Add(new("bite-required", "咬合孔必须输入大于 0 的咬合缩减量，不能使用未校准默认值。"));
 

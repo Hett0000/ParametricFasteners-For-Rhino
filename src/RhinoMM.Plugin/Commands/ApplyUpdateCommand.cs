@@ -29,13 +29,18 @@ public sealed class RhinoMMApplyUpdateCommand : Command
             RhinoApp.WriteLine(message);
             return Result.Failure;
         }
-        state.Load(saved);
+        ComponentEditorSession.Activate(doc, saved);
         RhinoApp.WriteLine(message);
         return Result.Success;
     }
 
     private static void FastenerComponentDataFromSelection(RhinoDoc doc, out RhinoMM.Core.Domain.FastenerComponentData? data)
     {
-        data = ComponentRepository.TryReadSelection(doc, out var found) ? found : null;
+        if (ComponentRepository.TryReadSelection(doc, out var selected))
+            data = selected;
+        else if (ComponentEditorSession.TryGetActive(doc, out var active))
+            data = active;
+        else
+            data = null;
     }
 }

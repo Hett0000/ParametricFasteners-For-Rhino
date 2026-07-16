@@ -1,70 +1,37 @@
-# 开发准备
+# 开发与部署
 
-## 1. 当前状态
-
-此仓库目前只包含产品、技术和视觉设计基线。当前机器检查结果：
-
-- 未检测到 Rhino 安装。
-- `dotnet --info` 未发现 .NET SDK。
-- 可见多个 .NET Runtime，但 Runtime 不能替代 SDK 完成编译。
-
-因此下一阶段首先是安装并验证开发环境，不应在缺少 Rhino 的情况下声称插件已构建或测试。
-
-## 2. 必需环境
+## 环境
 
 - Windows 10 或更新版本。
-- Rhino 8.18 或更新的 Rhino 8 服务版本。
-- .NET 8 SDK x64。
-- Visual Studio 2022（`.NET desktop development`）或 VS Code＋C# Dev Kit。
-- Rhino Visual Studio Extension 或 `Rhino.Templates`。
-- Git。
+- Rhino 8.18+，插件以 .NET 7 为最低运行时。
+- .NET 8 SDK；仓库优先使用 `.dotnet/dotnet.exe`。
+- 当前验证环境：Rhino 8.18.25098.11001、RhinoCommon、Eto Forms 2.8.3。
 
-安装参考：[Rhino Windows 开发工具指南](https://developer.rhino3d.com/guides/rhinocommon/installing-tools-windows/)。
+## 构建
 
-## 3. 环境验证
-
-安装完成后记录以下输出：
+完全关闭 Rhino 后运行：
 
 ```powershell
-dotnet --info
-dotnet --list-sdks
-Get-Item 'C:\Program Files\Rhino 8\System\RhinoCommon.dll'
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./build/build.ps1 -Configuration Release
 ```
 
-最低通过条件：存在 8.x SDK、RhinoCommon 文件可读，并能启动 Rhino 8 的 .NET Core 7 或更新运行时。
+脚本依次执行 restore、核心测试、Release 构建、RUI 图标生成和 Rhino `Compat.exe` 检查。所有步骤先在 `artifacts/.staging/` 完成。
 
-## 4. 计划中的构建命令
+默认部署目标为 `artifacts/plugin/`。目标存在时，脚本先检查全部文件能否独占打开；被 Rhino 占用时立即停止，原目录不变。验证通过后，旧目录移动到 `artifacts/backups/<时间>-v<版本>/`，再原子替换为 staging。备份不会自动删除。若该插件 GUID 已在 Rhino 8 注册，脚本同时把 `FileName` 更新到固定的 canonical RHP 路径，避免重启后继续加载旧版本目录。
 
-项目骨架建立后统一使用：
+可通过 `-OutputDirectory artifacts/build-test` 生成独立验证目录，不替换当前安装位置。
 
-```powershell
-dotnet restore
-dotnet build -c Debug
-dotnet test -c Debug
-dotnet build -c Release
-```
+最终插件目录仅包含：
 
-Yak 打包命令和清单将在插件骨架生成后写入仓库脚本；在清单、版本、目标 Rhino 版本和许可证尚未确认前不发布包。
+- `参数化紧固件.rhp`
+- `参数化紧固件.rui`
+- `RhinoMM.Core.dll`
+- `manifest.yml`
 
-## 5. 分支与提交约定
+## 完成定义
 
-- 默认分支：`main`。
-- 功能分支：`feature/<short-name>`。
-- 修复分支：`fix/<short-name>`。
-- 提交信息采用简短祈使句，可使用 `docs:`、`feat:`、`fix:`、`test:`、`build:` 前缀。
-- 不提交 `bin/`、`obj/`、`.rhp`、`.yak`、IDE 用户设置、临时模型或私有标准全文。
-
-## 6. 完成定义
-
-任何功能只有同时满足以下条件才算完成：
-
-1. 产品需求中的对应编号已实现。
-2. 核心公式具备单元测试，Rhino 行为具备集成测试。
-3. 错误路径和 Undo/Redo 已验证。
-4. 中文界面无截断，高 DPI 下可用。
-5. 导出结果复读通过，源文档不变。
-6. 文档和决策记录同步更新。
-
-小尺寸功能提交还必须包含 M1.6 的数据校验、容差阈值和自适应 STL 网格测试；多宿主功能提交必须验证同一组件可对不同宿主输出不同轴孔直径。
-
-选择与编辑功能提交必须覆盖组件索引重建、代理/切割体双入口读取、原子更新回滚和 Undo/Redo；接管功能提交必须证明源对象默认可恢复，且块定义不会被修改。
+1. 核心测试全部通过，Release 构建零警告、零错误。
+2. `Compat.exe` 通过 Rhino 8.18 API 检查。
+3. Rhino 实际加载后，面板在 280–500 DIP 和 100%–200% 缩放下无横向滚动条。
+4. 放置、读取、更新、Undo、透明度、模块开关和 STL/STEP 导出完成实际验证。
+5. M1.6 数据、M3 `L+2D` 深度和多宿主不同孔径具备回归测试。

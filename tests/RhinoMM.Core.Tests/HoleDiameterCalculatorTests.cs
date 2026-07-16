@@ -110,10 +110,45 @@ public class HoleDiameterCalculatorTests
 
         var migrated = ComponentJson.Deserialize(json);
 
-        Assert.Equal(2, migrated.SchemaVersion);
+        Assert.Equal(3, migrated.SchemaVersion);
         Assert.Equal(70, migrated.FastenerOpacityPercent);
         Assert.Equal(35, migrated.CutterOpacityPercent);
         Assert.True(migrated.Bindings.Single().IsPreviewVisible);
+        Assert.True(migrated.Bindings.Single().IsBooleanEnabled);
+    }
+
+    [Fact]
+    public void SchemaV2PreservesAppearanceAndEnablesBooleanByDefault()
+    {
+        var data = new FastenerComponentData
+        {
+            SchemaVersion = 2,
+            FastenerOpacityPercent = 42,
+            CutterOpacityPercent = 18,
+            Bindings = [new HoleTargetBinding
+            {
+                TargetObjectId = Guid.NewGuid(),
+                IsPreviewVisible = false,
+                IsBooleanEnabled = false
+            }]
+        };
+
+        var migrated = ComponentJson.Migrate(data);
+
+        Assert.Equal(3, migrated.SchemaVersion);
+        Assert.Equal(42, migrated.FastenerOpacityPercent);
+        Assert.Equal(18, migrated.CutterOpacityPercent);
+        Assert.False(migrated.Bindings.Single().IsPreviewVisible);
+        Assert.True(migrated.Bindings.Single().IsBooleanEnabled);
+    }
+
+    [Theory]
+    [InlineData(DepthMode.ThroughTarget, "贯穿宿主")]
+    [InlineData(DepthMode.FastenerLengthPlusTwoDiameters, "螺杆长度 + 2D")]
+    [InlineData(DepthMode.Blind, "自定义深度")]
+    public void DepthModesHaveChineseLabels(DepthMode mode, string expected)
+    {
+        Assert.Equal(expected, FastenerLabels.Depth(mode));
     }
 
     [Theory]
@@ -141,5 +176,20 @@ public class HoleDiameterCalculatorTests
         Assert.Equal(
             HoleDiameterCalculator.Calculate(Catalog.Get("M3"), visible, profile).FinalDiameter,
             HoleDiameterCalculator.Calculate(Catalog.Get("M3"), hidden, profile).FinalDiameter);
+    }
+
+    [Fact]
+    public void FastenerLengthDepthUsesTwoNominalDiameters()
+    {
+        var component = new FastenerComponentData { Size = "M3", Length = 34 };
+        var binding = new HoleTargetBinding
+        {
+            TargetObjectId = Guid.NewGuid(),
+            Role = ShaftFitRole.ThreadEngagement,
+            DepthMode = DepthMode.FastenerLengthPlusTwoDiameters,
+            BiteReduction = 0.35
+        };
+
+        Assert.Equal(40, HoleDepthCalculator.GetLimit(component, Catalog.Get("M3"), binding), 6);
     }
 }

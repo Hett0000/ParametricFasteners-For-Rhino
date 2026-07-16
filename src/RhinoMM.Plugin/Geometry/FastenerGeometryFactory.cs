@@ -1,5 +1,6 @@
 using Rhino;
 using Rhino.Geometry;
+using Rhino.Geometry.Intersect;
 using RhinoMM.Core.Domain;
 
 namespace RhinoMM.Plugin.Geometry;
@@ -56,15 +57,64 @@ public static class FastenerGeometryFactory
         FastenerComponentData data,
         FastenerSizeSpec spec,
         HoleTargetBinding binding,
-        double targetSpan)
+        double start,
+        double end)
     {
         var diameter = Core.Services.HoleDiameterCalculator.Calculate(spec, binding, data.PrintProfile).FinalDiameter;
-        var depth = binding.DepthMode == DepthMode.Blind ? binding.BlindDepth : Math.Max(targetSpan * 2, data.Length + 20);
-        var start = binding.DepthMode == DepthMode.Blind ? 0 : -depth * 0.25;
-        var cutter = CreateCylinder(diameter / 2, depth, start);
+        if (end <= start)
+            throw new InvalidOperationException("切割深度没有与宿主产生有效重叠。");
+        var cutter = CreateCylinder(diameter / 2, end - start, start);
         cutter.Transform(Transform.PlaneToPlane(Plane.WorldXY, ToPlane(data.Placement)));
         return cutter;
     }
+
+    public static bool TryGetTargetInterval(
+        GeometryBase geometry,
+        PlacementFrame placement,
+        double tolerance,
+        out Interval interval,
+        out bool usedFallback)
+    {
+        var plane = ToPlane(placement);
+        var axis = plane.ZAxis;
+        axis.Unitize();
+        var box = geometry.GetBoundingBox(true);
+        var projected = box.GetCorners()
+            .Select(point => Vector3d.Multiply(point - plane.Origin, axis))
+            .ToArray();
+        var boxMin = projected.Min();
+        var boxMax = projected.Max();
+        var extension = Math.Max(box.Diagonal.Length * 0.05, Math.Max(tolerance * 10, 0.2));
+        var line = new LineCurve(
+            plane.Origin + axis * (boxMin - extension),
+            plane.Origin + axis * (boxMax + extension));
+
+        var brep = geometry switch
+        {
+            Brep value => value,
+            Extrusion extrusion => extrusion.ToBrep(),
+            _ => null
+        };
+        if (brep is not null
+            && Intersection.CurveBrep(line, brep, tolerance, out _, out var points)
+            && points.Length >= 2)
+        {
+            var parameters = points
+                .Select(point => Vector3d.Multiply(point - plane.Origin, axis))
+                .OrderBy(value => value)
+                .ToArray();
+            interval = new Interval(parameters[0], parameters[^1]);
+            usedFallback = false;
+            return interval.Length > tolerance;
+        }
+
+        interval = new Interval(boxMin, boxMax);
+        usedFallback = true;
+        return interval.Length > tolerance;
+    }
+
+    public static double DepthLimit(FastenerComponentData data, FastenerSizeSpec spec, HoleTargetBinding binding) =>
+        Core.Services.HoleDepthCalculator.GetLimit(data, spec, binding);
 
     public static Brep? CreateHeadSeatCutter(FastenerComponentData data, FastenerSizeSpec spec, double extra = 0.2)
     {

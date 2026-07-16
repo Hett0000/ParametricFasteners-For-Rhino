@@ -114,6 +114,7 @@ depthMode                 throughTarget | blind
 blindDepthMm?
 includeHeadSeat           每个组件最多一个 true
 isPreviewVisible          仅控制视口显示，默认 true
+isBooleanEnabled          控制导出布尔，默认 true
 ```
 
 同一组件内 `targetObjectId` 必须唯一。首版 `threadEngagement` 表示直接拧入打印材料的无螺纹圆柱预孔，不等同于标准 6H 内螺纹；数据模型为未来的 `tapPilot` 或真实螺纹策略预留版本字段，但首版不暴露未实现模式。
@@ -143,8 +144,8 @@ isPreviewVisible          仅控制视口显示，默认 true
 - 切割体必须是闭合、方向一致的 Brep；生成后立即验证 `IsSolid`、有效性和包围盒。
 - 圆柱头由通孔柱体和头部沉孔组成；沉头由通孔和数据驱动角度的锥台组成。
 - 六角头和螺母槽使用以对边尺寸定义的六角柱，允许绕轴旋转。
-- 贯穿长度取所有绑定宿主在孔轴方向上的投影范围，并在两端增加 `max(10 × absoluteTolerance, 1 mm)` 安全余量。
-- 盲孔从入口沿确认后的向内轴线延伸，最终深度必须大于文档绝对容差。
+- 贯穿长度按每个宿主与轴线的进入点、离开点分别计算，并在两端增加 `max(10 × absoluteTolerance, 0.2 mm)` 余量；交点失败时才回退到紧包围盒投影。
+- 咬合孔深度可取 `L + 2D_nominal` 或自定义值，均从螺杆头下方起算，并裁到当前宿主的实际重叠区间。
 - 同一孔组件按 `HoleTargetBinding` 为每个宿主生成独立轴孔切割体；头部沉孔/沉头只并入 `includeHeadSeat = true` 的宿主切割体。
 - M1.6 等小尺寸在布尔前比较最小切割尺寸与文档绝对容差：容差大于最小尺寸的 `1/50` 时警告，大于 `1/20` 时阻止计算。
 

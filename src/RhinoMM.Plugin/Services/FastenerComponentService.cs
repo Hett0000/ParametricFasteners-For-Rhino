@@ -34,6 +34,7 @@ public static class FastenerComponentService
 
         IReadOnlyList<Brep> proxies;
         var cutters = new List<(HoleTargetBinding Binding, Brep Shaft, Brep? Head)>();
+        var warnings = new List<string>();
         try
         {
             proxies = FastenerGeometryFactory.CreateProxy(draft, spec);
@@ -42,8 +43,26 @@ public static class FastenerComponentService
                 var target = doc.Objects.FindId(binding.TargetObjectId);
                 if (target is null)
                     throw new InvalidOperationException($"被切割体已丢失：{binding.TargetObjectId}");
-                var box = target.Geometry.GetBoundingBox(true);
-                var shaft = FastenerGeometryFactory.CreateShaftCutter(draft, spec, binding, box.Diagonal.Length);
+                if (!FastenerGeometryFactory.TryGetTargetInterval(
+                        target.Geometry, draft.Placement, doc.ModelAbsoluteTolerance, out var targetInterval, out var usedFallback))
+                    throw new InvalidOperationException($"无法计算被切割体的轴向范围：{target.Id}");
+                if (usedFallback)
+                    warnings.Add($"{TargetName(target)} 的切割范围使用了包围盒估算。");
+
+                var padding = Math.Max(0.2, doc.ModelAbsoluteTolerance * 10);
+                var start = targetInterval.Min - padding;
+                var end = targetInterval.Max + padding;
+                var limit = FastenerGeometryFactory.DepthLimit(draft, spec, binding);
+                if (!double.IsPositiveInfinity(limit))
+                {
+                    if (limit < targetInterval.Min - doc.ModelAbsoluteTolerance)
+                        throw new InvalidOperationException($"螺杆深度 {limit:0.###} mm 无法到达咬合体“{TargetName(target)}”。");
+                    start = Math.Max(start, -padding);
+                    end = Math.Min(end, limit + padding);
+                    if (limit >= targetInterval.Max - doc.ModelAbsoluteTolerance)
+                        warnings.Add($"{TargetName(target)} 的咬合孔将自然贯穿。");
+                }
+                var shaft = FastenerGeometryFactory.CreateShaftCutter(draft, spec, binding, start, end);
                 var head = binding.IncludeHeadSeat ? FastenerGeometryFactory.CreateHeadSeatCutter(draft, spec) : null;
                 cutters.Add((binding, shaft, head));
             }
@@ -120,6 +139,8 @@ public static class FastenerComponentService
 
             doc.Views.Redraw();
             message = $"已生成 {saved.Size}，绑定 {saved.Bindings.Count} 个被切割体。";
+            if (warnings.Count > 0)
+                message += $" {string.Join(" ", warnings.Distinct())}";
             return true;
         }
         catch (Exception ex)
@@ -141,4 +162,9 @@ public static class FastenerComponentService
                 doc.EndUndoRecord(undo);
         }
     }
+
+    private static string TargetName(RhinoObject target) =>
+        string.IsNullOrWhiteSpace(target.Attributes.Name)
+            ? $"实体 {target.Id.ToString("N")[..8]}"
+            : target.Attributes.Name;
 }

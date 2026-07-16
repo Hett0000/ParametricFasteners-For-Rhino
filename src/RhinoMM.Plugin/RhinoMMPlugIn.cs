@@ -17,6 +17,7 @@ public sealed class RhinoMMPlugIn : PlugIn
         try
         {
             Panels.RegisterPanel(this, typeof(RhinoMMPanel), "参数化紧固件", null);
+            LoadToolbar();
             return LoadReturnCode.Success;
         }
         catch (Exception ex)
@@ -24,6 +25,21 @@ public sealed class RhinoMMPlugIn : PlugIn
             errorMessage = $"参数化紧固件初始化失败：{ex}";
             Rhino.RhinoApp.WriteLine(errorMessage);
             return LoadReturnCode.ErrorShowDialog;
+        }
+    }
+
+    private void LoadToolbar()
+    {
+        try
+        {
+            var rhpPath = GetType().Assembly.Location;
+            var toolbarPath = Path.ChangeExtension(rhpPath, ".rui");
+            if (File.Exists(toolbarPath) && Rhino.RhinoApp.ToolbarFiles.FindByPath(toolbarPath) is null)
+                Rhino.RhinoApp.ToolbarFiles.Open(toolbarPath);
+        }
+        catch (Exception ex)
+        {
+            Rhino.RhinoApp.WriteLine($"参数化紧固件工具列未自动加载：{ex.Message}");
         }
     }
 }
