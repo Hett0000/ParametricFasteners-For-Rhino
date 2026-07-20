@@ -140,14 +140,14 @@ public static class FastenerStatisticsWorkbookWriter
         FastenerStatisticsReport report)
     {
         StartWorksheet(writer, 8, 9);
-        WriteColumns(writer, [28, 16, 14, 12]);
+        WriteColumns(writer, [28, 16, 14, 14, 12]);
         writer.WriteStartElement("sheetData", SpreadsheetNamespace);
         WriteRow(writer, 1, [Text("紧固件统计汇总", true)]);
         WriteRow(writer, 2, [Text("文档"), Text(documentName)]);
         WriteRow(writer, 3, [Text("统计范围"), Text(ScopeLabel(report.Scope))]);
         WriteRow(writer, 4, [Text("导出时间"), Text(exportedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture))]);
         WriteRow(writer, 5, [Text("总数"), Number(report.TotalCount), Text("螺丝"), Number(report.ScrewCount), Text("螺母"), Number(report.NutCount)]);
-        WriteRow(writer, 8, [Text("类型", true), Text("规格", true), Text("长度 mm", true), Text("数量", true)]);
+        WriteRow(writer, 8, [Text("类型", true), Text("规格", true), Text("长度 mm", true), Text("外径 mm", true), Text("数量", true)]);
         var rowIndex = 9;
         foreach (var row in report.SummaryRows)
         {
@@ -156,22 +156,23 @@ public static class FastenerStatisticsWorkbookWriter
                 Text(FastenerLabels.Kind(row.Kind)),
                 Text(row.Size),
                 row.Length.HasValue ? Number(row.Length.Value) : Blank(),
+                row.OuterDiameter.HasValue ? Number(row.OuterDiameter.Value) : Blank(),
                 Number(row.Quantity)
             ]);
         }
         writer.WriteEndElement();
-        WriteAutoFilter(writer, $"A8:D{Math.Max(8, rowIndex - 1)}");
+        WriteAutoFilter(writer, $"A8:E{Math.Max(8, rowIndex - 1)}");
         writer.WriteEndElement();
     }
 
     private static void WriteDetailSheet(XmlWriter writer, FastenerStatisticsReport report)
     {
         StartWorksheet(writer, 1, 2);
-        WriteColumns(writer, [8, 24, 10, 12, 14, 14, 14, 14, 12, 12, 24, 14, 14, 14, 38]);
+        WriteColumns(writer, [8, 24, 10, 12, 12, 14, 14, 14, 14, 14, 12, 12, 24, 14, 14, 14, 38]);
         writer.WriteStartElement("sheetData", SpreadsheetNamespace);
         var headers = new[]
         {
-            "序号", "类型", "规格", "长度 mm", "嵌入深度 mm", "孔径修正 mm", "通孔配合", "咬合缩减 mm",
+            "序号", "类型", "规格", "长度 mm", "外径 mm", "切割补偿 mm", "嵌入深度 mm", "孔径修正 mm", "通孔配合", "咬合缩减 mm",
             "通孔宿主数", "咬合宿主数", "咬合深度模式", "控制点 X", "控制点 Y", "控制点 Z", "组件 ID"
         };
         WriteRow(writer, 1, headers.Select(value => Text(value, true)).ToArray());
@@ -189,7 +190,9 @@ public static class FastenerStatisticsWorkbookWriter
                 Number(rowIndex - 1),
                 Text(FastenerLabels.Kind(component.Kind)),
                 Text(component.Size),
-                component.Kind == FastenerKind.HexNut ? Blank() : Number(component.Length),
+                FastenerKindTraits.UsesLengthInStatistics(component.Kind) ? Number(component.Length) : Blank(),
+                component.Kind == FastenerKind.HeatSetInsert ? Number(component.InsertOuterDiameter) : Blank(),
+                component.Kind == FastenerKind.HeatSetInsert ? Number(component.InsertDiameterCompensation) : Blank(),
                 Number(component.HeadEmbedDepth),
                 Number(component.PrintProfile.HoleDiameterCorrection),
                 clearance is null ? Blank() : Text(FastenerLabels.ClearanceFit(clearance.ClearanceFit)),
@@ -205,7 +208,7 @@ public static class FastenerStatisticsWorkbookWriter
             rowIndex++;
         }
         writer.WriteEndElement();
-        WriteAutoFilter(writer, $"A1:O{Math.Max(1, rowIndex - 1)}");
+        WriteAutoFilter(writer, $"A1:Q{Math.Max(1, rowIndex - 1)}");
         writer.WriteEndElement();
     }
 

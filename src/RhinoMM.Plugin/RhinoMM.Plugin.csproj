@@ -6,7 +6,7 @@
     <AssemblyTitle>参数化紧固件</AssemblyTitle>
     <Product>参数化紧固件</Product>
     <RootNamespace>RhinoMM.Plugin</RootNamespace>
-    <Version>0.15.1</Version>
+    <Version>0.16.0</Version>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\RhinoMM.Core\RhinoMM.Core.csproj" />

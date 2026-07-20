@@ -2,6 +2,7 @@ using Rhino;
 using Rhino.DocObjects;
 using Rhino.Geometry;
 using RhinoMM.Core.Domain;
+using RhinoMM.Core.Services;
 using RhinoMM.Plugin.Geometry;
 using RhinoMM.Plugin.Persistence;
 
@@ -61,6 +62,8 @@ public static class ComponentRefreshService
                 unresolved.Add(pair.Key);
                 continue;
             }
+            var storedSchemaVersion = ComponentJson.ReadStoredSchemaVersion(
+                controlPoint.Attributes.GetUserString(ComponentRepository.ComponentKey));
 
             var actualPoint = ((Point)controlPoint.Geometry).Location;
             var savedPlane = FastenerGeometryFactory.ToPlane(component.Placement);
@@ -117,11 +120,21 @@ public static class ComponentRefreshService
                         || binding.CutterObjectId != component.Bindings[index].CutterObjectId)
                     .Any();
             var missingHeadCutter = component.HeadEmbedDepth > 0
-                && component.Kind != FastenerKind.HexNut
+                && FastenerKindTraits.SupportsHeadEmbed(component.Kind)
                 && component.Bindings.Any(binding =>
                     binding.IncludeHeadSeat
                     && FindBindingObject(objects, binding.BindingId, "HeadCutter") is null);
-            if (!pointMoved && !idsChanged && !missingHeadCutter)
+            var missingHeatSetLeadIn = component.Kind == FastenerKind.HeatSetInsert
+                && component.Bindings.Any(binding =>
+                    binding.Role == ShaftFitRole.InstallationPocket
+                    && FindBindingObject(objects, binding.BindingId, "HeadCutter") is null);
+            var legacyHexNutCutter = component.Kind == FastenerKind.HexNut
+                && storedSchemaVersion < FastenerComponentData.CurrentSchemaVersion;
+            if (!pointMoved
+                && !idsChanged
+                && !missingHeadCutter
+                && !missingHeatSetLeadIn
+                && !legacyHexNutCutter)
                 continue;
 
             repairDrafts.Add(component with

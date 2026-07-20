@@ -10,6 +10,7 @@ public static class FastenerLabels
         FastenerKind.Countersunk => "内六角沉头螺钉",
         FastenerKind.HexBolt => "六角头螺栓",
         FastenerKind.HexNut => "六角螺母",
+        FastenerKind.HeatSetInsert => "热熔螺母",
         _ => kind.ToString()
     };
 
@@ -25,6 +26,7 @@ public static class FastenerLabels
     {
         ShaftFitRole.Clearance => "穿过通孔",
         ShaftFitRole.ThreadEngagement => "螺纹咬合孔",
+        ShaftFitRole.InstallationPocket => "安装槽/孔",
         _ => role.ToString()
     };
 

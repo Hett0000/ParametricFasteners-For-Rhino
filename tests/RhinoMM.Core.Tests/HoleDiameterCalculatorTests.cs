@@ -111,7 +111,7 @@ public class HoleDiameterCalculatorTests
 
         var migrated = ComponentJson.Deserialize(json);
 
-        Assert.Equal(5, migrated.SchemaVersion);
+        Assert.Equal(6, migrated.SchemaVersion);
         Assert.Equal(3.0, migrated.HeadEmbedDepth, 6);
         Assert.Equal(Guid.Empty, migrated.ControlPointObjectId);
         Assert.Equal(70, migrated.FastenerOpacityPercent);
@@ -138,7 +138,7 @@ public class HoleDiameterCalculatorTests
 
         var migrated = ComponentJson.Migrate(data);
 
-        Assert.Equal(5, migrated.SchemaVersion);
+        Assert.Equal(6, migrated.SchemaVersion);
         Assert.Equal(0.0, migrated.HeadEmbedDepth, 6);
         Assert.Equal(42, migrated.FastenerOpacityPercent);
         Assert.Equal(18, migrated.CutterOpacityPercent);
@@ -165,7 +165,7 @@ public class HoleDiameterCalculatorTests
 
         var migrated = ComponentJson.Migrate(data);
 
-        Assert.Equal(5, migrated.SchemaVersion);
+        Assert.Equal(6, migrated.SchemaVersion);
         Assert.Equal(3.0, migrated.HeadEmbedDepth, 6);
         Assert.Equal(Guid.Empty, migrated.ControlPointObjectId);
         Assert.True(migrated.Bindings.Single().IsPreviewVisible);
@@ -185,7 +185,7 @@ public class HoleDiameterCalculatorTests
 
         var migrated = ComponentJson.Migrate(data);
 
-        Assert.Equal(5, migrated.SchemaVersion);
+        Assert.Equal(6, migrated.SchemaVersion);
         Assert.Equal(1.3, migrated.HeadEmbedDepth, 6);
     }
 
@@ -202,7 +202,7 @@ public class HoleDiameterCalculatorTests
 
         var migrated = ComponentJson.Migrate(data);
 
-        Assert.Equal(5, migrated.SchemaVersion);
+        Assert.Equal(6, migrated.SchemaVersion);
         Assert.Equal(1.0, migrated.HeadEmbedDepth, 6);
     }
 
@@ -221,6 +221,7 @@ public class HoleDiameterCalculatorTests
     [InlineData(FastenerKind.Countersunk, "内六角沉头螺钉")]
     [InlineData(FastenerKind.HexBolt, "六角头螺栓")]
     [InlineData(FastenerKind.HexNut, "六角螺母")]
+    [InlineData(FastenerKind.HeatSetInsert, "热熔螺母")]
     public void FastenerKindsHaveChineseLabels(FastenerKind kind, string expected)
     {
         Assert.Equal(expected, FastenerLabels.Kind(kind));
@@ -263,6 +264,7 @@ public class HoleDiameterCalculatorTests
     [InlineData(FastenerKind.Countersunk, 1.3)]
     [InlineData(FastenerKind.HexBolt, 2.0)]
     [InlineData(FastenerKind.HexNut, 0.0)]
+    [InlineData(FastenerKind.HeatSetInsert, 0.0)]
     public void HeadHeightUsesFastenerType(FastenerKind kind, double expected)
     {
         Assert.Equal(expected, HeadGeometryCalculator.GetHeadHeight(kind, Catalog.Get("M3")), 6);

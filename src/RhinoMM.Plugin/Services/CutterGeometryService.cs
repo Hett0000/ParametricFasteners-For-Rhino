@@ -1,6 +1,7 @@
 using Rhino;
 using Rhino.Geometry;
 using RhinoMM.Core.Domain;
+using RhinoMM.Core.Services;
 using RhinoMM.Plugin.Geometry;
 
 namespace RhinoMM.Plugin.Services;
@@ -49,6 +50,40 @@ internal static class CutterGeometryService
             if (usedFallback)
                 warnings.Add($"{TargetName(target)} 的切割范围使用了包围盒估算。");
             var padding = Math.Max(0.2, doc.ModelAbsoluteTolerance * 10);
+
+            if (FastenerKindTraits.IsNut(component.Kind))
+            {
+                if (binding.Role != ShaftFitRole.InstallationPocket)
+                    throw new InvalidOperationException("螺母组件缺少有效的安装槽/孔绑定。");
+                if (interval.Min > doc.ModelAbsoluteTolerance)
+                    throw new InvalidOperationException($"宿主“{TargetName(target)}”不包含螺母放置点。");
+                var requiredDepth = InstallationPocketCalculator.RequiredDepth(component, spec);
+                if (interval.Max < requiredDepth - doc.ModelAbsoluteTolerance)
+                    throw new InvalidOperationException(
+                        $"宿主“{TargetName(target)}”有效厚度 {interval.Max:0.###} mm 小于所需盲槽/孔深度 {requiredDepth:0.###} mm。");
+
+                if (component.Kind == FastenerKind.HexNut)
+                {
+                    result = new CutterGeometryBuild(
+                        binding,
+                        FastenerGeometryFactory.CreateHexNutPocketCutter(component, spec, binding, padding),
+                        null,
+                        warnings);
+                    return true;
+                }
+
+                var heatSet = FastenerGeometryFactory.CreateHeatSetPocketCutters(
+                    component,
+                    spec,
+                    padding);
+                result = new CutterGeometryBuild(
+                    binding,
+                    heatSet.Shaft,
+                    heatSet.LeadIn,
+                    warnings);
+                return true;
+            }
+
             var start = interval.Min - padding;
             var end = interval.Max + padding;
             var limit = FastenerGeometryFactory.DepthLimit(component, spec, binding);

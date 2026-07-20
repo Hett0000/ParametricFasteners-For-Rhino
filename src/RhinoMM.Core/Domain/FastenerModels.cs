@@ -5,7 +5,8 @@ public enum FastenerKind
     SocketCap,
     Countersunk,
     HexBolt,
-    HexNut
+    HexNut,
+    HeatSetInsert
 }
 
 public enum ClearanceFitClass
@@ -18,7 +19,8 @@ public enum ClearanceFitClass
 public enum ShaftFitRole
 {
     Clearance,
-    ThreadEngagement
+    ThreadEngagement,
+    InstallationPocket
 }
 
 public enum DepthMode
@@ -108,7 +110,7 @@ public sealed record HoleTargetBinding
 
 public sealed record FastenerComponentData
 {
-    public const int CurrentSchemaVersion = 5;
+    public const int CurrentSchemaVersion = 6;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
     public Guid ComponentId { get; init; } = Guid.NewGuid();
@@ -116,6 +118,8 @@ public sealed record FastenerComponentData
     public string Size { get; init; } = "M3";
     public double Length { get; init; } = 12;
     public double HeadEmbedDepth { get; init; }
+    public double InsertOuterDiameter { get; init; }
+    public double InsertDiameterCompensation { get; init; }
     public PlacementFrame Placement { get; init; } = PlacementFrame.WorldXY;
     public PrintProfileSnapshot PrintProfile { get; init; } = new("默认 FDM", 0.2);
     public double FastenerOpacityPercent { get; init; } = 70;

@@ -10,6 +10,7 @@ public sealed record FastenerStatisticsRow(
     FastenerKind Kind,
     string Size,
     double? Length,
+    double? OuterDiameter,
     int Quantity);
 
 public sealed record FastenerStatisticsReport(

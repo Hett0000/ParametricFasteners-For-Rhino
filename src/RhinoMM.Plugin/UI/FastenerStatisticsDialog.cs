@@ -56,6 +56,7 @@ public sealed class FastenerStatisticsDialog : Dialog
         _grid.Columns.Add(Column("类型", row => row.Type, 180));
         _grid.Columns.Add(Column("规格", row => row.Size, 90));
         _grid.Columns.Add(Column("长度 mm", row => row.Length, 100));
+        _grid.Columns.Add(Column("外径 mm", row => row.OuterDiameter, 100));
         _grid.Columns.Add(Column("数量", row => row.Quantity, 70));
 
         var refreshButton = new Button { Text = "刷新统计" };
@@ -195,6 +196,7 @@ public sealed class FastenerStatisticsDialog : Dialog
             FastenerLabels.Kind(row.Kind),
             row.Size,
             row.Length?.ToString("0.###") ?? "—",
+            row.OuterDiameter?.ToString("0.###") ?? "—",
             row.Quantity.ToString())).ToArray();
         _status.Text = _snapshot.IgnoredComponentCount > 0
             ? $"已忽略 {_snapshot.IgnoredComponentCount} 个缺少有效控制点或数据损坏的组件；请运行“刷新 / 清理”。"
@@ -252,13 +254,14 @@ public sealed class FastenerStatisticsDialog : Dialog
 
     private void ResizeColumns()
     {
-        if (_grid.Columns.Count != 4)
+        if (_grid.Columns.Count != 5)
             return;
         var available = Math.Max(250, ClientSize.Width - 76);
-        _grid.Columns[0].Width = (int)(available * 0.40);
-        _grid.Columns[1].Width = (int)(available * 0.20);
-        _grid.Columns[2].Width = (int)(available * 0.23);
-        _grid.Columns[3].Width = Math.Max(48, available - _grid.Columns.Take(3).Sum(column => column.Width));
+        _grid.Columns[0].Width = (int)(available * 0.32);
+        _grid.Columns[1].Width = (int)(available * 0.17);
+        _grid.Columns[2].Width = (int)(available * 0.18);
+        _grid.Columns[3].Width = (int)(available * 0.18);
+        _grid.Columns[4].Width = Math.Max(48, available - _grid.Columns.Take(4).Sum(column => column.Width));
     }
 
     private static Panel MetricCard(string title, Label value) => FastenerUiTheme.CreateCard(new StackLayout
@@ -287,5 +290,10 @@ public sealed class FastenerStatisticsDialog : Dialog
         Sortable = false
     };
 
-    private sealed record StatisticsRowView(string Type, string Size, string Length, string Quantity);
+    private sealed record StatisticsRowView(
+        string Type,
+        string Size,
+        string Length,
+        string OuterDiameter,
+        string Quantity);
 }

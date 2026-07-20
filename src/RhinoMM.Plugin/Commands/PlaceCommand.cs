@@ -6,6 +6,7 @@ using Rhino.Input;
 using Rhino.Input.Custom;
 using Rhino.UI;
 using RhinoMM.Core.Domain;
+using RhinoMM.Core.Services;
 using RhinoMM.Plugin.Geometry;
 using RhinoMM.Plugin.Persistence;
 using RhinoMM.Plugin.Services;
@@ -20,6 +21,10 @@ public sealed class RhinoMMPlaceHoleCommand : Command
 
     internal static Result Execute(RhinoDoc doc, RunMode mode)
     {
+        var state = EditorState.Current;
+        if (FastenerKindTraits.UsesSingleHostPlacement(state.Kind))
+            return ExecuteSingleHostPlacement(doc, state);
+
         var clearanceTargets = SelectTargets("选择螺丝穿过的物体（正补偿通孔）");
         var engagementTargets = SelectTargets("选择需要与螺丝咬合的物体（负补偿孔）");
         if (clearanceTargets.Count + engagementTargets.Count == 0)
@@ -38,7 +43,6 @@ public sealed class RhinoMMPlaceHoleCommand : Command
         if (placementResult != Result.Success)
             return placementResult;
 
-        var state = EditorState.Current;
         if (!TryPlaceAt(doc, state, clearanceTargets, engagementTargets, plane, placementObjectId, out var saved, out var message))
         {
             RhinoApp.WriteLine(message);
@@ -89,6 +93,79 @@ public sealed class RhinoMMPlaceHoleCommand : Command
             placed.Count == 1
                 ? message
                 : $"连续放置完成：共生成 {placed.Count} 颗紧固件，可使用一次撤销恢复。");
+        return Result.Success;
+    }
+
+    private static Result ExecuteSingleHostPlacement(RhinoDoc doc, EditorState state)
+    {
+        using var getter = new GetObject();
+        getter.SetCommandPrompt(
+            state.Kind == FastenerKind.HexNut
+                ? "单击封闭宿主表面放置六角螺母槽"
+                : "单击封闭宿主表面放置热熔螺母孔");
+        getter.GeometryFilter = ObjectType.Surface;
+        getter.SubObjectSelect = true;
+        getter.GroupSelect = false;
+        getter.SetCustomGeometryFilter(IsHostGeometry);
+        getter.EnablePreSelect(false, true);
+        if (getter.Get() != GetResult.Object)
+            return Result.Cancel;
+
+        var reference = getter.Object(0);
+        var face = reference.Face();
+        var selectionPoint = reference.SelectionPoint();
+        if (face is null || !face.Brep.IsSolid)
+        {
+            RhinoApp.WriteLine("螺母安装槽/孔只能放置到封闭实体宿主上。");
+            return Result.Failure;
+        }
+        if (!selectionPoint.IsValid || !face.ClosestPoint(selectionPoint, out var u, out var v))
+            return Result.Failure;
+        var origin = face.PointAt(u, v);
+        if (!face.FrameAt(u, v, out var frame))
+            frame = new Plane(origin, face.NormalAt(u, v));
+        var normal = face.NormalAt(u, v);
+        if (face.OrientationIsReversed)
+            normal.Reverse();
+        normal.Reverse();
+        var xAxis = frame.XAxis;
+        var yAxis = Vector3d.CrossProduct(normal, xAxis);
+        if (!yAxis.Unitize())
+            return Result.Failure;
+        var plane = new Plane(origin, xAxis, yAxis);
+
+        var preset = PlacementPresetService.Current;
+        var depth = state.Kind == FastenerKind.HexNut
+            ? RhinoMMPlugIn.Catalog.Get(state.Size).Head.NutThickness
+            : state.Length;
+        var heatSetPreset = HeatSetInsertPresetService.Current;
+        var preview = state.Kind == FastenerKind.HeatSetInsert
+            ? heatSetPreset.PreviewVisible
+            : preset.ClearancePreviewVisible;
+        var booleanEnabled = state.Kind == FastenerKind.HeatSetInsert
+            ? heatSetPreset.BooleanEnabled
+            : preset.ClearanceBooleanEnabled;
+        var binding = new HoleTargetBinding
+        {
+            TargetObjectId = reference.ObjectId,
+            Role = ShaftFitRole.InstallationPocket,
+            DepthMode = DepthMode.Blind,
+            BlindDepth = depth,
+            IsPreviewVisible = preview,
+            IsBooleanEnabled = booleanEnabled
+        };
+        state.LoadedComponentId = Guid.Empty;
+        var draft = state.CreateDraft(FastenerGeometryFactory.FromPlane(plane), [binding]) with
+        {
+            PrintProfile = new PrintProfileSnapshot("当前 FDM 配置", preset.PrinterCorrection)
+        };
+        if (!FastenerComponentService.CreateOrReplace(doc, draft, out var saved, out var message))
+        {
+            RhinoApp.WriteLine(message);
+            return Result.Failure;
+        }
+        ComponentEditorSession.Activate(doc, saved, true);
+        RhinoApp.WriteLine(message);
         return Result.Success;
     }
 

@@ -10,7 +10,10 @@ internal sealed record BatchModuleTemplate(
     DepthMode EngagementDepthMode,
     double EngagementBlindDepth,
     bool EngagementPreviewVisible,
-    bool EngagementBooleanEnabled)
+    bool EngagementBooleanEnabled,
+    bool HasInstallation,
+    bool InstallationPreviewVisible,
+    bool InstallationBooleanEnabled)
 {
     public static BatchModuleTemplate FromComponents(
         IReadOnlyList<FastenerComponentData> components)
@@ -18,6 +21,7 @@ internal sealed record BatchModuleTemplate(
         var bindings = components.SelectMany(component => component.Bindings).ToArray();
         var clearance = bindings.FirstOrDefault(binding => binding.Role == ShaftFitRole.Clearance);
         var engagement = bindings.FirstOrDefault(binding => binding.Role == ShaftFitRole.ThreadEngagement);
+        var installation = bindings.FirstOrDefault(binding => binding.Role == ShaftFitRole.InstallationPocket);
         return new BatchModuleTemplate(
             clearance is not null,
             clearance?.IsPreviewVisible ?? true,
@@ -26,7 +30,10 @@ internal sealed record BatchModuleTemplate(
             engagement?.DepthMode ?? DepthMode.ThroughTarget,
             engagement?.BlindDepth ?? 0,
             engagement?.IsPreviewVisible ?? true,
-            engagement?.IsBooleanEnabled ?? true);
+            engagement?.IsBooleanEnabled ?? true,
+            installation is not null,
+            installation?.IsPreviewVisible ?? true,
+            installation?.IsBooleanEnabled ?? true);
     }
 
     public IReadOnlyList<HoleTargetBinding> Apply(
@@ -45,6 +52,11 @@ internal sealed record BatchModuleTemplate(
                 BlindDepth = EngagementBlindDepth,
                 IsPreviewVisible = EngagementPreviewVisible,
                 IsBooleanEnabled = EngagementBooleanEnabled
+            },
+            ShaftFitRole.InstallationPocket when HasInstallation => binding with
+            {
+                IsPreviewVisible = InstallationPreviewVisible,
+                IsBooleanEnabled = InstallationBooleanEnabled
             },
             _ => binding
         }).ToArray();

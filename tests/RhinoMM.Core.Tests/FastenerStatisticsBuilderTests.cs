@@ -42,6 +42,31 @@ public sealed class FastenerStatisticsBuilderTests
     }
 
     [Fact]
+    public void Build_GroupsHeatSetInsertsByThreadLengthAndOuterDiameter()
+    {
+        var first = Component(FastenerKind.HeatSetInsert, "M3", 5) with
+        {
+            InsertOuterDiameter = 4.6,
+            InsertDiameterCompensation = -0.2
+        };
+        var second = first with { ComponentId = Guid.NewGuid(), InsertDiameterCompensation = 0.1 };
+        var differentOuterDiameter = first with
+        {
+            ComponentId = Guid.NewGuid(),
+            InsertOuterDiameter = 5.0
+        };
+
+        var report = FastenerStatisticsBuilder.Build(
+            [first, second, differentOuterDiameter],
+            FastenerStatisticsScope.All);
+
+        Assert.Equal(3, report.NutCount);
+        Assert.Equal(0, report.ScrewCount);
+        Assert.Equal(2, report.MaterialCount);
+        Assert.Equal(2, report.SummaryRows.Single(row => row.OuterDiameter == 4.6).Quantity);
+    }
+
+    [Fact]
     public void Build_DeduplicatesComponentIdsAndSortsNominalSizes()
     {
         var m10 = Component(FastenerKind.SocketCap, "M10", 12);

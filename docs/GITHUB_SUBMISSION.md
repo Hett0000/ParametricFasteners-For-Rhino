@@ -1,6 +1,6 @@
 # GitHub 提交与新建仓库信息
 
-本文档用于创建 GitHub 仓库、填写仓库资料、准备首次提交和发布 `v0.15.1`。
+本文档用于维护 GitHub 仓库资料并发布 `v0.16.0`。
 
 ## 1. 新建仓库建议
 
@@ -72,12 +72,12 @@ Add RhinoMM parametric fastener plugin baseline
 - Run `ParametricFasteners` and check placement, edit, update, refresh, statistics, and export flows
 ```
 
-## 6. Release `v0.15.1` 建议内容
+## 6. Release `v0.16.0` 建议内容
 
 标题：
 
 ```text
-v0.15.1 - Safe transform lifecycle for move, copy, rotate, and mirror
+v0.16.0 - Hex nut pockets and heat-set inserts
 ```
 
 发布说明：
@@ -85,17 +85,16 @@ v0.15.1 - Safe transform lifecycle for move, copy, rotate, and mirror
 ```markdown
 ## Highlights
 
-- Move, Copy, Rotate, Mirror, user group transforms, and Gumball Alt-copy now run through a component lifecycle transaction.
-- Mirrored components preserve the real shaft axis instead of being flipped by Rhino plane reconstruction.
-- Copied components receive independent component IDs, binding IDs, object IDs, and internal groups.
-- Copying hosts together with components automatically links the copied components to the copied hosts when possible.
-- Paste, cross-document paste, and 3DM Import preserve parametric component data.
-- Components that cannot be uniquely matched to hosts are kept as pending relink instead of being silently exported incorrectly.
-- Refresh / Cleanup reports pending relink components and can rebuild cutters after the user selects the matching host.
+- Hex nuts now create compensated hexagonal blind pockets instead of cylindrical cutters.
+- Heat-set inserts support custom thread size, length, outer diameter, and signed diameter compensation.
+- Nut and heat-set insert placement completes with one click on a closed host face.
+- Heat-set insert holes use an exact blind bottom and an automatic 45-degree by 0.5 mm lead-in chamfer.
+- Rhino, STEP, and STL exports regenerate the latest nut cutters from component metadata.
+- Statistics and Excel reports group heat-set inserts by thread size, length, and outer diameter.
 
 ## Compatibility
 
-- Persistent schema remains v5.
+- Persistent schema is v6; v5 hex-nut bindings migrate to one installation-pocket binding.
 - Existing component IDs, `RhinoMM.*` metadata keys, legacy commands, and existing 3DM files remain compatible.
 
 ## Notes

@@ -1,4 +1,5 @@
 using RhinoMM.Core.Domain;
+using RhinoMM.Core.Services;
 
 namespace RhinoMM.Plugin.Services;
 
@@ -11,6 +12,8 @@ public sealed class EditorState
     public string Size { get; set; } = "M3";
     public double Length { get; set; } = 12;
     public double HeadEmbedDepth { get; set; }
+    public double InsertOuterDiameter { get; set; }
+    public double InsertDiameterCompensation { get; set; }
     public double PrinterCorrection { get; set; } = 0.2;
     public ShaftFitRole DefaultRole { get; set; } = ShaftFitRole.Clearance;
     public ClearanceFitClass ClearanceFit { get; set; } = ClearanceFitClass.Normal;
@@ -25,7 +28,9 @@ public sealed class EditorState
         Kind = Kind,
         Size = Size,
         Length = Length,
-        HeadEmbedDepth = Kind == FastenerKind.HexNut ? 0 : HeadEmbedDepth,
+        HeadEmbedDepth = FastenerKindTraits.SupportsHeadEmbed(Kind) ? HeadEmbedDepth : 0,
+        InsertOuterDiameter = Kind == FastenerKind.HeatSetInsert ? InsertOuterDiameter : 0,
+        InsertDiameterCompensation = Kind == FastenerKind.HeatSetInsert ? InsertDiameterCompensation : 0,
         Placement = placement,
         PrintProfile = new PrintProfileSnapshot("当前 FDM 配置", PrinterCorrection),
         FastenerOpacityPercent = FastenerOpacityPercent,
@@ -43,6 +48,12 @@ public sealed class EditorState
             {
                 ShaftFitRole.Clearance => binding with { ClearanceFit = ClearanceFit },
                 ShaftFitRole.ThreadEngagement => binding with { BiteReduction = BiteReduction },
+                ShaftFitRole.InstallationPocket when Kind == FastenerKind.HeatSetInsert => binding with
+                {
+                    DepthMode = DepthMode.Blind,
+                    BlindDepth = Length,
+                    IncludeHeadSeat = false
+                },
                 _ => binding
             })
             .ToArray();
@@ -61,6 +72,8 @@ public sealed class EditorState
         Size = component.Size;
         Length = component.Length;
         HeadEmbedDepth = component.HeadEmbedDepth;
+        InsertOuterDiameter = component.InsertOuterDiameter;
+        InsertDiameterCompensation = component.InsertDiameterCompensation;
         PrinterCorrection = component.PrintProfile.HoleDiameterCorrection;
         FastenerOpacityPercent = component.FastenerOpacityPercent;
         CutterOpacityPercent = component.CutterOpacityPercent;

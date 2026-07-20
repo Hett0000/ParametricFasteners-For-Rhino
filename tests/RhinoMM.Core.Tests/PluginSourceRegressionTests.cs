@@ -62,7 +62,7 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("ApplyDraftForExport()", source, StringComparison.Ordinal);
         Assert.Contains("ComponentEditorSession.ActivateMany(doc, saved, false)", source, StringComparison.Ordinal);
         Assert.Contains("_zeroHeadButton.Click", source, StringComparison.Ordinal);
-        Assert.Contains("_zeroHeadButton.Enabled = !isNut", source, StringComparison.Ordinal);
+        Assert.Contains("_zeroHeadButton.Enabled = supportsHeadEmbed", source, StringComparison.Ordinal);
         Assert.DoesNotContain("_-ParametricFastenersExportExcel", source, StringComparison.Ordinal);
     }
 
@@ -116,6 +116,10 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("var reusableAxis = plane.ZAxis", source, StringComparison.Ordinal);
         Assert.Contains("TryPlaceAt", source, StringComparison.Ordinal);
         Assert.Contains("placed.Add(nextSaved)", source, StringComparison.Ordinal);
+        Assert.Contains("ExecuteSingleHostPlacement", source, StringComparison.Ordinal);
+        Assert.Contains("FastenerKindTraits.UsesSingleHostPlacement", source, StringComparison.Ordinal);
+        Assert.Contains("ShaftFitRole.InstallationPocket", source, StringComparison.Ordinal);
+        Assert.Contains("face.Brep.IsSolid", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -327,8 +331,8 @@ public sealed class PluginSourceRegressionTests
         var profile = ReadSource("src", "RhinoMM.Plugin", "UI", "ResponsiveLayoutProfile.cs");
 
         Assert.Contains("CompactBreakpoint = 340", profile, StringComparison.Ordinal);
-        Assert.Contains("new ResponsiveLayoutProfile(4, 5, 6, true, 3, 88, 108, 104, 156)", profile, StringComparison.Ordinal);
-        Assert.Contains("new ResponsiveLayoutProfile(4, 5, 4, false", profile, StringComparison.Ordinal);
+        Assert.Contains("new ResponsiveLayoutProfile(5, 5, 6, true, 3, 88, 108, 104, 156)", profile, StringComparison.Ordinal);
+        Assert.Contains("new ResponsiveLayoutProfile(5, 5, 4, false", profile, StringComparison.Ordinal);
         Assert.Contains("NumericFieldWidth", profile, StringComparison.Ordinal);
         Assert.Contains("DepthFieldWidth", profile, StringComparison.Ordinal);
     }
@@ -381,6 +385,9 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("FastenerGeometryFactory.DepthLimit", cutter, StringComparison.Ordinal);
         Assert.Contains("CreateShaftCutter", cutter, StringComparison.Ordinal);
         Assert.Contains("CreateHeadSeatCutter", cutter, StringComparison.Ordinal);
+        Assert.Contains("CreateHexNutPocketCutter", cutter, StringComparison.Ordinal);
+        Assert.Contains("CreateHeatSetPocketCutters", cutter, StringComparison.Ordinal);
+        Assert.Contains("InstallationPocketCalculator.RequiredDepth", cutter, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -401,6 +408,8 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("PlacementPresetService.Load(Settings)", plugin, StringComparison.Ordinal);
         Assert.Contains("\"放置预设\"", panel, StringComparison.Ordinal);
         Assert.Contains("SavePlacementPresetControls", panel, StringComparison.Ordinal);
+        Assert.Contains("HeatSetInsertPresetService.Load(Settings)", plugin, StringComparison.Ordinal);
+        Assert.Contains("SaveHeatSetPresetControls", panel, StringComparison.Ordinal);
     }
 
     [Fact]

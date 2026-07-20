@@ -14,26 +14,32 @@ public static class FastenerStatisticsBuilder
             .Select(group => group.First())
             .OrderBy(component => component.Kind)
             .ThenBy(component => NominalSize(component.Size))
-            .ThenBy(component => component.Kind == FastenerKind.HexNut ? 0 : component.Length)
+            .ThenBy(component => FastenerKindTraits.UsesLengthInStatistics(component.Kind) ? component.Length : 0)
+            .ThenBy(component => component.Kind == FastenerKind.HeatSetInsert ? component.InsertOuterDiameter : 0)
             .ThenBy(component => component.ComponentId)
             .ToArray();
         var summary = components
             .GroupBy(component => new StatisticsKey(
                 component.Kind,
                 component.Size,
-                component.Kind == FastenerKind.HexNut
-                    ? null
-                    : Math.Round(component.Length, 3)))
+                FastenerKindTraits.UsesLengthInStatistics(component.Kind)
+                    ? Math.Round(component.Length, 3)
+                    : null,
+                component.Kind == FastenerKind.HeatSetInsert
+                    ? Math.Round(component.InsertOuterDiameter, 3)
+                    : null))
             .Select(group => new FastenerStatisticsRow(
                 group.Key.Kind,
                 group.Key.Size,
                 group.Key.Length,
+                group.Key.OuterDiameter,
                 group.Count()))
             .OrderBy(row => row.Kind)
             .ThenBy(row => NominalSize(row.Size))
             .ThenBy(row => row.Length ?? 0)
+            .ThenBy(row => row.OuterDiameter ?? 0)
             .ToArray();
-        var nutCount = components.Count(component => component.Kind == FastenerKind.HexNut);
+        var nutCount = components.Count(component => FastenerKindTraits.IsNut(component.Kind));
         return new FastenerStatisticsReport(
             scope,
             components.Length,
@@ -53,5 +59,9 @@ public static class FastenerStatisticsBuilder
             ? value
             : double.MaxValue;
 
-    private sealed record StatisticsKey(FastenerKind Kind, string Size, double? Length);
+    private sealed record StatisticsKey(
+        FastenerKind Kind,
+        string Size,
+        double? Length,
+        double? OuterDiameter);
 }

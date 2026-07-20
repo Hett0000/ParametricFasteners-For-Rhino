@@ -25,8 +25,18 @@ public sealed class RhinoMMPanel : Panel, IPanel
     private readonly CardSelector _kind = new();
     private readonly CardSelector _size = new();
     private readonly CardSelector _lengthCards = new();
-    private readonly NumericStepper _length = new() { MinValue = 0.5, MaxValue = 500, DecimalPlaces = 2, Increment = 0.5 };
+    private readonly NumericStepper _length = new() { MinValue = 0, MaxValue = 500, DecimalPlaces = 2, Increment = 0.5 };
     private readonly NumericStepper _headEmbed = new() { MinValue = 0, MaxValue = 500, DecimalPlaces = 2, Increment = 0.1 };
+    private readonly NumericStepper _insertOuterDiameter = new() { MinValue = 0, MaxValue = 500, DecimalPlaces = 2, Increment = 0.1 };
+    private readonly NumericStepper _insertDiameterCompensation = new() { MinValue = -20, MaxValue = 20, DecimalPlaces = 2, Increment = 0.05 };
+    private readonly Label _insertFinalDiameter = new() { TextColor = FastenerUiTheme.SecondaryText };
+    private readonly Label _nutStandardDimensions = new() { TextColor = FastenerUiTheme.SecondaryText };
+    private readonly Label _insertChamferNote = new()
+    {
+        Text = "入口导角固定为 45°×0.5 mm；盲孔深度等于热熔螺母长度。",
+        TextColor = FastenerUiTheme.SecondaryText,
+        Wrap = WrapMode.Word
+    };
     private readonly Button _zeroHeadButton = new() { Text = "0", Height = FastenerUiTheme.ControlHeight, Width = 36 };
     private readonly Button _flushHeadButton = new() { Text = "齐平", Height = FastenerUiTheme.ControlHeight, Width = 52 };
     private readonly StackLayout _headEmbedControl;
@@ -242,17 +252,37 @@ public sealed class RhinoMMPanel : Panel, IPanel
         };
         _kind.SelectedKeyChanged += (_, _) =>
         {
+            LoadHeatSetDefaultsForNewKind();
             UpdateHeadEmbedControls();
+            RebuildResponsiveLayout(force: true);
+            UpdateInsertSummary();
             ScheduleUpdate();
         };
-        _size.SelectedKeyChanged += (_, _) => ScheduleUpdate();
+        _size.SelectedKeyChanged += (_, _) =>
+        {
+            UpdateInsertSummary();
+            ScheduleUpdate();
+        };
         _lengthCards.SelectedKeyChanged += (_, _) => SelectCommonLength();
         _length.ValueChanged += (_, _) =>
         {
             UpdateLengthCardSelection();
+            SaveHeatSetPresetControls();
             ScheduleUpdate();
         };
         _headEmbed.ValueChanged += (_, _) => ScheduleUpdate();
+        _insertOuterDiameter.ValueChanged += (_, _) =>
+        {
+            UpdateInsertSummary();
+            SaveHeatSetPresetControls();
+            ScheduleUpdate();
+        };
+        _insertDiameterCompensation.ValueChanged += (_, _) =>
+        {
+            UpdateInsertSummary();
+            SaveHeatSetPresetControls();
+            ScheduleUpdate();
+        };
         _printerCorrection.ValueChanged += (_, _) => HoleCommonParameterChanged();
         _clearanceFit.SelectedIndexChanged += (_, _) => HoleCommonParameterChanged();
         _bite.ValueChanged += (_, _) => HoleCommonParameterChanged();
@@ -263,8 +293,8 @@ public sealed class RhinoMMPanel : Panel, IPanel
             SavePlacementPresetControls();
         };
         _presetBlindDepth.ValueChanged += (_, _) => SavePlacementPresetControls();
-        _presetClearancePreview.CheckedChanged += (_, _) => SavePlacementPresetControls();
-        _presetClearanceBoolean.CheckedChanged += (_, _) => SavePlacementPresetControls();
+        _presetClearancePreview.CheckedChanged += (_, _) => SaveActivePlacementPresetControls();
+        _presetClearanceBoolean.CheckedChanged += (_, _) => SaveActivePlacementPresetControls();
         _presetEngagementPreview.CheckedChanged += (_, _) => SavePlacementPresetControls();
         _presetEngagementBoolean.CheckedChanged += (_, _) => SavePlacementPresetControls();
         _fastenerOpacity.ValueChanged += (_, _) => ScheduleDisplayUpdate();
@@ -417,19 +447,46 @@ public sealed class RhinoMMPanel : Panel, IPanel
         _presetOptionsLayout.Clear();
         _parameterLayout.AddRow(FieldStack("类型", _kind));
         _parameterLayout.AddRow(FieldStack("规格", _size));
-        _parameterLayout.AddRow(FieldStack("常用长度 mm", _lengthCards));
-        if (profile.PairDimensionFields)
+        var selectedKind = SelectedKind();
+        if (selectedKind == FastenerKind.HexNut)
+        {
+            _parameterLayout.AddRow(_nutStandardDimensions);
+        }
+        else if (selectedKind == FastenerKind.HeatSetInsert)
+        {
             _parameterLayout.AddRow(CompactRow(
-                FieldStack("自定义长度 mm", _length),
-                FieldStack("嵌入深度 mm", _headEmbedControl)));
+                FieldStack("长度 mm", _length),
+                FieldStack("外径 mm", _insertOuterDiameter),
+                FieldStack("切割补偿 mm", _insertDiameterCompensation)));
+            _parameterLayout.AddRow(_insertFinalDiameter);
+            _parameterLayout.AddRow(_insertChamferNote);
+        }
         else
         {
-            _parameterLayout.AddRow(CompactRow(FieldStack("自定义长度 mm", _length)));
-            _parameterLayout.AddRow(CompactRow(FieldStack("嵌入深度 mm", _headEmbedControl)));
+            _parameterLayout.AddRow(FieldStack("常用长度 mm", _lengthCards));
+            if (profile.PairDimensionFields)
+                _parameterLayout.AddRow(CompactRow(
+                    FieldStack("自定义长度 mm", _length),
+                    FieldStack("嵌入深度 mm", _headEmbedControl)));
+            else
+            {
+                _parameterLayout.AddRow(CompactRow(FieldStack("自定义长度 mm", _length)));
+                _parameterLayout.AddRow(CompactRow(FieldStack("嵌入深度 mm", _headEmbedControl)));
+            }
         }
 
         _holeHeaderLayout.AddRow(CompactRow(_holeTitle, _holeContextHost));
-        if (profile.HoleFieldColumns == 3)
+        if (selectedKind == FastenerKind.HexNut)
+        {
+            _holeParameterLayout.AddRow(CompactRow(
+                FieldStack("槽宽补偿 mm", _printerCorrection)));
+        }
+        else if (selectedKind == FastenerKind.HeatSetInsert)
+        {
+            _holeParameterLayout.AddRow(FastenerUiTheme.SecondaryLabel(
+                "安装孔使用外径与切割补偿计算，不叠加通孔孔径修正。"));
+        }
+        else if (profile.HoleFieldColumns == 3)
         {
             _holeParameterLayout.AddRow(CompactRow(
                 FieldStack("孔径修正 mm", _printerCorrection),
@@ -472,6 +529,14 @@ public sealed class RhinoMMPanel : Panel, IPanel
 
     private void AddPlacementPresetRows(int columns)
     {
+        if (FastenerKindTraits.IsNut(SelectedKind()))
+        {
+            _presetOptionsLayout.AddRow(CompactRow(
+                FieldStack("安装槽/孔模块", ToggleRow(
+                    _presetClearancePreview,
+                    _presetClearanceBoolean))));
+            return;
+        }
         var clearanceOptions = FieldStack("通孔模块", ToggleRow(_presetClearancePreview, _presetClearanceBoolean));
         var depth = FieldStack("咬合孔深度", DepthPresetRow());
         var engagementOptions = FieldStack("咬合孔模块", ToggleRow(_presetEngagementPreview, _presetEngagementBoolean));
@@ -497,6 +562,8 @@ public sealed class RhinoMMPanel : Panel, IPanel
     {
         _length.Width = profile.DimensionFieldWidth;
         _headEmbed.Width = profile.DimensionFieldWidth;
+        _insertOuterDiameter.Width = profile.NumericFieldWidth;
+        _insertDiameterCompensation.Width = profile.NumericFieldWidth;
         _printerCorrection.Width = profile.NumericFieldWidth;
         _clearanceFit.Width = profile.SelectFieldWidth;
         _bite.Width = profile.NumericFieldWidth;
@@ -662,6 +729,8 @@ public sealed class RhinoMMPanel : Panel, IPanel
         _length.Value = state.Length;
         UpdateLengthCardSelection();
         _headEmbed.Value = state.HeadEmbedDepth;
+        _insertOuterDiameter.Value = state.InsertOuterDiameter;
+        _insertDiameterCompensation.Value = state.InsertDiameterCompensation;
         if (_holeEditingContext == HoleEditingContext.CurrentComponent)
         {
             _printerCorrection.Value = state.PrinterCorrection;
@@ -676,7 +745,9 @@ public sealed class RhinoMMPanel : Panel, IPanel
         _cutterOpacity.Value = (int)Math.Round(state.CutterOpacityPercent);
         UpdateOpacityLabels();
         UpdateHeadEmbedControls();
+        UpdateInsertSummary();
         _loadingControls = false;
+        RebuildResponsiveLayout(force: true);
     }
 
     private void SaveControls()
@@ -687,7 +758,13 @@ public sealed class RhinoMMPanel : Panel, IPanel
         if (!string.IsNullOrWhiteSpace(_size.SelectedKey))
             state.Size = _size.SelectedKey;
         state.Length = _length.Value;
-        state.HeadEmbedDepth = state.Kind == FastenerKind.HexNut ? 0 : _headEmbed.Value;
+        state.HeadEmbedDepth = FastenerKindTraits.SupportsHeadEmbed(state.Kind) ? _headEmbed.Value : 0;
+        state.InsertOuterDiameter = state.Kind == FastenerKind.HeatSetInsert
+            ? _insertOuterDiameter.Value
+            : 0;
+        state.InsertDiameterCompensation = state.Kind == FastenerKind.HeatSetInsert
+            ? _insertDiameterCompensation.Value
+            : 0;
         if (_holeEditingContext == HoleEditingContext.CurrentComponent)
         {
             state.PrinterCorrection = _printerCorrection.Value;
@@ -719,7 +796,89 @@ public sealed class RhinoMMPanel : Panel, IPanel
         _presetClearanceBoolean.Checked = preset.ClearanceBooleanEnabled;
         _presetEngagementPreview.Checked = preset.EngagementPreviewVisible;
         _presetEngagementBoolean.Checked = preset.EngagementBooleanEnabled;
+        if (SelectedKind() == FastenerKind.HeatSetInsert)
+        {
+            var heatSet = HeatSetInsertPresetService.Current;
+            _length.Value = heatSet.Length;
+            _insertOuterDiameter.Value = heatSet.OuterDiameter;
+            _insertDiameterCompensation.Value = heatSet.DiameterCompensation;
+            _presetClearancePreview.Checked = heatSet.PreviewVisible;
+            _presetClearanceBoolean.Checked = heatSet.BooleanEnabled;
+            UpdateInsertSummary();
+        }
     }
+
+    private void SaveActivePlacementPresetControls()
+    {
+        if (SelectedKind() == FastenerKind.HeatSetInsert)
+            SaveHeatSetPresetControls();
+        else
+            SavePlacementPresetControls();
+    }
+
+    private void SaveHeatSetPresetControls()
+    {
+        if (_loadingControls
+            || RhinoMMPlugIn.Instance is null
+            || SelectedKind() != FastenerKind.HeatSetInsert
+            || _holeEditingContext != HoleEditingContext.PlacementPreset)
+            return;
+        var preset = new HeatSetInsertPreset(
+            _length.Value,
+            _insertOuterDiameter.Value,
+            _insertDiameterCompensation.Value,
+            _presetClearancePreview.Checked == true,
+            _presetClearanceBoolean.Checked == true);
+        if (!HeatSetInsertPresetService.Save(RhinoMMPlugIn.Instance.Settings, preset, out var message))
+            SetStatus(message, StatusKind.Warning);
+    }
+
+    private void LoadHeatSetDefaultsForNewKind()
+    {
+        if (_loadingControls || SelectedKind() != FastenerKind.HeatSetInsert)
+            return;
+        var preset = HeatSetInsertPresetService.Current;
+        _length.Value = preset.Length;
+        _insertOuterDiameter.Value = preset.OuterDiameter;
+        _insertDiameterCompensation.Value = preset.DiameterCompensation;
+        _presetClearancePreview.Checked = preset.PreviewVisible;
+        _presetClearanceBoolean.Checked = preset.BooleanEnabled;
+    }
+
+    private void UpdateInsertSummary()
+    {
+        if (string.IsNullOrWhiteSpace(_size.SelectedKey))
+            return;
+        try
+        {
+            var spec = RhinoMMPlugIn.Catalog.Get(_size.SelectedKey);
+            var finalAcrossFlats = spec.Head.NutAcrossFlats + _printerCorrection.Value;
+            _nutStandardDimensions.Text =
+                $"标准对边 {spec.Head.NutAcrossFlats:0.###} mm · 厚度 {spec.Head.NutThickness:0.###} mm · 最终槽对边 {finalAcrossFlats:0.###} mm";
+            var finalDiameter = _insertOuterDiameter.Value + _insertDiameterCompensation.Value;
+            _insertFinalDiameter.Text =
+                $"最终安装孔径：{finalDiameter:0.###} mm（外径 + 切割补偿）";
+            var heatSetValid = SelectedKind() != FastenerKind.HeatSetInsert
+                || (_length.Value > 0
+                    && _insertOuterDiameter.Value > 0
+                    && finalDiameter > spec.NominalDiameter);
+            _placeButton.Enabled = heatSetValid;
+            if (!heatSetValid)
+                _placeButton.ToolTip = "放置 / 绑定：请先输入有效的热熔螺母长度、外径和切割补偿";
+            else
+                _placeButton.ToolTip = "放置 / 绑定：创建并绑定新的紧固件";
+        }
+        catch
+        {
+            _nutStandardDimensions.Text = string.Empty;
+            _insertFinalDiameter.Text = string.Empty;
+        }
+    }
+
+    private FastenerKind SelectedKind() =>
+        Enum.TryParse<FastenerKind>(_kind.SelectedKey, out var kind)
+            ? kind
+            : EditorState.Current.Kind;
 
     private void SavePlacementPresetControls()
     {
@@ -752,6 +911,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
     {
         if (_loadingControls)
             return;
+        UpdateInsertSummary();
         if (_holeEditingContext == HoleEditingContext.PlacementPreset)
         {
             SavePlacementPresetControls();
@@ -992,7 +1152,25 @@ public sealed class RhinoMMPanel : Panel, IPanel
             layout.AddRow(CompactRow(preview, booleanEnabled));
         }
 
-        if (!template.HasClearance && !template.HasEngagement)
+        if (template.HasInstallation)
+        {
+            var preview = new CheckBox { Text = "预览", Checked = template.InstallationPreviewVisible };
+            var booleanEnabled = new CheckBox { Text = "导出布尔", Checked = template.InstallationBooleanEnabled };
+            preview.CheckedChanged += (_, _) => UpdateBatchModuleTemplate(current => current with
+            {
+                InstallationPreviewVisible = preview.Checked == true
+            }, rebuildGeometry: false);
+            booleanEnabled.CheckedChanged += (_, _) => UpdateBatchModuleTemplate(current => current with
+            {
+                InstallationBooleanEnabled = booleanEnabled.Checked == true
+            }, rebuildGeometry: false);
+            layout.AddRow(CompactRow(
+                new Label { Text = "螺母安装模板", Font = SystemFonts.Bold(), VerticalAlignment = VerticalAlignment.Center },
+                preview,
+                booleanEnabled));
+        }
+
+        if (!template.HasClearance && !template.HasEngagement && !template.HasInstallation)
             layout.AddRow(FastenerUiTheme.SecondaryLabel("选中组件没有可同步的切割模块。"));
         return layout;
     }
@@ -1029,6 +1207,11 @@ public sealed class RhinoMMPanel : Panel, IPanel
                     IsPreviewVisible = template.EngagementPreviewVisible,
                     IsBooleanEnabled = template.EngagementBooleanEnabled
                 },
+                ShaftFitRole.InstallationPocket when template.HasInstallation => binding with
+                {
+                    IsPreviewVisible = template.InstallationPreviewVisible,
+                    IsBooleanEnabled = template.InstallationBooleanEnabled
+                },
                 _ => binding
             }).ToArray(),
             UpdatedAt = DateTimeOffset.UtcNow
@@ -1049,10 +1232,14 @@ public sealed class RhinoMMPanel : Panel, IPanel
                 ? "待重新绑定宿主"
                 : $"实体 {binding.TargetObjectId.ToString("N")[..8]}";
         var shortName = fullName.Length > 22 ? $"{fullName[..19]}…" : fullName;
-        var diameter = HoleDiameterCalculator.Calculate(spec, binding, previewComponent.PrintProfile).FinalDiameter;
+        var moduleDescription = binding.Role == ShaftFitRole.InstallationPocket
+            ? previewComponent.Kind == FastenerKind.HexNut
+                ? $"六角安装槽 · 对边 {spec.Head.NutAcrossFlats + previewComponent.PrintProfile.HoleDiameterCorrection + binding.BindingOverride:0.###}"
+                : $"热熔安装孔 · Ø{previewComponent.InsertOuterDiameter + previewComponent.InsertDiameterCompensation:0.###}"
+            : $"{FastenerLabels.Role(binding.Role)} · Ø{HoleDiameterCalculator.Calculate(spec, binding, previewComponent.PrintProfile).FinalDiameter:0.###}";
         var title = new Label
         {
-            Text = $"{shortName} · {FastenerLabels.Role(binding.Role)} · Ø{diameter:0.###}",
+            Text = $"{shortName} · {moduleDescription}",
             ToolTip = fullName,
             Wrap = WrapMode.Word,
             Height = 24
@@ -1139,6 +1326,15 @@ public sealed class RhinoMMPanel : Panel, IPanel
             return "贯穿当前宿主";
         var previewComponent = CurrentDraftComponent();
         var spec = RhinoMMPlugIn.Catalog.Get(previewComponent.Size);
+        if (binding.Role == ShaftFitRole.InstallationPocket)
+        {
+            var depth = previewComponent.Kind == FastenerKind.HexNut
+                ? spec.Head.NutThickness
+                : previewComponent.Length;
+            return previewComponent.Kind == FastenerKind.HexNut
+                ? $"盲槽深度 {depth:0.###} mm"
+                : $"盲孔深度 {depth:0.###} mm · 入口 45°×{Math.Min(0.5, depth / 2):0.###} mm";
+        }
         var limit = FastenerGeometryFactory.DepthLimit(previewComponent, spec, binding);
         var result = $"孔底 {limit:0.###} mm";
         var doc = RhinoDoc.ActiveDoc;
@@ -1253,6 +1449,22 @@ public sealed class RhinoMMPanel : Panel, IPanel
             SetStatus("请先选中一个或多个紧固件控制点；未更新历史组件。", StatusKind.Warning);
             return false;
         }
+        if (selectedComponents.Count > 1)
+        {
+            var targetIsNut = FastenerKindTraits.IsNut(EditorState.Current.Kind);
+            if (selectedComponents.Any(component => FastenerKindTraits.IsNut(component.Kind) != targetIsNut))
+            {
+                SetStatus("批量更新不能在螺丝与螺母类别之间转换；请重新放置对应类型。", StatusKind.Warning);
+                return false;
+            }
+            if (targetIsNut && selectedComponents.Any(component =>
+                    component.Bindings.Count != 1
+                    || component.Bindings[0].Role != ShaftFitRole.InstallationPocket))
+            {
+                SetStatus("批量更新螺母要求每个组件都具有一个有效的安装宿主。", StatusKind.Warning);
+                return false;
+            }
+        }
 
         var preservePanelBindings = selectedComponents.Count == 1
             && _loadedComponents.Count == 1
@@ -1333,6 +1545,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
         FastenerKind.Countersunk => "沉头",
         FastenerKind.HexBolt => "六角头",
         FastenerKind.HexNut => "六角螺母",
+        FastenerKind.HeatSetInsert => "热熔螺母",
         _ => FastenerLabels.Kind(kind)
     };
 
@@ -1341,13 +1554,19 @@ public sealed class RhinoMMPanel : Panel, IPanel
         var state = EditorState.Current;
         if (_loadedComponents.Count > 1)
         {
-            _summary.Text = $"批量 · {_loadedComponents.Count} 个组件 · {state.Size} · {FastenerLabels.Kind(state.Kind)} · L{state.Length:0.##}";
+            var length = FastenerKindTraits.UsesLengthInStatistics(state.Kind)
+                ? $" · L{state.Length:0.##}"
+                : string.Empty;
+            _summary.Text = $"批量 · {_loadedComponents.Count} 个组件 · {state.Size} · {FastenerLabels.Kind(state.Kind)}{length}";
             _summary.ToolTip = _summary.Text;
             return;
         }
         var prefix = _loadedComponent is null ? "新建" : "单选";
         var hosts = _loadedComponent is null ? string.Empty : $" · {_loadedComponent.Bindings.Count}个宿主";
-        _summary.Text = $"{prefix} · {state.Size} · {FastenerLabels.Kind(state.Kind)} · L{state.Length:0.##}{hosts}";
+        var summaryLength = FastenerKindTraits.UsesLengthInStatistics(state.Kind)
+            ? $" · L{state.Length:0.##}"
+            : string.Empty;
+        _summary.Text = $"{prefix} · {state.Size} · {FastenerLabels.Kind(state.Kind)}{summaryLength}{hosts}";
         _summary.ToolTip = _summary.Text;
         if (_loadedComponent is null && !_geometryDirty)
         {
@@ -1371,18 +1590,18 @@ public sealed class RhinoMMPanel : Panel, IPanel
 
     private void UpdateHeadEmbedControls()
     {
-        var isNut = _kind.SelectedKey == FastenerKind.HexNut.ToString();
-        _headEmbed.Enabled = !isNut;
-        _zeroHeadButton.Enabled = !isNut;
-        _flushHeadButton.Enabled = !isNut;
-        if (isNut && _headEmbed.Value != 0)
+        var supportsHeadEmbed = FastenerKindTraits.SupportsHeadEmbed(SelectedKind());
+        _headEmbed.Enabled = supportsHeadEmbed;
+        _zeroHeadButton.Enabled = supportsHeadEmbed;
+        _flushHeadButton.Enabled = supportsHeadEmbed;
+        if (!supportsHeadEmbed && _headEmbed.Value != 0)
             _headEmbed.Value = 0;
     }
 
     private void SetFlushHeadDepth()
     {
         if (!Enum.TryParse<FastenerKind>(_kind.SelectedKey, out var kind)
-            || kind == FastenerKind.HexNut
+            || !FastenerKindTraits.SupportsHeadEmbed(kind)
             || string.IsNullOrWhiteSpace(_size.SelectedKey))
             return;
         var spec = RhinoMMPlugIn.Catalog.Get(_size.SelectedKey);

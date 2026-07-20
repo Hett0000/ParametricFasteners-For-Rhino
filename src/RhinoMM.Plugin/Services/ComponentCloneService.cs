@@ -2,6 +2,7 @@ using Rhino;
 using Rhino.DocObjects;
 using Rhino.Geometry;
 using RhinoMM.Core.Domain;
+using RhinoMM.Core.Services;
 using RhinoMM.Plugin.Geometry;
 using RhinoMM.Plugin.Persistence;
 
@@ -255,7 +256,7 @@ internal static class ComponentCloneService
             var attributes = ComponentRepository.CreateAttributes(draft, "Proxy");
             attributes.SetUserString(
                 ComponentRepository.ProxyPartKey,
-                index == 0 && draft.Kind != FastenerKind.HexNut ? "Shaft" : "Head");
+                index == 0 && FastenerKindTraits.HasShaftProxy(draft.Kind) ? "Shaft" : "Head");
             ComponentPresentationService.ConfigureAttributes(doc, attributes, draft, false, true);
             var id = doc.Objects.AddBrep(proxies[index], attributes);
             if (id == Guid.Empty)

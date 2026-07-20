@@ -66,8 +66,10 @@ public sealed class FastenerStatisticsWorkbookWriterTests
             var summary = ReadEntry(archive, "xl/worksheets/sheet1.xml");
             Assert.Contains("项目&lt;&amp;&gt;.3dm", summary, StringComparison.Ordinal);
             Assert.Contains("M3&lt;&amp;&gt;", summary, StringComparison.Ordinal);
+            Assert.Contains("外径 mm", summary, StringComparison.Ordinal);
             var detail = ReadEntry(archive, "xl/worksheets/sheet2.xml");
             Assert.Contains("r=\"D2\" t=\"n\"><v>12</v>", detail, StringComparison.Ordinal);
+            Assert.Contains("切割补偿 mm", detail, StringComparison.Ordinal);
             Assert.Contains("11111111-2222-3333-4444-555555555555", detail, StringComparison.Ordinal);
         }
         finally

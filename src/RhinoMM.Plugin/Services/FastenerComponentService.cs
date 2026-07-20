@@ -153,7 +153,7 @@ public static class FastenerComponentService
             var attributes = ComponentRepository.CreateAttributes(draft, "Proxy");
             attributes.SetUserString(
                 ComponentRepository.ProxyPartKey,
-                proxyIndex == 0 && draft.Kind != FastenerKind.HexNut ? "Shaft" : "Head");
+                proxyIndex == 0 && FastenerKindTraits.HasShaftProxy(draft.Kind) ? "Shaft" : "Head");
             ComponentPresentationService.ConfigureAttributes(doc, attributes, draft, false, true);
             var id = doc.Objects.AddBrep(proxy, attributes);
             if (id == Guid.Empty)
