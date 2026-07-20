@@ -10,137 +10,72 @@ namespace RhinoMM.Plugin.Services;
 
 public static class FastenerComponentService
 {
-    public static bool CreateOrReplace(RhinoDoc doc, FastenerComponentData draft, out FastenerComponentData saved, out string message)
+    public static bool CreateOrReplace(
+        RhinoDoc doc,
+        FastenerComponentData draft,
+        out FastenerComponentData saved,
+        out string message)
     {
-        saved = draft;
+        var success = CreateOrReplaceMany(doc, [draft], out var savedComponents, out message);
+        saved = success ? savedComponents[0] : draft;
+        return success;
+    }
+
+    public static bool CreateOrReplaceMany(
+        RhinoDoc doc,
+        IReadOnlyList<FastenerComponentData> drafts,
+        out IReadOnlyList<FastenerComponentData> savedComponents,
+        out string message)
+    {
+        savedComponents = [];
         message = string.Empty;
-        FastenerSizeSpec spec;
-        try
+        if (drafts.Count == 0)
         {
-            spec = RhinoMMPlugIn.Catalog.Get(draft.Size);
+            message = "没有需要更新的参数化紧固件。";
+            return false;
         }
-        catch (Exception ex)
+        if (drafts.Select(item => item.ComponentId).Distinct().Count() != drafts.Count)
         {
-            message = ex.Message;
+            message = "批量更新中包含重复的组件 ID。";
             return false;
         }
 
-        var validation = FastenerComponentValidator.Validate(draft, spec);
-        if (!validation.IsValid)
+        var prepared = new List<PreparedComponent>();
+        var preparationErrors = new List<string>();
+        foreach (var draft in drafts)
         {
-            message = string.Join(System.Environment.NewLine, validation.Issues.Where(x => x.IsError).Select(x => x.Message));
+            if (TryPrepare(doc, draft, out var component, out var error))
+                prepared.Add(component!);
+            else
+                preparationErrors.Add($"{draft.Size} · {draft.ComponentId.ToString("N")[..8]}：{error}");
+        }
+        if (preparationErrors.Count > 0)
+        {
+            message = "批量预检失败，未修改任何组件：" + System.Environment.NewLine
+                + string.Join(System.Environment.NewLine, preparationErrors);
             return false;
         }
 
-        IReadOnlyList<Brep> proxies;
-        var cutters = new List<(HoleTargetBinding Binding, Brep Shaft, Brep? Head)>();
-        var warnings = new List<string>();
-        try
-        {
-            proxies = FastenerGeometryFactory.CreateProxy(draft, spec);
-            foreach (var binding in draft.Bindings)
-            {
-                var target = doc.Objects.FindId(binding.TargetObjectId);
-                if (target is null)
-                    throw new InvalidOperationException($"被切割体已丢失：{binding.TargetObjectId}");
-                if (!FastenerGeometryFactory.TryGetTargetInterval(
-                        target.Geometry, draft.Placement, doc.ModelAbsoluteTolerance, out var targetInterval, out var usedFallback))
-                    throw new InvalidOperationException($"无法计算被切割体的轴向范围：{target.Id}");
-                if (usedFallback)
-                    warnings.Add($"{TargetName(target)} 的切割范围使用了包围盒估算。");
-
-                var padding = Math.Max(0.2, doc.ModelAbsoluteTolerance * 10);
-                var start = targetInterval.Min - padding;
-                var end = targetInterval.Max + padding;
-                var limit = FastenerGeometryFactory.DepthLimit(draft, spec, binding);
-                if (!double.IsPositiveInfinity(limit))
-                {
-                    if (limit < targetInterval.Min - doc.ModelAbsoluteTolerance)
-                        throw new InvalidOperationException($"螺杆深度 {limit:0.###} mm 无法到达咬合体“{TargetName(target)}”。");
-                    start = Math.Max(start, -padding);
-                    end = Math.Min(end, limit + padding);
-                    if (limit >= targetInterval.Max - doc.ModelAbsoluteTolerance)
-                        warnings.Add($"{TargetName(target)} 的咬合孔将自然贯穿。");
-                }
-                var shaft = FastenerGeometryFactory.CreateShaftCutter(draft, spec, binding, start, end);
-                var head = binding.IncludeHeadSeat ? FastenerGeometryFactory.CreateHeadSeatCutter(draft, spec) : null;
-                cutters.Add((binding, shaft, head));
-            }
-        }
-        catch (Exception ex)
-        {
-            message = $"几何生成失败：{ex.Message}";
-            return false;
-        }
-
-        var undo = doc.BeginUndoRecord("参数化紧固件：更新组件");
+        var undo = doc.BeginUndoRecord(
+            drafts.Count == 1 ? "参数化紧固件：更新组件" : $"参数化紧固件：批量更新 {drafts.Count} 个组件");
         var ownsUndoRecord = undo != 0;
         try
         {
-            ComponentPresentationService.RemoveGroup(doc, draft.ComponentId);
-            foreach (var old in ComponentRepository.FindComponentObjects(doc, draft.ComponentId).ToList())
-                doc.Objects.Delete(old, true);
-
-            var proxyIds = new List<Guid>();
-            foreach (var proxy in proxies)
-            {
-                var attributes = ComponentRepository.CreateAttributes(draft, "Proxy");
-                ComponentPresentationService.ConfigureAttributes(doc, attributes, draft, false, true);
-                var id = doc.Objects.AddBrep(proxy, attributes);
-                if (id == Guid.Empty)
-                    throw new InvalidOperationException("无法写入螺丝代理体。");
-                proxyIds.Add(id);
-            }
-
-            var bindings = new List<HoleTargetBinding>();
-            var componentObjectIds = new List<Guid>(proxyIds);
-            foreach (var item in cutters)
-            {
-                var cutterAttributes = ComponentRepository.CreateAttributes(
-                    draft, "Cutter", item.Binding.TargetObjectId, item.Binding.BindingId);
-                ComponentPresentationService.ConfigureAttributes(
-                    doc, cutterAttributes, draft, true, item.Binding.IsPreviewVisible);
-                var cutterId = doc.Objects.AddBrep(item.Shaft, cutterAttributes);
-                if (cutterId == Guid.Empty)
-                    throw new InvalidOperationException("无法写入孔切割体。");
-                componentObjectIds.Add(cutterId);
-                if (item.Head is not null)
-                {
-                    var headAttributes = ComponentRepository.CreateAttributes(
-                        draft, "HeadCutter", item.Binding.TargetObjectId, item.Binding.BindingId);
-                    ComponentPresentationService.ConfigureAttributes(
-                        doc, headAttributes, draft, true, item.Binding.IsPreviewVisible);
-                    var headId = doc.Objects.AddBrep(item.Head, headAttributes);
-                    if (headId == Guid.Empty)
-                        throw new InvalidOperationException("无法写入头部切割体。");
-                    componentObjectIds.Add(headId);
-                }
-                bindings.Add(item.Binding with { CutterObjectId = cutterId });
-            }
-
-            saved = draft with
-            {
-                ProxyObjectId = proxyIds[0],
-                Bindings = bindings,
-                UpdatedAt = DateTimeOffset.UtcNow
-            };
-
-            foreach (var obj in ComponentRepository.FindComponentObjects(doc, saved.ComponentId).ToList())
-            {
-                var attributes = obj.Attributes.Duplicate();
-                ComponentRepository.Write(attributes, saved,
-                    obj.Attributes.GetUserString(ComponentRepository.RoleKey) ?? "Proxy",
-                    Guid.TryParse(obj.Attributes.GetUserString(ComponentRepository.TargetIdKey), out var targetId) ? targetId : Guid.Empty,
-                    Guid.TryParse(obj.Attributes.GetUserString(ComponentRepository.BindingIdKey), out var bindingId) ? bindingId : Guid.Empty);
-                doc.Objects.ModifyAttributes(obj, attributes, true);
-            }
-
-            ComponentPresentationService.RecreateGroup(doc, saved.ComponentId, componentObjectIds);
-
+            var saved = new List<FastenerComponentData>();
+            foreach (var component in prepared)
+                saved.Add(CommitPrepared(doc, component));
+            savedComponents = saved;
             doc.Views.Redraw();
-            message = $"已生成 {saved.Size}，绑定 {saved.Bindings.Count} 个被切割体。";
-            if (warnings.Count > 0)
-                message += $" {string.Join(" ", warnings.Distinct())}";
+
+            var warningText = prepared
+                .SelectMany(item => item.Warnings)
+                .Distinct()
+                .ToArray();
+            message = drafts.Count == 1
+                ? $"已生成 {saved[0].Size}，绑定 {saved[0].Bindings.Count} 个被切割体。"
+                : $"已批量更新 {saved.Count} 个参数化紧固件。";
+            if (warningText.Length > 0)
+                message += $" {string.Join(" ", warningText)}";
             return true;
         }
         catch (Exception ex)
@@ -152,7 +87,7 @@ public static class FastenerComponentService
                 doc.Undo();
             }
             message = ownsUndoRecord
-                ? $"更新失败，已回滚：{ex.Message}"
+                ? $"更新失败，已回滚全部组件：{ex.Message}"
                 : $"更新失败：{ex.Message}。当前操作由 Rhino 命令撤销记录管理。";
             return false;
         }
@@ -163,8 +98,132 @@ public static class FastenerComponentService
         }
     }
 
-    private static string TargetName(RhinoObject target) =>
-        string.IsNullOrWhiteSpace(target.Attributes.Name)
-            ? $"实体 {target.Id.ToString("N")[..8]}"
-            : target.Attributes.Name;
+    private static bool TryPrepare(
+        RhinoDoc doc,
+        FastenerComponentData draft,
+        out PreparedComponent? prepared,
+        out string message)
+    {
+        prepared = null;
+        message = string.Empty;
+        try
+        {
+            var spec = RhinoMMPlugIn.Catalog.Get(draft.Size);
+            var validation = FastenerComponentValidator.Validate(draft, spec);
+            if (!validation.IsValid)
+            {
+                message = string.Join(
+                    System.Environment.NewLine,
+                    validation.Issues.Where(item => item.IsError).Select(item => item.Message));
+                return false;
+            }
+
+            var proxies = FastenerGeometryFactory.CreateProxy(draft, spec);
+            var cutters = new List<CutterGeometryBuild>();
+            var warnings = new List<string>();
+            foreach (var binding in draft.Bindings)
+            {
+                if (!CutterGeometryService.TryBuild(doc, draft, spec, binding, out var cutter, out var cutterError))
+                    throw new InvalidOperationException(cutterError);
+                cutters.Add(cutter!);
+                warnings.AddRange(cutter!.Warnings);
+            }
+            prepared = new PreparedComponent(draft, proxies, cutters, warnings);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            message = $"几何预检失败：{ex.Message}";
+            return false;
+        }
+    }
+
+    private static FastenerComponentData CommitPrepared(RhinoDoc doc, PreparedComponent prepared)
+    {
+        var draft = prepared.Draft;
+        using var suppression = ComponentLifecycleService.Suppress(doc, draft.ComponentId);
+        ComponentPresentationService.RemoveGroup(doc, draft.ComponentId);
+        foreach (var old in ComponentRepository.FindComponentObjects(doc, draft.ComponentId).ToList())
+            doc.Objects.Delete(old, true);
+
+        var proxyIds = new List<Guid>();
+        for (var proxyIndex = 0; proxyIndex < prepared.Proxies.Count; proxyIndex++)
+        {
+            var proxy = prepared.Proxies[proxyIndex];
+            var attributes = ComponentRepository.CreateAttributes(draft, "Proxy");
+            attributes.SetUserString(
+                ComponentRepository.ProxyPartKey,
+                proxyIndex == 0 && draft.Kind != FastenerKind.HexNut ? "Shaft" : "Head");
+            ComponentPresentationService.ConfigureAttributes(doc, attributes, draft, false, true);
+            var id = doc.Objects.AddBrep(proxy, attributes);
+            if (id == Guid.Empty)
+                throw new InvalidOperationException("无法写入螺丝代理体。");
+            proxyIds.Add(id);
+        }
+
+        var bindings = new List<HoleTargetBinding>();
+        var geometryObjectIds = new List<Guid>(proxyIds);
+        foreach (var item in prepared.Cutters)
+        {
+            var cutterAttributes = ComponentRepository.CreateAttributes(
+                draft, "Cutter", item.Binding.TargetObjectId, item.Binding.BindingId);
+            ComponentPresentationService.ConfigureAttributes(
+                doc, cutterAttributes, draft, true, item.Binding.IsPreviewVisible);
+            var cutterId = doc.Objects.AddBrep(item.Shaft, cutterAttributes);
+            if (cutterId == Guid.Empty)
+                throw new InvalidOperationException("无法写入孔切割体。");
+            geometryObjectIds.Add(cutterId);
+            if (item.Head is not null)
+            {
+                var headAttributes = ComponentRepository.CreateAttributes(
+                    draft, "HeadCutter", item.Binding.TargetObjectId, item.Binding.BindingId);
+                ComponentPresentationService.ConfigureAttributes(
+                    doc, headAttributes, draft, true, item.Binding.IsPreviewVisible);
+                var headId = doc.Objects.AddBrep(item.Head, headAttributes);
+                if (headId == Guid.Empty)
+                    throw new InvalidOperationException("无法写入头部切割体。");
+                geometryObjectIds.Add(headId);
+            }
+            bindings.Add(item.Binding with { CutterObjectId = cutterId });
+        }
+
+        var controlAttributes = ComponentRepository.CreateAttributes(draft, "ControlPoint");
+        ComponentPresentationService.ConfigureControlPointAttributes(doc, controlAttributes);
+        var controlPointId = doc.Objects.AddPoint(
+            FastenerGeometryFactory.ToPlane(draft.Placement).Origin,
+            controlAttributes);
+        if (controlPointId == Guid.Empty)
+            throw new InvalidOperationException("无法写入螺丝控制点。");
+
+        var saved = draft with
+        {
+            ProxyObjectId = proxyIds[0],
+            ControlPointObjectId = controlPointId,
+            Bindings = bindings,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+        foreach (var obj in ComponentRepository.FindComponentObjects(doc, saved.ComponentId).ToList())
+        {
+            var attributes = obj.Attributes.Duplicate();
+            ComponentRepository.Write(
+                attributes,
+                saved,
+                obj.Attributes.GetUserString(ComponentRepository.RoleKey) ?? "Proxy",
+                Guid.TryParse(obj.Attributes.GetUserString(ComponentRepository.TargetIdKey), out var targetId)
+                    ? targetId
+                    : Guid.Empty,
+                Guid.TryParse(obj.Attributes.GetUserString(ComponentRepository.BindingIdKey), out var bindingId)
+                    ? bindingId
+                    : Guid.Empty);
+            doc.Objects.ModifyAttributes(obj, attributes, true);
+        }
+        ComponentPresentationService.RecreateGroup(doc, saved.ComponentId, geometryObjectIds);
+        return saved;
+    }
+
+    private sealed record PreparedComponent(
+        FastenerComponentData Draft,
+        IReadOnlyList<Brep> Proxies,
+        IReadOnlyList<CutterGeometryBuild> Cutters,
+        IReadOnlyList<string> Warnings);
 }

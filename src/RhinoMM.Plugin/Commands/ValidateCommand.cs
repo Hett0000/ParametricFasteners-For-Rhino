@@ -9,7 +9,9 @@ public sealed class RhinoMMValidateCommand : Command
 {
     public override string EnglishName => "RhinoMMValidate";
 
-    protected override Result RunCommand(RhinoDoc doc, RunMode mode)
+    protected override Result RunCommand(RhinoDoc doc, RunMode mode) => Execute(doc, mode);
+
+    internal static Result Execute(RhinoDoc doc, RunMode mode)
     {
         var components = doc.Objects
             .Select(obj => ComponentRepository.TryRead(obj, out var data) ? data : null)

@@ -4,8 +4,10 @@ using Rhino.DocObjects;
 using Rhino.Geometry;
 using Rhino.Input;
 using Rhino.Input.Custom;
+using Rhino.UI;
 using RhinoMM.Core.Domain;
 using RhinoMM.Plugin.Geometry;
+using RhinoMM.Plugin.Persistence;
 using RhinoMM.Plugin.Services;
 
 namespace RhinoMM.Plugin.Commands;
@@ -14,7 +16,9 @@ public sealed class RhinoMMPlaceHoleCommand : Command
 {
     public override string EnglishName => "RhinoMMPlaceHole";
 
-    protected override Result RunCommand(RhinoDoc doc, RunMode mode)
+    protected override Result RunCommand(RhinoDoc doc, RunMode mode) => Execute(doc, mode);
+
+    internal static Result Execute(RhinoDoc doc, RunMode mode)
     {
         var clearanceTargets = SelectTargets("选择螺丝穿过的物体（正补偿通孔）");
         var engagementTargets = SelectTargets("选择需要与螺丝咬合的物体（负补偿孔）");
@@ -24,71 +28,145 @@ public sealed class RhinoMMPlaceHoleCommand : Command
             return Result.Cancel;
         }
 
-        var placementResult = GetPlacementPlane(out var plane, out var placementObjectId);
+        var targetIds = clearanceTargets.Concat(engagementTargets).Distinct().ToArray();
+        var placementResult = GetPlacementPlane(
+            doc,
+            targetIds,
+            out var plane,
+            out var placementObjectId,
+            out var continuousPointPlacement);
         if (placementResult != Result.Success)
             return placementResult;
 
         var state = EditorState.Current;
+        if (!TryPlaceAt(doc, state, clearanceTargets, engagementTargets, plane, placementObjectId, out var saved, out var message))
+        {
+            RhinoApp.WriteLine(message);
+            return Result.Failure;
+        }
+
+        var placed = new List<FastenerComponentData> { saved };
+        if (continuousPointPlacement)
+        {
+            var reusableAxis = plane.ZAxis;
+            while (true)
+            {
+                using var pointGetter = new GetPoint();
+                pointGetter.SetCommandPrompt("继续捕捉放置点，按 Enter、右键或 Esc 完成");
+                pointGetter.AcceptNothing(true);
+                var pointResult = pointGetter.Get();
+                if (pointResult is GetResult.Nothing or GetResult.Cancel)
+                    break;
+                if (pointResult != GetResult.Point)
+                    continue;
+
+                var origin = pointGetter.Point();
+                var axis = reusableAxis;
+                var nextPlacementObjectId = FindClosestPlacementHost(doc, targetIds, origin, out var hostBrep);
+                if (hostBrep?.IsSolid == true)
+                    OrientAxisIntoHost(hostBrep, origin, ref axis, doc.ModelAbsoluteTolerance);
+                var nextPlane = new Plane(origin, axis);
+                if (!TryPlaceAt(
+                        doc,
+                        state,
+                        clearanceTargets,
+                        engagementTargets,
+                        nextPlane,
+                        nextPlacementObjectId,
+                        out var nextSaved,
+                        out var nextMessage))
+                {
+                    RhinoApp.WriteLine($"该点放置失败：{nextMessage}");
+                    continue;
+                }
+                placed.Add(nextSaved);
+                RhinoApp.WriteLine($"已连续放置 {placed.Count} 颗紧固件。");
+            }
+        }
+
+        ComponentEditorSession.Activate(doc, placed[^1], true);
+        RhinoApp.WriteLine(
+            placed.Count == 1
+                ? message
+                : $"连续放置完成：共生成 {placed.Count} 颗紧固件，可使用一次撤销恢复。");
+        return Result.Success;
+    }
+
+    private static bool TryPlaceAt(
+        RhinoDoc doc,
+        EditorState state,
+        IReadOnlyCollection<Guid> clearanceTargets,
+        IReadOnlyCollection<Guid> engagementTargets,
+        Plane plane,
+        Guid placementObjectId,
+        out FastenerComponentData saved,
+        out string message)
+    {
+        var preset = PlacementPresetService.Current;
         var bindings = new List<HoleTargetBinding>();
         var headSeatTarget = clearanceTargets.Contains(placementObjectId)
             ? placementObjectId
             : engagementTargets.Contains(placementObjectId)
                 ? placementObjectId
                 : clearanceTargets.FirstOrDefault(engagementTargets.FirstOrDefault());
-        bindings.AddRange(clearanceTargets.Select(id => new HoleTargetBinding
-        {
-            TargetObjectId = id,
-            Role = ShaftFitRole.Clearance,
-            ClearanceFit = state.ClearanceFit,
-            IncludeHeadSeat = id == headSeatTarget
-        }));
-        bindings.AddRange(engagementTargets.Select(id => new HoleTargetBinding
-        {
-            TargetObjectId = id,
-            Role = ShaftFitRole.ThreadEngagement,
-            BiteReduction = state.BiteReduction,
-            IncludeHeadSeat = id == headSeatTarget
-        }));
+        bindings.AddRange(clearanceTargets.Select(id =>
+            preset.CreateClearanceBinding(id, id == headSeatTarget)));
+        bindings.AddRange(engagementTargets.Select(id =>
+            preset.CreateEngagementBinding(id, id == headSeatTarget)));
 
         state.LoadedComponentId = Guid.Empty;
-        var draft = state.CreateDraft(FastenerGeometryFactory.FromPlane(plane), bindings);
-        if (!FastenerComponentService.CreateOrReplace(doc, draft, out var saved, out var message))
+        var draft = state.CreateDraft(FastenerGeometryFactory.FromPlane(plane), bindings) with
         {
-            RhinoApp.WriteLine(message);
-            return Result.Failure;
-        }
-
-        ComponentEditorSession.Activate(doc, saved);
-        RhinoApp.WriteLine(message);
-        return Result.Success;
+            PrintProfile = new PrintProfileSnapshot("当前 FDM 配置", preset.PrinterCorrection)
+        };
+        return FastenerComponentService.CreateOrReplace(doc, draft, out saved, out message);
     }
 
     private static List<Guid> SelectTargets(string prompt)
     {
         using var go = new GetObject();
-        go.SetCommandPrompt(prompt);
+        go.SetCommandPrompt($"{prompt}；单击一个对象立即完成，或切换“多选”");
         go.GeometryFilter = ObjectType.Brep | ObjectType.Extrusion;
-        go.GroupSelect = true;
+        go.GroupSelect = false;
         go.SubObjectSelect = false;
+        go.SetCustomGeometryFilter(IsHostGeometry);
         go.AcceptNothing(true);
         go.EnablePreSelect(false, true);
-        var result = go.GetMultiple(1, 0);
-        if (result == GetResult.Nothing)
-            return [];
-        if (result != GetResult.Object)
-            return [];
-        return Enumerable.Range(0, go.ObjectCount).Select(i => go.Object(i).ObjectId).Distinct().ToList();
+        var multiSelect = new OptionToggle(
+            false,
+            new LocalizeStringPair("Single", "单选"),
+            new LocalizeStringPair("Multiple", "多选"));
+        go.AddOptionToggle(new LocalizeStringPair("MultiSelect", "多选"), ref multiSelect);
+        GetResult result;
+        do
+        {
+            result = multiSelect.CurrentValue ? go.GetMultiple(1, 0) : go.Get();
+        }
+        while (result == GetResult.Option);
+        var selected = result == GetResult.Object
+            ? Enumerable.Range(0, go.ObjectCount).Select(i => go.Object(i).ObjectId).Distinct().ToList()
+            : [];
+        multiSelect.Dispose();
+        return selected;
     }
 
-    private static Result GetPlacementPlane(out Plane plane, out Guid placementObjectId)
+    private static Result GetPlacementPlane(
+        RhinoDoc doc,
+        IReadOnlyCollection<Guid> targetIds,
+        out Plane plane,
+        out Guid placementObjectId,
+        out bool continuousPointPlacement)
     {
         plane = Plane.WorldXY;
         placementObjectId = Guid.Empty;
+        continuousPointPlacement = false;
         using var faceGetter = new GetObject();
-        faceGetter.SetCommandPrompt("选择放置面，或按 Enter 改用起始点和轴向");
+        faceGetter.SetCommandPrompt("选择放置面，或选择“捕捉点”使用端点、中点、圆心等对象捕捉");
         faceGetter.GeometryFilter = ObjectType.Surface;
         faceGetter.SubObjectSelect = true;
-        faceGetter.AcceptNothing(true);
+        faceGetter.GroupSelect = false;
+        faceGetter.SetCustomGeometryFilter(IsHostGeometry);
+        var snapPointOption = faceGetter.AddOption(new LocalizeStringPair("SnapPoint", "捕捉点"));
         var faceResult = faceGetter.Get();
         if (faceResult == GetResult.Object)
         {
@@ -124,10 +202,11 @@ public sealed class RhinoMMPlaceHoleCommand : Command
             placementObjectId = reference.ObjectId;
             return Result.Success;
         }
-        if (faceResult != GetResult.Nothing)
+        if (faceResult != GetResult.Option || faceGetter.OptionIndex() != snapPointOption)
             return Result.Cancel;
 
-        var pointResult = RhinoGet.GetPoint("选择孔的起始点", false, out var origin);
+        continuousPointPlacement = true;
+        var pointResult = RhinoGet.GetPoint("捕捉放置点（支持端点、中点、圆心、交点和节点）", false, out var origin);
         if (pointResult != Result.Success)
             return pointResult;
         using var axisGetter = new GetPoint();
@@ -139,7 +218,53 @@ public sealed class RhinoMMPlaceHoleCommand : Command
         var axis = axisGetter.Point() - origin;
         if (!axis.Unitize())
             return Result.Failure;
+        placementObjectId = FindClosestPlacementHost(doc, targetIds, origin, out var hostBrep);
+        if (hostBrep?.IsSolid == true)
+            OrientAxisIntoHost(hostBrep, origin, ref axis, doc.ModelAbsoluteTolerance);
         plane = new Plane(origin, axis);
         return Result.Success;
     }
+
+    private static Guid FindClosestPlacementHost(
+        RhinoDoc doc,
+        IEnumerable<Guid> targetIds,
+        Point3d point,
+        out Brep? closestBrep)
+    {
+        closestBrep = null;
+        var closestId = Guid.Empty;
+        var closestDistance = double.PositiveInfinity;
+        var maximumDistance = Math.Max(0.2, doc.ModelAbsoluteTolerance * 10);
+        foreach (var targetId in targetIds)
+        {
+            var target = doc.Objects.FindId(targetId);
+            var brep = target?.Geometry switch
+            {
+                Brep value => value,
+                Extrusion extrusion => extrusion.ToBrep(),
+                _ => null
+            };
+            if (brep is null)
+                continue;
+            var distance = point.DistanceTo(brep.ClosestPoint(point));
+            if (distance > maximumDistance || distance >= closestDistance)
+                continue;
+            closestDistance = distance;
+            closestId = targetId;
+            closestBrep = brep;
+        }
+        return closestId;
+    }
+
+    private static void OrientAxisIntoHost(Brep host, Point3d origin, ref Vector3d axis, double tolerance)
+    {
+        var sampleDistance = Math.Max(0.2, tolerance * 10);
+        var positiveInside = host.IsPointInside(origin + axis * sampleDistance, tolerance, true);
+        var negativeInside = host.IsPointInside(origin - axis * sampleDistance, tolerance, true);
+        if (!positiveInside && negativeInside)
+            axis.Reverse();
+    }
+
+    private static bool IsHostGeometry(RhinoObject obj, GeometryBase geometry, ComponentIndex componentIndex) =>
+        string.IsNullOrWhiteSpace(obj.Attributes.GetUserString(ComponentRepository.ComponentIdKey));
 }

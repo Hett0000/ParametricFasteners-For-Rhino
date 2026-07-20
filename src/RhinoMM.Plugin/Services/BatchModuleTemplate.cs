@@ -1,0 +1,52 @@
+using RhinoMM.Core.Domain;
+
+namespace RhinoMM.Plugin.Services;
+
+internal sealed record BatchModuleTemplate(
+    bool HasClearance,
+    bool ClearancePreviewVisible,
+    bool ClearanceBooleanEnabled,
+    bool HasEngagement,
+    DepthMode EngagementDepthMode,
+    double EngagementBlindDepth,
+    bool EngagementPreviewVisible,
+    bool EngagementBooleanEnabled)
+{
+    public static BatchModuleTemplate FromComponents(
+        IReadOnlyList<FastenerComponentData> components)
+    {
+        var bindings = components.SelectMany(component => component.Bindings).ToArray();
+        var clearance = bindings.FirstOrDefault(binding => binding.Role == ShaftFitRole.Clearance);
+        var engagement = bindings.FirstOrDefault(binding => binding.Role == ShaftFitRole.ThreadEngagement);
+        return new BatchModuleTemplate(
+            clearance is not null,
+            clearance?.IsPreviewVisible ?? true,
+            clearance?.IsBooleanEnabled ?? true,
+            engagement is not null,
+            engagement?.DepthMode ?? DepthMode.ThroughTarget,
+            engagement?.BlindDepth ?? 0,
+            engagement?.IsPreviewVisible ?? true,
+            engagement?.IsBooleanEnabled ?? true);
+    }
+
+    public IReadOnlyList<HoleTargetBinding> Apply(
+        IReadOnlyList<HoleTargetBinding> bindings)
+    {
+        return bindings.Select(binding => binding.Role switch
+        {
+            ShaftFitRole.Clearance when HasClearance => binding with
+            {
+                IsPreviewVisible = ClearancePreviewVisible,
+                IsBooleanEnabled = ClearanceBooleanEnabled
+            },
+            ShaftFitRole.ThreadEngagement when HasEngagement => binding with
+            {
+                DepthMode = EngagementDepthMode,
+                BlindDepth = EngagementBlindDepth,
+                IsPreviewVisible = EngagementPreviewVisible,
+                IsBooleanEnabled = EngagementBooleanEnabled
+            },
+            _ => binding
+        }).ToArray();
+    }
+}

@@ -1,40 +1,67 @@
-using Rhino;
 using Rhino.Commands;
 
 namespace RhinoMM.Plugin.Commands;
 
-public abstract class CommandAlias(string targetCommand) : Command
+public sealed class ParametricFastenersPlaceCommand : Command
 {
-    protected override Result RunCommand(RhinoDoc doc, RunMode mode) =>
-        RhinoApp.RunScript($"_-{targetCommand}", false) ? Result.Success : Result.Failure;
-}
-
-public sealed class ParametricFastenersPlaceCommand : CommandAlias
-{
-    public ParametricFastenersPlaceCommand() : base("RhinoMMPlaceHole") { }
     public override string EnglishName => "ParametricFastenersPlace";
+
+    protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode) =>
+        RhinoMMPlaceHoleCommand.Execute(doc, mode);
 }
 
-public sealed class ParametricFastenersEditCommand : CommandAlias
+public sealed class ParametricFastenersEditCommand : Command
 {
-    public ParametricFastenersEditCommand() : base("RhinoMMEditHole") { }
     public override string EnglishName => "ParametricFastenersEdit";
+
+    protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode) =>
+        RhinoMMEditHoleCommand.Execute(doc, mode);
 }
 
-public sealed class ParametricFastenersAdoptCommand : CommandAlias
+public sealed class ParametricFastenersAdoptCommand : Command
 {
-    public ParametricFastenersAdoptCommand() : base("RhinoMMAdoptFastener") { }
     public override string EnglishName => "ParametricFastenersAdopt";
+
+    protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode) =>
+        RhinoMMAdoptFastenerCommand.Execute(doc, mode);
 }
 
-public sealed class ParametricFastenersValidateCommand : CommandAlias
+public sealed class ParametricFastenersValidateCommand : Command
 {
-    public ParametricFastenersValidateCommand() : base("RhinoMMValidate") { }
     public override string EnglishName => "ParametricFastenersValidate";
+
+    protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode) =>
+        RhinoMMValidateCommand.Execute(doc, mode);
 }
 
-public sealed class ParametricFastenersExportCommand : CommandAlias
+public sealed class ParametricFastenersExportCommand : Command
 {
-    public ParametricFastenersExportCommand() : base("RhinoMMExportPrint") { }
     public override string EnglishName => "ParametricFastenersExport";
+
+    protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode) =>
+        RhinoMMExportPrintCommand.Execute(doc, mode);
+}
+
+public sealed class ParametricFastenersExportStlCommand : Command
+{
+    public override string EnglishName => "ParametricFastenersExportStl";
+
+    protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode) =>
+        RhinoMMExportPrintCommand.Execute(doc, mode, PrintExportFormat.Stl);
+}
+
+public sealed class ParametricFastenersExportStepCommand : Command
+{
+    public override string EnglishName => "ParametricFastenersExportStep";
+
+    protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode) =>
+        RhinoMMExportPrintCommand.Execute(doc, mode, PrintExportFormat.Step);
+}
+
+public sealed class ParametricFastenersExportToRhinoCommand : Command
+{
+    public override string EnglishName => "ParametricFastenersExportToRhino";
+
+    protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode) =>
+        RhinoMMExportToRhinoCommand.Execute(doc, mode);
 }

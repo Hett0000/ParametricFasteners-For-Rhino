@@ -1,5 +1,6 @@
 using Rhino;
 using Rhino.DocObjects;
+using Rhino.Geometry;
 using RhinoMM.Core.Domain;
 using RhinoMM.Core.Services;
 
@@ -12,6 +13,7 @@ public static class ComponentRepository
     public const string RoleKey = "RhinoMM.Role";
     public const string TargetIdKey = "RhinoMM.TargetId";
     public const string BindingIdKey = "RhinoMM.BindingId";
+    public const string ProxyPartKey = "RhinoMM.ProxyPart";
 
     public static ObjectAttributes CreateAttributes(
         FastenerComponentData data,
@@ -31,6 +33,7 @@ public static class ComponentRepository
             "Proxy" => "紧固件",
             "Cutter" => "轴孔切割模块",
             "HeadCutter" => "头部切割模块",
+            "ControlPoint" => "控制点",
             _ => role
         };
         return $"参数化紧固件 {data.Size} {roleName}";
@@ -48,8 +51,12 @@ public static class ComponentRepository
         attributes.SetUserString(RoleKey, role);
         if (targetId != Guid.Empty)
             attributes.SetUserString(TargetIdKey, targetId.ToString("D"));
+        else
+            attributes.DeleteUserString(TargetIdKey);
         if (bindingId != Guid.Empty)
             attributes.SetUserString(BindingIdKey, bindingId.ToString("D"));
+        else
+            attributes.DeleteUserString(BindingIdKey);
     }
 
     public static bool TryRead(RhinoObject? obj, out FastenerComponentData data)
@@ -73,13 +80,62 @@ public static class ComponentRepository
 
     public static bool TryReadSelection(RhinoDoc doc, out FastenerComponentData data)
     {
-        foreach (var obj in doc.Objects.GetSelectedObjects(false, false))
+        var selected = ReadSelectedControlPoints(doc);
+        if (selected.Count > 0)
         {
-            if (TryRead(obj, out data))
-                return true;
+            data = selected[0];
+            return true;
         }
         data = new FastenerComponentData();
         return false;
+    }
+
+    public static IReadOnlyList<FastenerComponentData> ReadSelectedControlPoints(RhinoDoc doc)
+    {
+        var result = new List<FastenerComponentData>();
+        var componentIds = new HashSet<Guid>();
+        foreach (var obj in doc.Objects.GetSelectedObjects(false, false))
+        {
+            if (obj.Attributes.GetUserString(RoleKey) != "ControlPoint"
+                || obj.Geometry is not Point
+                || !TryRead(obj, out var data)
+                || !componentIds.Add(data.ComponentId))
+                continue;
+            result.Add(data);
+        }
+        return result;
+    }
+
+    public static IReadOnlyList<FastenerComponentData> ReadAllControlPoints(
+        RhinoDoc doc,
+        out int ignoredComponentCount)
+    {
+        var result = new List<FastenerComponentData>();
+        var componentIds = new HashSet<Guid>();
+        var invalidComponentIds = new HashSet<Guid>();
+        foreach (var obj in doc.Objects)
+        {
+            var componentIdText = obj.Attributes.GetUserString(ComponentIdKey);
+            if (!Guid.TryParse(componentIdText, out var componentId))
+                continue;
+            if (obj.Attributes.GetUserString(RoleKey) != "ControlPoint")
+            {
+                invalidComponentIds.Add(componentId);
+                continue;
+            }
+            if (obj.Geometry is Point && TryRead(obj, out var data) && componentIds.Add(data.ComponentId))
+            {
+                result.Add(data);
+                invalidComponentIds.Remove(data.ComponentId);
+            }
+            else
+            {
+                invalidComponentIds.Add(componentId);
+            }
+        }
+        invalidComponentIds.ExceptWith(componentIds);
+        ignoredComponentCount = invalidComponentIds.Count;
+        return result;
     }
 
     public static bool TryReadComponent(RhinoDoc doc, Guid componentId, out FastenerComponentData data)
@@ -93,10 +149,21 @@ public static class ComponentRepository
         return false;
     }
 
-    public static RhinoObject? FindProxy(RhinoDoc doc, Guid componentId) =>
+    public static RhinoObject? FindProxy(RhinoDoc doc, Guid componentId)
+    {
+        var proxies = doc.Objects.Where(obj =>
+            string.Equals(obj.Attributes.GetUserString(ComponentIdKey), componentId.ToString("D"), StringComparison.OrdinalIgnoreCase)
+            && obj.Attributes.GetUserString(RoleKey) == "Proxy").ToArray();
+        return proxies.FirstOrDefault(obj => obj.Attributes.GetUserString(ProxyPartKey) == "Shaft")
+            ?? proxies.FirstOrDefault(obj =>
+                TryRead(obj, out var data) && data.ProxyObjectId == obj.Id)
+            ?? proxies.FirstOrDefault();
+    }
+
+    public static RhinoObject? FindControlPoint(RhinoDoc doc, Guid componentId) =>
         doc.Objects.FirstOrDefault(obj =>
             string.Equals(obj.Attributes.GetUserString(ComponentIdKey), componentId.ToString("D"), StringComparison.OrdinalIgnoreCase)
-            && obj.Attributes.GetUserString(RoleKey) == "Proxy");
+            && obj.Attributes.GetUserString(RoleKey) == "ControlPoint");
 
     public static IEnumerable<RhinoObject> FindComponentObjects(RhinoDoc doc, Guid componentId) =>
         doc.Objects.Where(obj => string.Equals(

@@ -2,6 +2,7 @@ using Rhino;
 using Rhino.Geometry;
 using Rhino.Geometry.Intersect;
 using RhinoMM.Core.Domain;
+using RhinoMM.Core.Services;
 
 namespace RhinoMM.Plugin.Geometry;
 
@@ -10,47 +11,77 @@ public static class FastenerGeometryFactory
     public static IReadOnlyList<Brep> CreateProxy(FastenerComponentData data, FastenerSizeSpec spec)
     {
         var local = new List<Brep>();
+        var embed = data.Kind == FastenerKind.HexNut ? 0 : data.HeadEmbedDepth;
+        var headHeight = HeadGeometryCalculator.GetHeadHeight(data.Kind, spec);
+        var tolerance = RhinoDoc.ActiveDoc?.ModelAbsoluteTolerance ?? 0.001;
         if (data.Kind != FastenerKind.HexNut)
         {
-            var shaft = CreateCylinder(spec.NominalDiameter / 2, data.Length, 0);
+            // A merely coplanar head/shaft interface can make Rhino's boolean union
+            // return only the head for countersunk and hex-head fasteners. Keep a
+            // small internal overlap without changing the visible shaft end.
+            var overlap = Math.Min(
+                headHeight * 0.1,
+                Math.Max(tolerance * 2, spec.NominalDiameter * 0.005));
+            var shaft = CreateCylinder(
+                spec.NominalDiameter / 2,
+                data.Length + overlap,
+                embed - overlap);
             local.Add(shaft);
         }
 
         switch (data.Kind)
         {
             case FastenerKind.SocketCap:
-                local.Add(CreateCylinder(spec.Head.SocketDiameter / 2, spec.Head.SocketHeight, -spec.Head.SocketHeight));
+                local.Add(CreateCylinder(spec.Head.SocketDiameter / 2, headHeight, embed - headHeight));
                 break;
             case FastenerKind.Countersunk:
-                local.Add(CreateCone(spec.Head.CountersunkDiameter / 2, spec.Head.CountersunkDiameter / 2, -spec.Head.CountersunkDiameter / 2));
+                local.Add(CreateFrustum(
+                    spec.Head.CountersunkDiameter / 2,
+                    spec.NominalDiameter / 2,
+                    headHeight,
+                    embed - headHeight));
                 break;
             case FastenerKind.HexBolt:
-                local.Add(CreateHexPrism(spec.Head.HexAcrossFlats, spec.Head.HexHeight, -spec.Head.HexHeight));
+                local.Add(CreateHexPrism(spec.Head.HexAcrossFlats, headHeight, embed - headHeight));
                 break;
             case FastenerKind.HexNut:
                 local.Add(CreateHexPrism(spec.Head.NutAcrossFlats, spec.Head.NutThickness, 0));
                 break;
         }
 
-        var tolerance = RhinoDoc.ActiveDoc?.ModelAbsoluteTolerance ?? 0.001;
         IReadOnlyList<Brep> result = local;
         if (local.Count > 1)
         {
             var union = Brep.CreateBooleanUnion(local, tolerance);
-            if (union is { Length: 1 })
+            var expectedMin = embed - headHeight;
+            var expectedMax = embed + data.Length;
+            if (union is { Length: 1 }
+                && CoversExpectedAxialSpan(union, expectedMin, expectedMax, tolerance))
                 result = union;
-            else
-            {
-                var joined = Brep.JoinBreps(local, tolerance);
-                if (joined is { Length: 1 })
-                    result = joined;
-            }
+            // If union is incomplete, keep the original closed shaft and head.
+            // Their Rhino group remains the stable component selection boundary.
         }
 
         var transform = Transform.PlaneToPlane(Plane.WorldXY, ToPlane(data.Placement));
         foreach (var brep in result)
             brep.Transform(transform);
         return result;
+    }
+
+    internal static bool CoversExpectedAxialSpan(
+        IEnumerable<Brep> breps,
+        double expectedMin,
+        double expectedMax,
+        double tolerance)
+    {
+        var boxes = breps.Select(brep => brep.GetBoundingBox(true)).ToArray();
+        if (boxes.Length == 0 || boxes.Any(box => !box.IsValid))
+            return false;
+        var actualMin = boxes.Min(box => box.Min.Z);
+        var actualMax = boxes.Max(box => box.Max.Z);
+        return actualMin <= expectedMin + tolerance
+            && actualMax >= expectedMax - tolerance
+            && breps.All(brep => brep.IsSolid);
     }
 
     public static Brep CreateShaftCutter(
@@ -118,20 +149,30 @@ public static class FastenerGeometryFactory
 
     public static Brep? CreateHeadSeatCutter(FastenerComponentData data, FastenerSizeSpec spec, double extra = 0.2)
     {
+        if (data.HeadEmbedDepth <= 0 || data.Kind == FastenerKind.HexNut)
+            return null;
+
+        var headHeight = HeadGeometryCalculator.GetHeadHeight(data.Kind, spec);
+        var start = data.HeadEmbedDepth - headHeight - extra;
+        var height = headHeight + extra * 2;
+        var countersunk = data.Kind == FastenerKind.Countersunk
+            ? HeadGeometryCalculator.GetCountersunkSeatProfile(spec, extra, extra)
+            : default;
         Brep? cutter = data.Kind switch
         {
             FastenerKind.SocketCap => CreateCylinder(
                 spec.Head.SocketDiameter / 2 + extra,
-                spec.Head.SocketHeight + extra,
-                -extra),
-            FastenerKind.Countersunk => CreateCone(
-                spec.Head.CountersunkDiameter / 2 + extra,
-                spec.Head.CountersunkDiameter / 2 + extra,
-                0),
+                height,
+                start),
+            FastenerKind.Countersunk => CreateFrustum(
+                countersunk.LargeRadius,
+                countersunk.SmallRadius,
+                countersunk.Height,
+                start),
             FastenerKind.HexBolt => CreateHexPrism(
                 spec.Head.HexAcrossFlats + extra * 2,
-                spec.Head.HexHeight + extra,
-                -extra),
+                height,
+                start),
             _ => null
         };
         cutter?.Transform(Transform.PlaneToPlane(Plane.WorldXY, ToPlane(data.Placement)));
@@ -152,13 +193,30 @@ public static class FastenerGeometryFactory
     private static Brep CreateCylinder(double radius, double height, double startZ)
     {
         var circle = new Circle(new Plane(new Point3d(0, 0, startZ), Vector3d.ZAxis), radius);
-        return new Cylinder(circle, height).ToBrep(true, true);
+        return EnsureOutward(new Cylinder(circle, height).ToBrep(true, true));
     }
 
-    private static Brep CreateCone(double radius, double height, double startZ)
+    private static Brep CreateFrustum(double topRadius, double bottomRadius, double height, double startZ)
     {
-        var plane = new Plane(new Point3d(0, 0, startZ), Vector3d.ZAxis);
-        return new Cone(plane, height, radius).ToBrep(true);
+        if (height <= 0 || topRadius <= 0 || bottomRadius <= 0)
+            throw new InvalidOperationException("沉头截锥尺寸必须大于 0。");
+        var top = new Circle(
+            new Plane(new Point3d(0, 0, startZ), Vector3d.ZAxis),
+            topRadius).ToNurbsCurve();
+        var bottom = new Circle(
+            new Plane(new Point3d(0, 0, startZ + height), Vector3d.ZAxis),
+            bottomRadius).ToNurbsCurve();
+        var loft = Brep.CreateFromLoft(
+            [top, bottom],
+            Point3d.Unset,
+            Point3d.Unset,
+            LoftType.Straight,
+            false);
+        if (loft is null || loft.Length != 1)
+            throw new InvalidOperationException("无法生成沉头截锥。");
+        var capped = loft[0].CapPlanarHoles(RhinoDoc.ActiveDoc?.ModelAbsoluteTolerance ?? 0.001)
+            ?? throw new InvalidOperationException("无法封闭沉头截锥。");
+        return EnsureOutward(capped);
     }
 
     private static Brep CreateHexPrism(double acrossFlats, double height, double startZ)
@@ -179,6 +237,14 @@ public static class FastenerGeometryFactory
         var surface = Surface.CreateExtrusion(profile, Vector3d.ZAxis * height)
             ?? throw new InvalidOperationException("无法拉伸六角截面。");
         var brep = surface.ToBrep();
-        return brep.CapPlanarHoles(RhinoDoc.ActiveDoc?.ModelAbsoluteTolerance ?? 0.001) ?? brep;
+        return EnsureOutward(
+            brep.CapPlanarHoles(RhinoDoc.ActiveDoc?.ModelAbsoluteTolerance ?? 0.001) ?? brep);
+    }
+
+    internal static Brep EnsureOutward(Brep brep)
+    {
+        if (brep.IsSolid && brep.SolidOrientation == BrepSolidOrientation.Inward)
+            brep.Flip();
+        return brep;
     }
 }

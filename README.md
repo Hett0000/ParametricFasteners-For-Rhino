@@ -1,37 +1,75 @@
 # 参数化紧固件
 
-“参数化紧固件”是面向 Rhino 8 Windows 与 FDM 3D 打印的螺丝、螺母和补偿孔插件。紧固件本体与按宿主生成的切割模块保存在一个可整体选择的 Rhino 组件组中；导出 STL/STEP 时只对临时副本做布尔，原始 3DM 保持可编辑。
+参数化紧固件是面向 Rhino 8 Windows 与 FDM 3D 打印的 RhinoCommon 插件。它把螺丝、螺母、通孔、沉孔和咬合预孔保存为可编辑组件，并在“放入 Rhino”、STEP 或 STL 导出时才对宿主副本执行布尔，避免破坏原始 3DM 模型。
 
-## 已实现功能
+当前版本：`0.15.1`
 
-- M1.6、M2、M2.5、M3、M4、M5、M6、M8、M10、M12 预设。
-- 内六角圆柱头螺钉、内六角沉头螺钉、六角头螺栓和六角螺母。
-- 一颗紧固件可同时绑定穿过通孔与螺纹咬合孔，两类宿主分别计算补偿。
-- 紧固件与全部切割模块组成一个 Rhino Group，点击任一可见成员均可整体选择。
-- 紧固件本体和切割模块分别调节不透明度，并随 3DM 保存。
-- 每个被切割体可独立控制切割预览和是否参与 STL/STEP 导出布尔。
-- 咬合孔可逐宿主选择贯穿、`螺杆长度 + 2D` 或自定义深度；`D` 为公称直径。
-- 选择面自动取得位置与法向，或使用起始点与轴向放置。
-- 选择既有组件后读取并自动更新；普通模型可转换为参数化紧固件。
-- 文档级校验和不修改原模型的 STL/STEP 导出。
+## 主要功能
 
-## 构建与安装
+- 支持 M1.6、M2、M2.5、M3、M4、M5、M6、M8、M10、M12 常用规格。
+- 支持内六角圆柱头螺钉、内六角沉头螺钉、六角头螺栓和六角螺母。
+- 通过控制点读取、更新、批量更新和删除紧固件组件。
+- 一颗螺丝可绑定多个宿主，并区分“穿过通孔”和“螺纹咬合孔”。
+- 孔径修正、通孔配合、咬合缩减、预览开关和导出布尔开关可按组件或放置预设管理。
+- 咬合孔支持贯穿宿主、螺杆长度 + 1D、螺杆长度 + 2D 和自定义盲孔深度。
+- 支持螺丝头嵌入深度，提供 0 和齐平快捷设置。
+- 支持选面放置，也支持对象捕捉点连续放置。
+- 支持整体移动、复制、打组移动/复制、Gumball Alt 复制、Ctrl+C/V、跨文档粘贴和 3DM 导入后的组件修复。
+- 支持放入 Rhino、导出 STEP、导出 STL、紧固件统计和 Excel 清单。
+- 保留旧 `RhinoMM*` 命令和 `RhinoMM.*` 元数据键，兼容已有模型。
 
-运行要求为 Rhino 8.18+ Windows；插件以 Rhino 8.18 默认的 .NET 7 为最低运行时，源码可使用 .NET 8 SDK 构建：
+## 安装
+
+1. 构建或获取插件输出目录 `artifacts/plugin/`。
+2. 在 Rhino 8 中打开 `PluginManager`。
+3. 安装 `artifacts/plugin/参数化紧固件.rhp`。
+4. 如需工具列，在同一目录加载 `参数化紧固件.rui`。
+5. 运行命令 `ParametricFasteners` 打开面板。
+
+如果 Rhino 曾通过 `SetDotNetRuntime` 切换到 `NETFramework`，请改回 `NETCore` 并重启 Rhino。
+
+## 常用命令
+
+| 命令 | 作用 |
+| --- | --- |
+| `ParametricFasteners` | 打开参数化紧固件面板 |
+| `ParametricFastenersPlace` | 放置或绑定紧固件 |
+| `ParametricFastenersApplyUpdate` | 将面板参数应用到选中的控制点 |
+| `ParametricFastenersExportToRhino` | 生成布尔后的普通 Rhino 实体副本 |
+| `ParametricFastenersExport` | 导出 STEP/STL |
+| `ParametricFastenersStatistics` | 统计当前选择或全部紧固件 |
+| `ParametricFastenersValidate` | 校验当前文档中的组件数据 |
+
+旧命令 `RhinoMMPanel`、`RhinoMMPlaceHole`、`RhinoMMEditHole`、`RhinoMMApplyUpdate`、`RhinoMMAdoptFastener`、`RhinoMMValidate` 和 `RhinoMMExportPrint` 仍作为兼容入口保留。
+
+## 构建
+
+要求：
+
+- Windows
+- Rhino 8.18 或更新版本
+- .NET SDK，仓库通过 `global.json` 固定 SDK 版本
+
+构建命令：
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./build/build.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./build/build.ps1 -Configuration Release
 ```
 
-输出位于 `artifacts/plugin/`。构建会先完成测试、工具列生成和 Rhino 兼容检查，再把旧目录完整备份到 `artifacts/backups/` 并原子替换；Rhino 占用旧文件时不会修改原位置。完全退出旧 Rhino 进程后，在 `PluginManager` 中安装 `参数化紧固件.rhp`，运行主命令 `ParametricFasteners` 打开面板。同名 `参数化紧固件.rui` 包含六按钮中文工具列。
+构建脚本会执行核心测试、Release 构建、工具列生成、兼容性检查和原位部署。部署前会把旧插件目录备份到 `artifacts/backups/<timestamp>-<version>/`。如果 Rhino 正在占用插件文件，脚本会停止并提示关闭 Rhino，不会覆盖当前插件。
 
-旧版 `RhinoMMPanel`、`RhinoMMPlaceHole`、`RhinoMMEditHole`、`RhinoMMApplyUpdate`、`RhinoMMAdoptFastener`、`RhinoMMValidate` 和 `RhinoMMExportPrint` 命令继续保留，用于兼容既有工作流。内部 `RhinoMM.*` 元数据键同样保留，以便读取旧 3DM。
+## 仓库结构
 
-如果曾通过 `SetDotNetRuntime` 切换到 `NETFramework`，请改回 `NETCore` 并重启 Rhino。
-
-## 数据声明
-
-当前预设是 ISO 等效工程尺寸，尚未逐项对照有授权的现行 GB/T 原文，因此不能宣称“已通过国标核验”。打印补偿必须按打印机、材料、喷嘴和层高用试片校准。
+```text
+src/RhinoMM.Core/         领域模型、尺寸计算、孔深计算、统计和 Excel 写入
+src/RhinoMM.Plugin/       Rhino 命令、Eto 面板、几何、持久化、生命周期和导出服务
+tests/RhinoMM.Core.Tests/ 核心逻辑和插件源码回归测试
+data/                     紧固件预设数据
+docs/                     产品文档、技术文档、用户流程、发布说明
+build/                    构建、工具列和图标资源生成脚本
+packaging/                Yak manifest
+artifacts/                本地构建产物，默认不入库
+```
 
 ## 文档
 
@@ -40,6 +78,15 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./build/build.ps1
 - [技术基础](docs/TECHNICAL_FOUNDATION.md)
 - [每宿主孔配合设计](docs/PER_TARGET_FIT_DESIGN.md)
 - [选择、读取与接管设计](docs/SELECTION_AND_ADOPTION_DESIGN.md)
-- [开发准备](docs/DEVELOPMENT.md)
+- [开发说明](docs/DEVELOPMENT.md)
 - [产品草图](docs/PRODUCT_SKETCHES.md)
 - [决策记录](docs/DECISIONS.md)
+- [GitHub 提交说明](docs/GITHUB_SUBMISSION.md)
+
+## 数据与精度说明
+
+当前预设是 ISO 等效工程尺寸，尚未逐项对照有授权的现行 GB/T 原文，因此不能宣称“已通过国标核验”。直接咬合预孔不是标准内螺纹，实际保持力依赖材料、层高、打印方向、螺丝和打印机校准，应通过试片验证后用于生产。
+
+## 第三方资源
+
+图标体系基于 Lucide 图标语义并按 Rhino 工具列尺寸重新导出。第三方说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

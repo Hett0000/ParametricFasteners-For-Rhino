@@ -59,6 +59,7 @@ try {
     Copy-Item -LiteralPath $rhp -Destination $staging -Force
     Copy-Item -LiteralPath (Join-Path $output "RhinoMM.Core.dll") -Destination $staging -Force
     Copy-Item -LiteralPath (Join-Path $root "packaging\manifest.yml") -Destination $staging -Force
+    Copy-Item -LiteralPath (Join-Path $root "THIRD_PARTY_NOTICES.md") -Destination $staging -Force
     $windowsPowerShell = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
     & $windowsPowerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "generate-toolbar.ps1") -OutputPath (Join-Path $staging ($pluginBaseName + ".rui"))
     if ($LASTEXITCODE -ne 0) { throw "Toolbar generation failed." }

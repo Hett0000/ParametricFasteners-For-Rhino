@@ -24,6 +24,7 @@ public enum ShaftFitRole
 public enum DepthMode
 {
     ThroughTarget,
+    FastenerLengthPlusOneDiameter,
     FastenerLengthPlusTwoDiameters,
     Blind
 }
@@ -107,19 +108,21 @@ public sealed record HoleTargetBinding
 
 public sealed record FastenerComponentData
 {
-    public const int CurrentSchemaVersion = 3;
+    public const int CurrentSchemaVersion = 5;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
     public Guid ComponentId { get; init; } = Guid.NewGuid();
     public FastenerKind Kind { get; init; } = FastenerKind.SocketCap;
     public string Size { get; init; } = "M3";
     public double Length { get; init; } = 12;
+    public double HeadEmbedDepth { get; init; }
     public PlacementFrame Placement { get; init; } = PlacementFrame.WorldXY;
     public PrintProfileSnapshot PrintProfile { get; init; } = new("默认 FDM", 0.2);
     public double FastenerOpacityPercent { get; init; } = 70;
     public double CutterOpacityPercent { get; init; } = 35;
     public IReadOnlyList<HoleTargetBinding> Bindings { get; init; } = Array.Empty<HoleTargetBinding>();
     public Guid ProxyObjectId { get; init; }
+    public Guid ControlPointObjectId { get; init; }
     public Guid AdoptedSourceObjectId { get; init; }
     public DateTimeOffset UpdatedAt { get; init; } = DateTimeOffset.UtcNow;
 }

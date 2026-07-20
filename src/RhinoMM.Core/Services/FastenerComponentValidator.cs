@@ -11,6 +11,15 @@ public static class FastenerComponentValidator
         if (component.Length <= 0)
             result.Issues.Add(new("length", "螺丝长度必须大于 0。"));
 
+        if (component.HeadEmbedDepth < 0)
+            result.Issues.Add(new("head-embed-negative", "螺丝头嵌入深度不能小于 0。"));
+
+        if (component.Kind == FastenerKind.HexNut && component.HeadEmbedDepth != 0)
+            result.Issues.Add(new("nut-head-embed", "六角螺母不支持螺丝头嵌入深度。"));
+
+        if (component.HeadEmbedDepth > 0 && component.Bindings.All(binding => !binding.IncludeHeadSeat))
+            result.Issues.Add(new("head-seat-required", "螺丝头嵌入时必须指定一个头部切割宿主。"));
+
         if (component.FastenerOpacityPercent is < 0 or > 100)
             result.Issues.Add(new("fastener-opacity", "紧固件不透明度必须在 0–100% 之间。"));
 

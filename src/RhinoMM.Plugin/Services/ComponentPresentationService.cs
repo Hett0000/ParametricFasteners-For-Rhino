@@ -9,9 +9,11 @@ public static class ComponentPresentationService
 {
     public const string FastenerLayerPath = "参数化紧固件::紧固件";
     public const string CutterLayerPath = "参数化紧固件::切割模块";
+    public const string ControlPointLayerPath = "参数化紧固件::控制点";
 
     private static readonly System.Drawing.Color FastenerColor = System.Drawing.Color.FromArgb(70, 130, 180);
     private static readonly System.Drawing.Color CutterColor = System.Drawing.Color.FromArgb(255, 140, 0);
+    private static readonly System.Drawing.Color ControlPointColor = System.Drawing.Color.FromArgb(0, 180, 220);
 
     public static string GroupName(Guid componentId) => $"参数化紧固件::{componentId:D}";
 
@@ -26,8 +28,22 @@ public static class ComponentPresentationService
         attributes.MaterialSource = ObjectMaterialSource.MaterialFromObject;
         var materialIndex = EnsureMaterial(doc, data, isCutter);
         attributes.MaterialIndex = materialIndex;
-        attributes.RenderMaterial = doc.Materials[materialIndex].RenderMaterial;
+        // MaterialIndex is Rhino's stable path for simple object materials. The
+        // related RenderMaterial is created from the material-table entry below,
+        // so it is attached to this document before Rhino renders the object.
         attributes.Visible = visible;
+        attributes.Mode = ObjectMode.Normal;
+    }
+
+    public static void ConfigureControlPointAttributes(RhinoDoc doc, ObjectAttributes attributes)
+    {
+        attributes.LayerIndex = EnsureLayer(doc, ControlPointLayerPath, ControlPointColor);
+        attributes.ColorSource = ObjectColorSource.ColorFromObject;
+        attributes.ObjectColor = ControlPointColor;
+        attributes.MaterialSource = ObjectMaterialSource.MaterialFromLayer;
+        attributes.MaterialIndex = -1;
+        attributes.Visible = true;
+        attributes.Mode = ObjectMode.Normal;
     }
 
     public static bool ApplyDisplaySettings(RhinoDoc doc, FastenerComponentData data, out string message)
@@ -43,6 +59,15 @@ public static class ComponentPresentationService
             foreach (var obj in componentObjects)
             {
                 var role = obj.Attributes.GetUserString(ComponentRepository.RoleKey) ?? "Proxy";
+                if (role == "ControlPoint")
+                {
+                    var controlAttributes = obj.Attributes.Duplicate();
+                    controlAttributes.Name = ComponentRepository.ObjectName(data, role);
+                    ConfigureControlPointAttributes(doc, controlAttributes);
+                    ComponentRepository.Write(controlAttributes, data, role);
+                    doc.Objects.ModifyAttributes(obj, controlAttributes, true);
+                    continue;
+                }
                 var isCutter = role is "Cutter" or "HeadCutter";
                 var visible = true;
                 var targetId = Guid.TryParse(obj.Attributes.GetUserString(ComponentRepository.TargetIdKey), out var parsedTargetId)
@@ -69,7 +94,9 @@ public static class ComponentPresentationService
                     bindingId);
                 doc.Objects.ModifyAttributes(obj, attributes, true);
             }
-            RecreateGroup(doc, data.ComponentId, componentObjects.Select(obj => obj.Id));
+            RecreateGroup(doc, data.ComponentId, componentObjects
+                .Where(obj => obj.Attributes.GetUserString(ComponentRepository.RoleKey) != "ControlPoint")
+                .Select(obj => obj.Id));
             doc.Views.Redraw();
             message = "显示设置已更新。";
             return true;
@@ -137,6 +164,10 @@ public static class ComponentPresentationService
             throw new InvalidOperationException($"无法更新材质：{name}");
         if (index < 0)
             throw new InvalidOperationException($"无法创建材质：{name}");
+        // Access the table-owned material, never the transient local Material
+        // instance. This keeps shaded and rendered display in sync without
+        // assigning an unattached RenderMaterial to ObjectAttributes.
+        _ = doc.Materials[index].RenderMaterial;
         return index;
     }
 }

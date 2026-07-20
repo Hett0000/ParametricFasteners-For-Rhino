@@ -31,6 +31,7 @@ public static class FastenerLabels
     public static string Depth(DepthMode mode) => mode switch
     {
         DepthMode.ThroughTarget => "贯穿宿主",
+        DepthMode.FastenerLengthPlusOneDiameter => "螺杆长度 + 1D",
         DepthMode.FastenerLengthPlusTwoDiameters => "螺杆长度 + 2D",
         DepthMode.Blind => "自定义深度",
         _ => mode.ToString()

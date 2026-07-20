@@ -11,36 +11,33 @@ public sealed class RhinoMMApplyUpdateCommand : Command
 
     protected override Result RunCommand(RhinoDoc doc, RunMode mode)
     {
-        FastenerComponentDataFromSelection(doc, out var existing);
-        if (existing is null)
+        var existing = ComponentsFromSelection(doc);
+        if (existing.Count == 0)
         {
-            RhinoApp.WriteLine("请先选择一个参数化紧固件或切割模块。");
+            RhinoApp.WriteLine("请先选择一个或多个参数化紧固件控制点。");
             return Result.Nothing;
+        }
+        var unresolved = existing.Where(ComponentHostResolver.NeedsRelink).ToArray();
+        if (unresolved.Length > 0)
+        {
+            RhinoApp.WriteLine("选中的组件存在待重新绑定宿主的副本；请先选择对应宿主并运行“刷新 / 清理”。");
+            return Result.Failure;
         }
 
         var state = EditorState.Current;
-        var draft = state.CreateDraft(existing.Placement, existing.Bindings) with
-        {
-            ComponentId = existing.ComponentId,
-            AdoptedSourceObjectId = existing.AdoptedSourceObjectId
-        };
-        if (!FastenerComponentService.CreateOrReplace(doc, draft, out var saved, out var message))
+        var drafts = existing.Select(component => state.CreateUpdateDraft(component)).ToArray();
+        if (!FastenerComponentService.CreateOrReplaceMany(doc, drafts, out var saved, out var message))
         {
             RhinoApp.WriteLine(message);
             return Result.Failure;
         }
-        ComponentEditorSession.Activate(doc, saved);
+        ComponentEditorSession.ActivateMany(doc, saved);
         RhinoApp.WriteLine(message);
         return Result.Success;
     }
 
-    private static void FastenerComponentDataFromSelection(RhinoDoc doc, out RhinoMM.Core.Domain.FastenerComponentData? data)
+    private static IReadOnlyList<RhinoMM.Core.Domain.FastenerComponentData> ComponentsFromSelection(RhinoDoc doc)
     {
-        if (ComponentRepository.TryReadSelection(doc, out var selected))
-            data = selected;
-        else if (ComponentEditorSession.TryGetActive(doc, out var active))
-            data = active;
-        else
-            data = null;
+        return ComponentRepository.ReadSelectedControlPoints(doc);
     }
 }

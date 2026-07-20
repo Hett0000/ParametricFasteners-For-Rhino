@@ -13,7 +13,9 @@ public sealed class RhinoMMAdoptFastenerCommand : Command
 {
     public override string EnglishName => "RhinoMMAdoptFastener";
 
-    protected override Result RunCommand(RhinoDoc doc, RunMode mode)
+    protected override Result RunCommand(RhinoDoc doc, RunMode mode) => Execute(doc, mode);
+
+    internal static Result Execute(RhinoDoc doc, RunMode mode)
     {
         using var go = new GetObject();
         go.SetCommandPrompt("选择要转换为参数化紧固件的现有模型");
@@ -44,6 +46,7 @@ public sealed class RhinoMMAdoptFastenerCommand : Command
         state.LoadedComponentId = Guid.Empty;
         var draft = state.CreateDraft(FastenerGeometryFactory.FromPlane(plane), []) with
         {
+            HeadEmbedDepth = 0,
             AdoptedSourceObjectId = source.Id
         };
 

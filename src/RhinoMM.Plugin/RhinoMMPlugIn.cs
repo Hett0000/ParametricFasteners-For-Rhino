@@ -1,6 +1,7 @@
 using Rhino.PlugIns;
 using Rhino.UI;
 using RhinoMM.Core.Services;
+using RhinoMM.Plugin.Services;
 using RhinoMM.Plugin.UI;
 
 namespace RhinoMM.Plugin;
@@ -16,7 +17,9 @@ public sealed class RhinoMMPlugIn : PlugIn
     {
         try
         {
+            PlacementPresetService.Load(Settings);
             Panels.RegisterPanel(this, typeof(RhinoMMPanel), "参数化紧固件", null);
+            ComponentLifecycleService.Initialize();
             LoadToolbar();
             return LoadReturnCode.Success;
         }
@@ -26,6 +29,12 @@ public sealed class RhinoMMPlugIn : PlugIn
             Rhino.RhinoApp.WriteLine(errorMessage);
             return LoadReturnCode.ErrorShowDialog;
         }
+    }
+
+    protected override void OnShutdown()
+    {
+        ComponentLifecycleService.Shutdown();
+        base.OnShutdown();
     }
 
     private void LoadToolbar()

@@ -102,7 +102,8 @@ public class HoleDiameterCalculatorTests
             {
               "bindingId": "{{bindingId}}",
               "targetObjectId": "{{targetId}}",
-              "role": "Clearance"
+              "role": "Clearance",
+              "includeHeadSeat": true
             }
           ]
         }
@@ -110,7 +111,9 @@ public class HoleDiameterCalculatorTests
 
         var migrated = ComponentJson.Deserialize(json);
 
-        Assert.Equal(3, migrated.SchemaVersion);
+        Assert.Equal(5, migrated.SchemaVersion);
+        Assert.Equal(3.0, migrated.HeadEmbedDepth, 6);
+        Assert.Equal(Guid.Empty, migrated.ControlPointObjectId);
         Assert.Equal(70, migrated.FastenerOpacityPercent);
         Assert.Equal(35, migrated.CutterOpacityPercent);
         Assert.True(migrated.Bindings.Single().IsPreviewVisible);
@@ -135,15 +138,77 @@ public class HoleDiameterCalculatorTests
 
         var migrated = ComponentJson.Migrate(data);
 
-        Assert.Equal(3, migrated.SchemaVersion);
+        Assert.Equal(5, migrated.SchemaVersion);
+        Assert.Equal(0.0, migrated.HeadEmbedDepth, 6);
         Assert.Equal(42, migrated.FastenerOpacityPercent);
         Assert.Equal(18, migrated.CutterOpacityPercent);
         Assert.False(migrated.Bindings.Single().IsPreviewVisible);
         Assert.True(migrated.Bindings.Single().IsBooleanEnabled);
     }
 
+    [Fact]
+    public void SchemaV3PreservesDisabledBooleanWhenMigratingControlPointAndEmbedDepth()
+    {
+        var data = new FastenerComponentData
+        {
+            SchemaVersion = 3,
+            Kind = FastenerKind.SocketCap,
+            Size = "M3",
+            Bindings = [new HoleTargetBinding
+            {
+                TargetObjectId = Guid.NewGuid(),
+                IncludeHeadSeat = true,
+                IsPreviewVisible = true,
+                IsBooleanEnabled = false
+            }]
+        };
+
+        var migrated = ComponentJson.Migrate(data);
+
+        Assert.Equal(5, migrated.SchemaVersion);
+        Assert.Equal(3.0, migrated.HeadEmbedDepth, 6);
+        Assert.Equal(Guid.Empty, migrated.ControlPointObjectId);
+        Assert.True(migrated.Bindings.Single().IsPreviewVisible);
+        Assert.False(migrated.Bindings.Single().IsBooleanEnabled);
+    }
+
+    [Fact]
+    public void SchemaV4MigratesLegacyCountersunkFlushDepthToFrustumHeight()
+    {
+        var data = new FastenerComponentData
+        {
+            SchemaVersion = 4,
+            Kind = FastenerKind.Countersunk,
+            Size = "M3",
+            HeadEmbedDepth = 2.8
+        };
+
+        var migrated = ComponentJson.Migrate(data);
+
+        Assert.Equal(5, migrated.SchemaVersion);
+        Assert.Equal(1.3, migrated.HeadEmbedDepth, 6);
+    }
+
+    [Fact]
+    public void SchemaV4PreservesCustomCountersunkEmbedDepth()
+    {
+        var data = new FastenerComponentData
+        {
+            SchemaVersion = 4,
+            Kind = FastenerKind.Countersunk,
+            Size = "M3",
+            HeadEmbedDepth = 1.0
+        };
+
+        var migrated = ComponentJson.Migrate(data);
+
+        Assert.Equal(5, migrated.SchemaVersion);
+        Assert.Equal(1.0, migrated.HeadEmbedDepth, 6);
+    }
+
     [Theory]
     [InlineData(DepthMode.ThroughTarget, "贯穿宿主")]
+    [InlineData(DepthMode.FastenerLengthPlusOneDiameter, "螺杆长度 + 1D")]
     [InlineData(DepthMode.FastenerLengthPlusTwoDiameters, "螺杆长度 + 2D")]
     [InlineData(DepthMode.Blind, "自定义深度")]
     public void DepthModesHaveChineseLabels(DepthMode mode, string expected)
@@ -191,5 +256,81 @@ public class HoleDiameterCalculatorTests
         };
 
         Assert.Equal(40, HoleDepthCalculator.GetLimit(component, Catalog.Get("M3"), binding), 6);
+    }
+
+    [Theory]
+    [InlineData(FastenerKind.SocketCap, 3.0)]
+    [InlineData(FastenerKind.Countersunk, 1.3)]
+    [InlineData(FastenerKind.HexBolt, 2.0)]
+    [InlineData(FastenerKind.HexNut, 0.0)]
+    public void HeadHeightUsesFastenerType(FastenerKind kind, double expected)
+    {
+        Assert.Equal(expected, HeadGeometryCalculator.GetHeadHeight(kind, Catalog.Get("M3")), 6);
+    }
+
+    [Fact]
+    public void CountersunkSeatPaddingPreservesCountersunkAngleAndClearance()
+    {
+        var spec = Catalog.Get("M3");
+        const double clearance = 0.2;
+        const double padding = 0.2;
+
+        var profile = HeadGeometryCalculator.GetCountersunkSeatProfile(spec, clearance, padding);
+        var halfAngle = spec.Head.CountersunkAngle * Math.PI / 360.0;
+        var slope = Math.Tan(halfAngle);
+        var headHeight = HeadGeometryCalculator.GetHeadHeight(FastenerKind.Countersunk, spec);
+
+        Assert.Equal(slope, (profile.LargeRadius - profile.SmallRadius) / profile.Height, 6);
+        Assert.Equal(
+            spec.Head.CountersunkDiameter / 2 + clearance,
+            profile.LargeRadius - padding * slope,
+            6);
+        Assert.Equal(
+            spec.NominalDiameter / 2 + clearance,
+            profile.SmallRadius + padding * slope,
+            6);
+        Assert.Equal(headHeight + padding * 2, profile.Height, 6);
+    }
+
+    [Fact]
+    public void FastenerLengthDepthStartsAtEmbeddedShaftOrigin()
+    {
+        var component = new FastenerComponentData
+        {
+            Size = "M3",
+            Length = 34,
+            HeadEmbedDepth = 3
+        };
+        var binding = new HoleTargetBinding
+        {
+            TargetObjectId = Guid.NewGuid(),
+            Role = ShaftFitRole.ThreadEngagement,
+            DepthMode = DepthMode.FastenerLengthPlusTwoDiameters,
+            BiteReduction = 0.35
+        };
+
+        Assert.Equal(43, HoleDepthCalculator.GetLimit(component, Catalog.Get("M3"), binding), 6);
+    }
+
+    [Theory]
+    [InlineData(DepthMode.FastenerLengthPlusOneDiameter, 17)]
+    [InlineData(DepthMode.FastenerLengthPlusTwoDiameters, 20)]
+    public void FormulaDepthIncludesEmbedLengthAndNominalDiameter(DepthMode mode, double expected)
+    {
+        var component = new FastenerComponentData
+        {
+            Size = "M3",
+            Length = 12,
+            HeadEmbedDepth = 2
+        };
+        var binding = new HoleTargetBinding
+        {
+            TargetObjectId = Guid.NewGuid(),
+            Role = ShaftFitRole.ThreadEngagement,
+            DepthMode = mode,
+            BiteReduction = 0.35
+        };
+
+        Assert.Equal(expected, HoleDepthCalculator.GetLimit(component, Catalog.Get("M3"), binding), 6);
     }
 }
