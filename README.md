@@ -75,6 +75,10 @@ build/                    构建、工具列和图标资源生成脚本
 packaging/                Yak manifest
 artifacts/                本地构建产物，默认不入库
 ```
+## 插件使用
+设置中插件安装：artifacts\plugin\参数化紧固件.rhp
+参数化紧固件.rui拖入rhino窗口，重启后，开启工具栏。
+
 
 ## 文档
 
