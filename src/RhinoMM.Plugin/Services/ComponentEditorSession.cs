@@ -118,6 +118,20 @@ public static class ComponentEditorSession
                 .ToArray();
     }
 
+    public static void UpdateCachedComponents(
+        RhinoDoc doc,
+        IReadOnlyList<FastenerComponentData> components)
+    {
+        var updates = components.ToDictionary(component => component.ComponentId);
+        if (ActiveComponents.TryGetValue(doc.RuntimeSerialNumber, out var active)
+            && updates.TryGetValue(active.ComponentId, out var updatedActive))
+            ActiveComponents[doc.RuntimeSerialNumber] = updatedActive;
+        if (ActiveSelections.TryGetValue(doc.RuntimeSerialNumber, out var selection))
+            ActiveSelections[doc.RuntimeSerialNumber] = selection
+                .Select(item => updates.GetValueOrDefault(item.ComponentId, item))
+                .ToArray();
+    }
+
     public static void ForgetComponent(RhinoDoc doc, Guid componentId)
     {
         if (!ActiveSelections.TryGetValue(doc.RuntimeSerialNumber, out var selection))

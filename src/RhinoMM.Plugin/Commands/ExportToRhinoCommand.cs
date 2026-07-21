@@ -13,14 +13,15 @@ public sealed class RhinoMMExportToRhinoCommand : Command
 {
     public override string EnglishName => "RhinoMMExportToRhino";
 
-    protected override Result RunCommand(RhinoDoc doc, RunMode mode) => Execute(doc, mode);
+    protected override Result RunCommand(RhinoDoc doc, RunMode mode) => Execute(doc, mode, false);
 
-    internal static Result Execute(RhinoDoc doc, RunMode mode)
+    internal static Result Execute(RhinoDoc doc, RunMode mode, bool includeFastenerSolids)
     {
         var selectionResult = RhinoMMExportPrintCommand.SelectHosts(out var hosts);
         if (selectionResult != Result.Success)
             return selectionResult;
-        if (!BooleanExportService.TryBuild(doc, hosts, out var result, out var message))
+        var options = new RhinoPlacementExportOptions(includeFastenerSolids);
+        if (!RhinoPlacementExportService.TryBuild(doc, hosts, options, out var result, out var message))
         {
             RhinoApp.WriteLine($"放入 Rhino 失败：{message}");
             return Result.Failure;
@@ -32,10 +33,22 @@ public sealed class RhinoMMExportToRhinoCommand : Command
         using var previewMaterial = new DisplayMaterial(
             System.Drawing.Color.FromArgb(66, 133, 200),
             0.45);
+        using var steelPreviewMaterial = new DisplayMaterial(
+            System.Drawing.Color.FromArgb(169, 173, 178),
+            0.08);
+        using var brassPreviewMaterial = new DisplayMaterial(
+            System.Drawing.Color.FromArgb(184, 138, 50),
+            0.08);
         using var pointGetter = new GetPoint();
-        pointGetter.SetCommandPrompt("移动布尔成果，单击确定放置位置");
+        pointGetter.SetCommandPrompt("移动导出成果，单击确定放置位置");
         pointGetter.SetBasePoint(anchor, false);
-        pointGetter.DynamicDraw += (_, e) => DrawPreview(e, result, anchor, previewMaterial);
+        pointGetter.DynamicDraw += (_, e) => DrawPreview(
+            e,
+            result,
+            anchor,
+            previewMaterial,
+            steelPreviewMaterial,
+            brassPreviewMaterial);
         if (pointGetter.Get() != GetResult.Point)
             return pointGetter.CommandResult();
 
@@ -47,18 +60,31 @@ public sealed class RhinoMMExportToRhinoCommand : Command
 
     private static void DrawPreview(
         GetPointDrawEventArgs e,
-        BooleanExportResult result,
+        RhinoPlacementExportResult result,
         Point3d anchor,
-        DisplayMaterial material)
+        DisplayMaterial hostMaterial,
+        DisplayMaterial steelMaterial,
+        DisplayMaterial brassMaterial)
     {
         var transform = Transform.Translation(e.CurrentPoint - anchor);
         e.Display.PushModelTransform(transform);
         try
         {
-            foreach (var body in result.Bodies)
+            foreach (var body in result.BooleanResult.Bodies)
             {
-                e.Display.DrawBrepShaded(body.Geometry, material);
+                e.Display.DrawBrepShaded(body.Geometry, hostMaterial);
                 e.Display.DrawBrepWires(body.Geometry, System.Drawing.Color.FromArgb(34, 92, 155), 2);
+            }
+            foreach (var body in result.FastenerBodies)
+            {
+                var material = body.MaterialKind == RhinoExportMaterialKind.Brass
+                    ? brassMaterial
+                    : steelMaterial;
+                var wireColor = body.MaterialKind == RhinoExportMaterialKind.Brass
+                    ? System.Drawing.Color.FromArgb(120, 78, 16)
+                    : System.Drawing.Color.FromArgb(72, 80, 88);
+                e.Display.DrawBrepShaded(body.Geometry, material);
+                e.Display.DrawBrepWires(body.Geometry, wireColor, 1);
             }
         }
         finally
@@ -69,7 +95,7 @@ public sealed class RhinoMMExportToRhinoCommand : Command
 
     private static bool Commit(
         RhinoDoc doc,
-        BooleanExportResult result,
+        RhinoPlacementExportResult result,
         Transform translation,
         out string message)
     {
@@ -78,9 +104,10 @@ public sealed class RhinoMMExportToRhinoCommand : Command
         // on supported Rhino 8 builds and incorrectly prevents every write.
         var ids = new List<Guid>();
         var groupIndex = RhinoMath.UnsetIntIndex;
+        RhinoRenderExportResources? renderResources = null;
         try
         {
-            foreach (var body in result.Bodies)
+            foreach (var body in result.BooleanResult.Bodies)
             {
                 var geometry = body.Geometry.DuplicateBrep();
                 geometry.Transform(translation);
@@ -89,6 +116,23 @@ public sealed class RhinoMMExportToRhinoCommand : Command
                 if (id == Guid.Empty)
                     throw new InvalidOperationException("无法将布尔成果写入 Rhino 文档。");
                 ids.Add(id);
+            }
+
+            if (result.FastenerBodies.Count > 0)
+            {
+                renderResources = RhinoRenderExportPresentationService.EnsureResources(doc);
+                foreach (var body in result.FastenerBodies)
+                {
+                    var geometry = body.Geometry.DuplicateBrep();
+                    geometry.Transform(translation);
+                    var attributes = RhinoRenderExportPresentationService.CreateFastenerAttributes(
+                        renderResources,
+                        body);
+                    var id = doc.Objects.AddBrep(geometry, attributes);
+                    if (id == Guid.Empty)
+                        throw new InvalidOperationException("无法将紧固件渲染实体写入 Rhino 文档。");
+                    ids.Add(id);
+                }
             }
 
             var groupName = $"参数化紧固件::导出成果::{Guid.NewGuid():D}";
@@ -100,19 +144,27 @@ public sealed class RhinoMMExportToRhinoCommand : Command
             foreach (var id in ids)
                 doc.Objects.Select(id, false);
             doc.Views.Redraw();
-            message = $"已放入 {ids.Count} 个普通 Brep；原模型和参数化组件未修改。"
+            message = $"已放入 {result.BooleanResult.Bodies.Count} 个布尔成果"
+                + (result.FastenerBodies.Count > 0
+                    ? $"和 {result.FastenerBodies.Count} 个紧固件渲染实体"
+                    : string.Empty)
+                + "；原模型和参数化组件未修改。"
                 + (result.Warnings.Count == 0 ? string.Empty : $" 警告：{string.Join(" ", result.Warnings)}");
             return true;
         }
         catch (Exception ex)
         {
-            RollbackPartialCommit(doc, groupIndex, ids);
+            RollbackPartialCommit(doc, groupIndex, ids, renderResources);
             message = $"写入失败，已回滚：{ex.Message}";
             return false;
         }
     }
 
-    private static void RollbackPartialCommit(RhinoDoc doc, int groupIndex, IEnumerable<Guid> ids)
+    private static void RollbackPartialCommit(
+        RhinoDoc doc,
+        int groupIndex,
+        IEnumerable<Guid> ids,
+        RhinoRenderExportResources? renderResources)
     {
         if (groupIndex != RhinoMath.UnsetIntIndex && groupIndex >= 0)
         {
@@ -131,6 +183,7 @@ public sealed class RhinoMMExportToRhinoCommand : Command
             if (id != Guid.Empty)
                 doc.Objects.Delete(id, true);
         }
+        RhinoRenderExportPresentationService.RollbackCreatedResources(doc, renderResources);
         doc.Views.Redraw();
     }
 

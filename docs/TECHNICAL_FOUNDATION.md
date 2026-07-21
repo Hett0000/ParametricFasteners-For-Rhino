@@ -201,6 +201,20 @@ isBooleanEnabled          控制导出布尔，默认 true
 8. **提交**：先写同目录临时文件，成功关闭并复读验证后原子替换目标路径。
 9. **清理**：关闭临时文档，不修改源文档选择之外的状态。
 
+### Rhino 内渲染成果
+
+- `RhinoPlacementExportService` 在共享布尔结果之外，按所选宿主 ID 收集关联控制点组件并按组件 ID 去重。
+- 紧固件实体通过 `FastenerGeometryFactory.CreateProxy` 从持久化参数重建；`IsBooleanEnabled` 只控制宿主切割，不取消紧固件与宿主的装配关联。
+- 动态预览对钢和黄铜使用不同显示材质，但鼠标基点始终来自布尔宿主包围盒。
+- 提交阶段才创建 `参数化紧固件::渲染紧固件` 图层和共享 PBR 材质；Esc 不触碰文档，写入异常会回滚本次新建资源。
+- 面板使用 Eto `MouseButtons.Alternate` 区分 Rhino 导出图标右击，并调用独立命令入口；是否包含紧固件由显式执行参数决定，不使用会污染后续命令的一次性全局标志。
+
+### 全局显示状态
+
+- `GlobalDisplaySettingsService`持久化本体和切割模块透明度，并在插件加载时同步到新建组件草稿。
+- 滑块变化后从实际控制点读取当前文档全部组件，按组件 ID 去重，在单一 Undo 中更新对象元数据及每组件稳定材质。
+- 选择读取只更新几何和孔参数编辑状态，不得把旧组件透明度反向写入全局显示状态。
+
 RhinoCommon 提供官方的 [STEP 写出接口](https://developer.rhino3d.com/api/rhinocommon/rhino.fileio.filestp)、[STL 写出接口](https://developer.rhino3d.com/api/rhinocommon/rhino.fileio.filestl)和 [Brep 布尔差集](https://developer.rhino3d.com/api/rhinocommon/rhino.geometry.brep/createbooleandifference?overload=1)。
 
 ## 8. 容差、单位与错误处理

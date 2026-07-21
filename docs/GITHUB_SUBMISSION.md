@@ -1,6 +1,6 @@
 # GitHub 提交与新建仓库信息
 
-本文档用于维护 GitHub 仓库资料并发布 `v0.16.0`。
+本文档用于维护 GitHub 仓库资料并发布 `v0.17.1`。
 
 ## 1. 新建仓库建议
 
@@ -72,12 +72,12 @@ Add RhinoMM parametric fastener plugin baseline
 - Run `ParametricFasteners` and check placement, edit, update, refresh, statistics, and export flows
 ```
 
-## 6. Release `v0.16.0` 建议内容
+## 6. Release `v0.17.1` 建议内容
 
 标题：
 
 ```text
-v0.16.0 - Hex nut pockets and heat-set inserts
+v0.17.1 - Global opacity and dual-action Rhino export
 ```
 
 发布说明：
@@ -85,16 +85,16 @@ v0.16.0 - Hex nut pockets and heat-set inserts
 ```markdown
 ## Highlights
 
-- Hex nuts now create compensated hexagonal blind pockets instead of cylindrical cutters.
-- Heat-set inserts support custom thread size, length, outer diameter, and signed diameter compensation.
-- Nut and heat-set insert placement completes with one click on a closed host face.
-- Heat-set insert holes use an exact blind bottom and an automatic 45-degree by 0.5 mm lead-in chamfer.
-- Rhino, STEP, and STL exports regenerate the latest nut cutters from component metadata.
-- Statistics and Excel reports group heat-set inserts by thread size, length, and outer diameter.
+- Fastener and cutter opacity now updates every valid component in the active Rhino document.
+- Global opacity persists across Rhino sessions and becomes the default for newly placed components.
+- Selecting or reading an older component no longer changes the global opacity controls.
+- Left-clicking the Rhino export icon outputs Boolean hosts only; right-clicking also outputs related render fasteners.
+- A new `ParametricFastenersExportToRhinoWithFasteners` command exposes the right-click behavior to scripts.
+- Document-wide display updates use one Undo record and do not rebuild component geometry.
 
 ## Compatibility
 
-- Persistent schema is v6; v5 hex-nut bindings migrate to one installation-pocket binding.
+- Persistent schema remains v6; existing component IDs, bindings, and metadata remain compatible.
 - Existing component IDs, `RhinoMM.*` metadata keys, legacy commands, and existing 3DM files remain compatible.
 
 ## Notes

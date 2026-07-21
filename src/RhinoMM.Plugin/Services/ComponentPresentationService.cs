@@ -48,57 +48,82 @@ public static class ComponentPresentationService
 
     public static bool ApplyDisplaySettings(RhinoDoc doc, FastenerComponentData data, out string message)
     {
+        var success = ApplyDisplaySettings(
+            doc,
+            [data],
+            out _,
+            out message);
+        return success;
+    }
+
+    public static bool ApplyDisplaySettings(
+        RhinoDoc doc,
+        IReadOnlyList<FastenerComponentData> components,
+        out IReadOnlyList<FastenerComponentData> savedComponents,
+        out string message)
+    {
+        savedComponents = [];
+        var uniqueComponents = components
+            .GroupBy(component => component.ComponentId)
+            .Select(group => group.First())
+            .ToArray();
+        if (uniqueComponents.Length == 0)
+        {
+            message = "当前文档没有可更新的参数化紧固件。";
+            return true;
+        }
         var undo = doc.BeginUndoRecord("参数化紧固件：更新显示设置");
         var ownsUndoRecord = undo != 0;
         try
         {
-            EnsureMaterial(doc, data, false);
-            EnsureMaterial(doc, data, true);
-            var bindings = data.Bindings.ToDictionary(binding => binding.BindingId);
-            var componentObjects = ComponentRepository.FindComponentObjects(doc, data.ComponentId).ToList();
-            foreach (var obj in componentObjects)
+            foreach (var data in uniqueComponents)
             {
-                var role = obj.Attributes.GetUserString(ComponentRepository.RoleKey) ?? "Proxy";
-                if (role == "ControlPoint")
+                EnsureMaterial(doc, data, false);
+                EnsureMaterial(doc, data, true);
+                var bindings = data.Bindings.ToDictionary(binding => binding.BindingId);
+                var componentObjects = ComponentRepository.FindComponentObjects(doc, data.ComponentId).ToList();
+                foreach (var obj in componentObjects)
                 {
-                    var controlAttributes = obj.Attributes.Duplicate();
-                    controlAttributes.Name = ComponentRepository.ObjectName(data, role);
-                    ConfigureControlPointAttributes(doc, controlAttributes);
-                    ComponentRepository.Write(controlAttributes, data, role);
-                    doc.Objects.ModifyAttributes(obj, controlAttributes, true);
-                    continue;
-                }
-                var isCutter = role is "Cutter" or "HeadCutter";
-                var visible = true;
-                var targetId = Guid.TryParse(obj.Attributes.GetUserString(ComponentRepository.TargetIdKey), out var parsedTargetId)
-                    ? parsedTargetId
-                    : Guid.Empty;
-                var bindingId = Guid.TryParse(obj.Attributes.GetUserString(ComponentRepository.BindingIdKey), out var parsedBindingId)
-                    ? parsedBindingId
-                    : Guid.Empty;
-                if (isCutter && bindingId == Guid.Empty && targetId != Guid.Empty)
-                    bindingId = data.Bindings.FirstOrDefault(item => item.TargetObjectId == targetId)?.BindingId ?? Guid.Empty;
-                if (isCutter && bindings.TryGetValue(bindingId, out var binding))
-                {
-                    visible = binding.IsPreviewVisible;
-                }
+                    var role = obj.Attributes.GetUserString(ComponentRepository.RoleKey) ?? "Proxy";
+                    if (role == "ControlPoint")
+                    {
+                        var controlAttributes = obj.Attributes.Duplicate();
+                        controlAttributes.Name = ComponentRepository.ObjectName(data, role);
+                        ConfigureControlPointAttributes(doc, controlAttributes);
+                        ComponentRepository.Write(controlAttributes, data, role);
+                        if (!doc.Objects.ModifyAttributes(obj, controlAttributes, true))
+                            throw new InvalidOperationException("无法更新紧固件控制点的显示元数据。");
+                        continue;
+                    }
+                    var isCutter = role is "Cutter" or "HeadCutter";
+                    var visible = true;
+                    var targetId = Guid.TryParse(obj.Attributes.GetUserString(ComponentRepository.TargetIdKey), out var parsedTargetId)
+                        ? parsedTargetId
+                        : Guid.Empty;
+                    var bindingId = Guid.TryParse(obj.Attributes.GetUserString(ComponentRepository.BindingIdKey), out var parsedBindingId)
+                        ? parsedBindingId
+                        : Guid.Empty;
+                    if (isCutter && bindingId == Guid.Empty && targetId != Guid.Empty)
+                        bindingId = data.Bindings.FirstOrDefault(item => item.TargetObjectId == targetId)?.BindingId ?? Guid.Empty;
+                    if (isCutter && bindings.TryGetValue(bindingId, out var binding))
+                        visible = binding.IsPreviewVisible;
 
-                var attributes = obj.Attributes.Duplicate();
-                attributes.Name = ComponentRepository.ObjectName(data, role);
-                ConfigureAttributes(doc, attributes, data, isCutter, visible);
-                ComponentRepository.Write(
-                    attributes,
-                    data,
-                    role,
-                    targetId,
-                    bindingId);
-                doc.Objects.ModifyAttributes(obj, attributes, true);
+                    var attributes = obj.Attributes.Duplicate();
+                    attributes.Name = ComponentRepository.ObjectName(data, role);
+                    ConfigureAttributes(doc, attributes, data, isCutter, visible);
+                    ComponentRepository.Write(
+                        attributes,
+                        data,
+                        role,
+                        targetId,
+                        bindingId);
+                    if (!doc.Objects.ModifyAttributes(obj, attributes, true))
+                        throw new InvalidOperationException("无法更新紧固件对象的显示属性。");
+                }
             }
-            RecreateGroup(doc, data.ComponentId, componentObjects
-                .Where(obj => obj.Attributes.GetUserString(ComponentRepository.RoleKey) != "ControlPoint")
-                .Select(obj => obj.Id));
             doc.Views.Redraw();
-            message = "显示设置已更新。";
+            savedComponents = uniqueComponents;
+            message = $"已同步当前文档 {uniqueComponents.Length} 个组件的全局透明度。";
             return true;
         }
         catch (Exception ex)

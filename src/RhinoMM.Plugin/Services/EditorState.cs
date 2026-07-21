@@ -60,9 +60,7 @@ public sealed class EditorState
         return CreateDraft(existing.Placement, updatedBindings) with
         {
             ComponentId = existing.ComponentId,
-            AdoptedSourceObjectId = existing.AdoptedSourceObjectId,
-            FastenerOpacityPercent = existing.FastenerOpacityPercent,
-            CutterOpacityPercent = existing.CutterOpacityPercent
+            AdoptedSourceObjectId = existing.AdoptedSourceObjectId
         };
     }
 
@@ -75,8 +73,6 @@ public sealed class EditorState
         InsertOuterDiameter = component.InsertOuterDiameter;
         InsertDiameterCompensation = component.InsertDiameterCompensation;
         PrinterCorrection = component.PrintProfile.HoleDiameterCorrection;
-        FastenerOpacityPercent = component.FastenerOpacityPercent;
-        CutterOpacityPercent = component.CutterOpacityPercent;
         LoadedComponentId = component.ComponentId;
         if (component.Bindings.Count > 0)
         {

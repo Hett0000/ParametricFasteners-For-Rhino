@@ -19,6 +19,7 @@ public sealed class RhinoMMPlugIn : PlugIn
         {
             PlacementPresetService.Load(Settings);
             HeatSetInsertPresetService.Load(Settings);
+            GlobalDisplaySettingsService.Load(Settings);
             Panels.RegisterPanel(this, typeof(RhinoMMPanel), "参数化紧固件", null);
             ComponentLifecycleService.Initialize();
             LoadToolbar();

@@ -2,7 +2,7 @@
 
 参数化紧固件是面向 Rhino 8 Windows 与 FDM 3D 打印的 RhinoCommon 插件。它把螺丝、螺母、通孔、沉孔和咬合预孔保存为可编辑组件，并在“放入 Rhino”、STEP 或 STL 导出时才对宿主副本执行布尔，避免破坏原始 3DM 模型。
 
-当前版本：`0.16.0`
+当前版本：`0.17.1`
 
 ## 主要功能
 
@@ -18,6 +18,8 @@
 - 支持选面放置，也支持对象捕捉点连续放置。
 - 支持整体移动、复制、打组移动/复制、Gumball Alt 复制、Ctrl+C/V、跨文档粘贴和 3DM 导入后的组件修复。
 - 支持放入 Rhino、导出 STEP、导出 STL、紧固件统计和 Excel 清单。
+- “放入 Rhino”图标左击只输出布尔宿主，右击同时输出关联紧固件实体；钢制紧固件与热熔螺母自动使用共享的拉丝钢或黄铜 PBR 材质，并放入独立渲染图层。
+- 两个透明度滑块统一控制当前文档全部组件，并作为后续新建组件的跨会话默认值。
 - 保留旧 `RhinoMM*` 命令和 `RhinoMM.*` 元数据键，兼容已有模型。
 
 ## 安装
@@ -37,7 +39,8 @@
 | `ParametricFasteners` | 打开参数化紧固件面板 |
 | `ParametricFastenersPlace` | 放置或绑定紧固件 |
 | `ParametricFastenersApplyUpdate` | 将面板参数应用到选中的控制点 |
-| `ParametricFastenersExportToRhino` | 生成布尔后的普通 Rhino 实体副本 |
+| `ParametricFastenersExportToRhino` | 生成布尔后的普通 Rhino 宿主副本 |
+| `ParametricFastenersExportToRhinoWithFasteners` | 生成布尔宿主及关联紧固件渲染实体 |
 | `ParametricFastenersExport` | 导出 STEP/STL |
 | `ParametricFastenersStatistics` | 统计当前选择或全部紧固件 |
 | `ParametricFastenersValidate` | 校验当前文档中的组件数据 |

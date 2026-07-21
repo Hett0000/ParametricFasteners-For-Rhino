@@ -16,7 +16,8 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("RhinoMMAdoptFastenerCommand.Execute(doc, mode)", source, StringComparison.Ordinal);
         Assert.Contains("RhinoMMValidateCommand.Execute(doc, mode)", source, StringComparison.Ordinal);
         Assert.Contains("RhinoMMExportPrintCommand.Execute(doc, mode)", source, StringComparison.Ordinal);
-        Assert.Contains("RhinoMMExportToRhinoCommand.Execute(doc, mode)", source, StringComparison.Ordinal);
+        Assert.Contains("RhinoMMExportToRhinoCommand.Execute(doc, mode, false)", source, StringComparison.Ordinal);
+        Assert.Contains("RhinoMMExportToRhinoCommand.Execute(doc, mode, true)", source, StringComparison.Ordinal);
         Assert.Contains("PrintExportFormat.Stl", source, StringComparison.Ordinal);
         Assert.Contains("PrintExportFormat.Step", source, StringComparison.Ordinal);
 
@@ -351,11 +352,13 @@ public sealed class PluginSourceRegressionTests
     public void FileAndInDocumentExports_ShareOneBooleanPipeline()
     {
         var service = ReadSource("src", "RhinoMM.Plugin", "Services", "BooleanExportService.cs");
+        var rhinoPlacement = ReadSource("src", "RhinoMM.Plugin", "Services", "RhinoPlacementExportService.cs");
         var fileExport = ReadSource("src", "RhinoMM.Plugin", "Commands", "ExportPrintCommand.cs");
         var rhinoExport = ReadSource("src", "RhinoMM.Plugin", "Commands", "ExportToRhinoCommand.cs");
 
         Assert.Contains("BooleanExportService.TryBuild", fileExport, StringComparison.Ordinal);
-        Assert.Contains("BooleanExportService.TryBuild", rhinoExport, StringComparison.Ordinal);
+        Assert.Contains("BooleanExportService.TryBuild", rhinoPlacement, StringComparison.Ordinal);
+        Assert.Contains("RhinoPlacementExportService.TryBuild", rhinoExport, StringComparison.Ordinal);
         Assert.Contains("ComponentRepository.ReadAllControlPoints", service, StringComparison.Ordinal);
         Assert.Contains("CutterGeometryService.TryBuild", service, StringComparison.Ordinal);
         Assert.DoesNotContain("TryResolveBooleanState", service, StringComparison.Ordinal);
@@ -368,6 +371,65 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("没有启用的补偿切割模块", service, StringComparison.Ordinal);
         Assert.Contains("result.Warnings", fileExport, StringComparison.Ordinal);
         Assert.Contains("result.Warnings", rhinoExport, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RhinoPlacementExport_CanIncludeRelatedRenderFastenersWithSharedPbrMaterials()
+    {
+        var placement = ReadSource("src", "RhinoMM.Plugin", "Services", "RhinoPlacementExportService.cs");
+        var presentation = ReadSource("src", "RhinoMM.Plugin", "Services", "RhinoRenderExportPresentationService.cs");
+        var command = ReadSource("src", "RhinoMM.Plugin", "Commands", "ExportToRhinoCommand.cs");
+        var aliases = ReadSource("src", "RhinoMM.Plugin", "Commands", "AliasCommands.cs");
+        var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
+
+        Assert.Contains("RhinoPlacementExportOptions", placement, StringComparison.Ordinal);
+        Assert.Contains("includeFastenerSolids", command, StringComparison.Ordinal);
+        Assert.Contains("ParametricFastenersExportToRhinoWithFasteners", aliases, StringComparison.Ordinal);
+        Assert.Contains("MouseButtons.Alternate", panel, StringComparison.Ordinal);
+        Assert.Contains("e.Handled = true", panel, StringComparison.Ordinal);
+        Assert.Contains("Application.Instance.AsyncInvoke", panel, StringComparison.Ordinal);
+        Assert.Contains("左击：仅布尔宿主", panel, StringComparison.Ordinal);
+        Assert.Contains("右击：布尔宿主 + 紧固件实体", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("RhinoPlacementExportSettingsService", panel, StringComparison.Ordinal);
+        Assert.Contains("binding.TargetObjectId", placement, StringComparison.Ordinal);
+        Assert.Contains("hostIds.Contains", placement, StringComparison.Ordinal);
+        Assert.Contains("GroupBy(component => component.ComponentId)", placement, StringComparison.Ordinal);
+        Assert.Contains("FastenerGeometryFactory.CreateProxy", placement, StringComparison.Ordinal);
+        Assert.Contains("FastenerKind.HeatSetInsert", placement, StringComparison.Ordinal);
+        Assert.Contains("参数化紧固件::渲染紧固件", presentation, StringComparison.Ordinal);
+        Assert.Contains("参数化紧固件::拉丝钢", presentation, StringComparison.Ordinal);
+        Assert.Contains("参数化紧固件::黄铜", presentation, StringComparison.Ordinal);
+        Assert.Contains("ToPhysicallyBased", presentation, StringComparison.Ordinal);
+        Assert.Contains("Metallic = 1.0", presentation, StringComparison.Ordinal);
+        Assert.Contains("BooleanResult.BottomCenter", placement, StringComparison.Ordinal);
+        Assert.Contains("result.FastenerBodies", command, StringComparison.Ordinal);
+        Assert.Contains("EnsureResources", command, StringComparison.Ordinal);
+        Assert.Contains("RollbackCreatedResources", command, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void OpacityControls_AreGlobalPersistentAndUpdateTheDocumentInOneTransaction()
+    {
+        var settings = ReadSource("src", "RhinoMM.Plugin", "Services", "GlobalDisplaySettings.cs");
+        var presentation = ReadSource("src", "RhinoMM.Plugin", "Services", "ComponentPresentationService.cs");
+        var editor = ReadSource("src", "RhinoMM.Plugin", "Services", "EditorState.cs");
+        var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
+        var plugin = ReadSource("src", "RhinoMM.Plugin", "RhinoMMPlugIn.cs");
+
+        Assert.Contains("new(70, 35)", settings, StringComparison.Ordinal);
+        Assert.Contains("settings.GetDouble", settings, StringComparison.Ordinal);
+        Assert.Contains("settings.SetDouble", settings, StringComparison.Ordinal);
+        Assert.Contains("GlobalDisplaySettingsService.Load(Settings)", plugin, StringComparison.Ordinal);
+        Assert.Contains("全局显示", panel, StringComparison.Ordinal);
+        Assert.Contains("应用于当前文档全部组件", panel, StringComparison.Ordinal);
+        Assert.Contains("ComponentRepository.ReadAllControlPoints", panel, StringComparison.Ordinal);
+        Assert.Contains("ApplyGlobalDisplaySettings", panel, StringComparison.Ordinal);
+        Assert.Contains("UpdateCachedComponents", panel, StringComparison.Ordinal);
+        Assert.Contains("IReadOnlyList<FastenerComponentData> components", presentation, StringComparison.Ordinal);
+        Assert.Contains("GroupBy(component => component.ComponentId)", presentation, StringComparison.Ordinal);
+        Assert.Equal(1, CountOccurrences(presentation, "doc.BeginUndoRecord"));
+        Assert.DoesNotContain("FastenerOpacityPercent = component.FastenerOpacityPercent", editor, StringComparison.Ordinal);
+        Assert.DoesNotContain("CutterOpacityPercent = component.CutterOpacityPercent", editor, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -567,5 +629,17 @@ public sealed class PluginSourceRegressionTests
 
         Assert.NotNull(directory);
         return File.ReadAllText(Path.Combine([directory!.FullName, .. relativePath]));
+    }
+
+    private static int CountOccurrences(string source, string value)
+    {
+        var count = 0;
+        var index = 0;
+        while ((index = source.IndexOf(value, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += value.Length;
+        }
+        return count;
     }
 }

@@ -125,10 +125,14 @@ public sealed class RhinoMMPanel : Panel, IPanel
         foreach (var mode in EngagementDepthModes)
             _presetDepth.Items.Add(new ListItem { Key = mode.ToString(), Text = FastenerLabels.Depth(mode) });
         LoadPlacementPresetControls();
+        var globalDisplay = GlobalDisplaySettingsService.Current;
+        _fastenerOpacity.Value = (int)Math.Round(globalDisplay.FastenerOpacityPercent);
+        _cutterOpacity.Value = (int)Math.Round(globalDisplay.CutterOpacityPercent);
+        UpdateOpacityLabels();
 
         _displayExpander = new Expander
         {
-            Header = FastenerUiTheme.SectionTitle("显示设置"),
+            Header = FastenerUiTheme.SectionTitle("全局显示"),
             Expanded = false,
             Content = new StackLayout
             {
@@ -137,7 +141,13 @@ public sealed class RhinoMMPanel : Panel, IPanel
                 Items =
                 {
                     FieldStack("紧固件不透明度", OpacityControl(_fastenerOpacity, _fastenerOpacityValue)),
-                    FieldStack("切割模块不透明度", OpacityControl(_cutterOpacity, _cutterOpacityValue))
+                    FieldStack("切割模块不透明度", OpacityControl(_cutterOpacity, _cutterOpacityValue)),
+                    new Label
+                    {
+                        Text = "应用于当前文档全部组件，并作为后续新建组件默认值。",
+                        TextColor = FastenerUiTheme.SecondaryText,
+                        Wrap = WrapMode.Word
+                    }
                 }
             }
         };
@@ -248,7 +258,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
         _displayTimer.Elapsed += (_, _) =>
         {
             _displayTimer.Stop();
-            ApplyDisplaySettings();
+            ApplyGlobalDisplaySettings();
         };
         _kind.SelectedKeyChanged += (_, _) =>
         {
@@ -297,8 +307,8 @@ public sealed class RhinoMMPanel : Panel, IPanel
         _presetClearanceBoolean.CheckedChanged += (_, _) => SaveActivePlacementPresetControls();
         _presetEngagementPreview.CheckedChanged += (_, _) => SavePlacementPresetControls();
         _presetEngagementBoolean.CheckedChanged += (_, _) => SavePlacementPresetControls();
-        _fastenerOpacity.ValueChanged += (_, _) => ScheduleDisplayUpdate();
-        _cutterOpacity.ValueChanged += (_, _) => ScheduleDisplayUpdate();
+        _fastenerOpacity.ValueChanged += (_, _) => ScheduleGlobalDisplayUpdate();
+        _cutterOpacity.ValueChanged += (_, _) => ScheduleGlobalDisplayUpdate();
         _zeroHeadButton.Click += (_, _) => _headEmbed.Value = 0;
         _flushHeadButton.Click += (_, _) => SetFlushHeadDepth();
     }
@@ -325,8 +335,16 @@ public sealed class RhinoMMPanel : Panel, IPanel
             (_, _) => RefreshDocument());
         var toRhino = MakeActionButton(
             PanelActionIcon.Rhino,
-            "放入 Rhino：生成普通的布尔成果",
+            "放入 Rhino｜左击：仅布尔宿主｜右击：布尔宿主 + 紧固件实体",
             (_, _) => RunExport("_-ParametricFastenersExportToRhino"));
+        toRhino.MouseDown += (_, e) =>
+        {
+            if (!e.Buttons.HasFlag(MouseButtons.Alternate))
+                return;
+            e.Handled = true;
+            Application.Instance.AsyncInvoke(() =>
+                RunExport("_-ParametricFastenersExportToRhinoWithFasteners"));
+        };
         var step = MakeActionButton(
             PanelActionIcon.Step,
             "导出 STEP：布尔计算后导出 STEP",
@@ -741,8 +759,9 @@ public sealed class RhinoMMPanel : Panel, IPanel
         {
             LoadPlacementPresetValues();
         }
-        _fastenerOpacity.Value = (int)Math.Round(state.FastenerOpacityPercent);
-        _cutterOpacity.Value = (int)Math.Round(state.CutterOpacityPercent);
+        var globalDisplay = GlobalDisplaySettingsService.Current;
+        _fastenerOpacity.Value = (int)Math.Round(globalDisplay.FastenerOpacityPercent);
+        _cutterOpacity.Value = (int)Math.Round(globalDisplay.CutterOpacityPercent);
         UpdateOpacityLabels();
         UpdateHeadEmbedControls();
         UpdateInsertSummary();
@@ -772,8 +791,8 @@ public sealed class RhinoMMPanel : Panel, IPanel
                 state.ClearanceFit = fit;
             state.BiteReduction = _bite.Value;
         }
-        state.FastenerOpacityPercent = _fastenerOpacity.Value;
-        state.CutterOpacityPercent = _cutterOpacity.Value;
+        state.FastenerOpacityPercent = GlobalDisplaySettingsService.Current.FastenerOpacityPercent;
+        state.CutterOpacityPercent = GlobalDisplaySettingsService.Current.CutterOpacityPercent;
     }
 
     private void LoadPlacementPresetControls()
@@ -1026,12 +1045,21 @@ public sealed class RhinoMMPanel : Panel, IPanel
         MarkGeometryDirty();
     }
 
-    private void ScheduleDisplayUpdate()
+    private void ScheduleGlobalDisplayUpdate()
     {
         UpdateOpacityLabels();
-        if (_loadingControls || _loadedComponent is null)
+        if (_loadingControls || RhinoMMPlugIn.Instance is null)
             return;
-        SaveControls();
+        var settings = new GlobalDisplaySettings(
+            _fastenerOpacity.Value,
+            _cutterOpacity.Value);
+        if (!GlobalDisplaySettingsService.Save(
+                RhinoMMPlugIn.Instance.Settings,
+                settings,
+                out var message))
+        {
+            SetStatus(message, StatusKind.Warning);
+        }
         _displayTimer.Stop();
         _displayTimer.Start();
     }
@@ -1040,6 +1068,52 @@ public sealed class RhinoMMPanel : Panel, IPanel
     {
         _fastenerOpacityValue.Text = $"{_fastenerOpacity.Value}%";
         _cutterOpacityValue.Text = $"{_cutterOpacity.Value}%";
+    }
+
+    private void ApplyGlobalDisplaySettings()
+    {
+        if (RhinoDoc.ActiveDoc is not { } doc)
+            return;
+        var allComponents = ComponentRepository.ReadAllControlPoints(doc, out var ignoredComponentCount);
+        if (allComponents.Count == 0)
+        {
+            SetStatus(
+                ignoredComponentCount > 0
+                    ? "已保存全局显示默认值；文档残留组件请先运行“刷新 / 清理”。"
+                    : "已保存全局显示默认值；新建组件将使用该设置。",
+                ignoredComponentCount > 0 ? StatusKind.Warning : StatusKind.Success);
+            return;
+        }
+        var display = GlobalDisplaySettingsService.Current;
+        var drafts = allComponents.Select(component => component with
+        {
+            FastenerOpacityPercent = display.FastenerOpacityPercent,
+            CutterOpacityPercent = display.CutterOpacityPercent,
+            UpdatedAt = DateTimeOffset.UtcNow
+        }).ToArray();
+        if (!ComponentPresentationService.ApplyDisplaySettings(
+                doc,
+                drafts,
+                out var saved,
+                out var message))
+        {
+            SetStatus(message, StatusKind.Error);
+            return;
+        }
+
+        ComponentEditorSession.UpdateCachedComponents(doc, saved);
+        var savedById = saved.ToDictionary(component => component.ComponentId);
+        _loadedComponents = _loadedComponents
+            .Select(component => savedById.GetValueOrDefault(component.ComponentId, component))
+            .ToArray();
+        if (_loadedComponent is not null
+            && savedById.TryGetValue(_loadedComponent.ComponentId, out var current))
+            _loadedComponent = current;
+        SetStatus(
+            ignoredComponentCount > 0
+                ? $"{message} 另有 {ignoredComponentCount} 个残留组件未处理。"
+                : message,
+            ignoredComponentCount > 0 ? StatusKind.Warning : StatusKind.Success);
     }
 
     private void LoadModules()

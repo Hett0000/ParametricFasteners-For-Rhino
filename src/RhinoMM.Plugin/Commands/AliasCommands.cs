@@ -63,5 +63,13 @@ public sealed class ParametricFastenersExportToRhinoCommand : Command
     public override string EnglishName => "ParametricFastenersExportToRhino";
 
     protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode) =>
-        RhinoMMExportToRhinoCommand.Execute(doc, mode);
+        RhinoMMExportToRhinoCommand.Execute(doc, mode, false);
+}
+
+public sealed class ParametricFastenersExportToRhinoWithFastenersCommand : Command
+{
+    public override string EnglishName => "ParametricFastenersExportToRhinoWithFasteners";
+
+    protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode) =>
+        RhinoMMExportToRhinoCommand.Execute(doc, mode, true);
 }
