@@ -1,6 +1,6 @@
 # GitHub 提交与新建仓库信息
 
-本文档用于维护 GitHub 仓库资料并发布 `v0.17.1`。
+本文档用于维护 GitHub 仓库资料并发布 `v0.19.0`。
 
 ## 1. 新建仓库建议
 
@@ -72,12 +72,12 @@ Add RhinoMM parametric fastener plugin baseline
 - Run `ParametricFasteners` and check placement, edit, update, refresh, statistics, and export flows
 ```
 
-## 6. Release `v0.17.1` 建议内容
+## 6. Release `v0.19.0` 建议内容
 
 标题：
 
 ```text
-v0.17.1 - Global opacity and dual-action Rhino export
+v0.19.0 - Native Rhino dark mode
 ```
 
 发布说明：
@@ -85,16 +85,14 @@ v0.17.1 - Global opacity and dual-action Rhino export
 ```markdown
 ## Highlights
 
-- Fastener and cutter opacity now updates every valid component in the active Rhino document.
-- Global opacity persists across Rhino sessions and becomes the default for newly placed components.
-- Selecting or reading an older component no longer changes the global opacity controls.
-- Left-clicking the Rhino export icon outputs Boolean hosts only; right-clicking also outputs related render fasteners.
-- A new `ParametricFastenersExportToRhinoWithFasteners` command exposes the right-click behavior to scripts.
-- Document-wide display updates use one Undo record and do not rebuild component geometry.
+- The main panel and fastener statistics window now follow Rhino light and dark appearance settings automatically.
+- Layered dark surfaces, accessible text and status colors, and dedicated dark-mode panel icons remove the previous white-card visual break.
+- Native Eto inputs, checkboxes, expanders, scrollbars, focus behavior, and live theme switching remain integrated with Rhino.
+- Theme changes apply without losing the current component, draft parameters, selection, or editing session.
 
 ## Compatibility
 
-- Persistent schema remains v6; existing component IDs, bindings, and metadata remain compatible.
+- Persistent schema remains v7.
 - Existing component IDs, `RhinoMM.*` metadata keys, legacy commands, and existing 3DM files remain compatible.
 
 ## Notes
@@ -112,7 +110,7 @@ v0.17.1 - Global opacity and dual-action Rhino export
 
 参数化紧固件是面向 Rhino 8 Windows 与 FDM 打印的 RhinoCommon 插件。它将螺丝、螺母、通孔、沉孔和咬合预孔保存为可编辑组件，并在导出 STEP/STL 或放入 Rhino 时才对临时副本执行布尔，避免破坏原始 3DM 模型。
 
-核心能力包括 M1.6-M12 常用规格、四类紧固件预设、逐宿主孔配合、打印补偿、控制点编辑、批量更新、统计导出和无损制造文件输出。
+核心能力包括 M1.6-M12 常用规格、五类紧固件预设、逐宿主孔配合、打印补偿、控制点编辑、批量更新、统计导出和无损制造文件输出。
 ```
 
 ## 8. 发布前检查清单

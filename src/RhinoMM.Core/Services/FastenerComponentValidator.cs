@@ -35,6 +35,8 @@ public static class FastenerComponentValidator
         {
             if (component.InsertOuterDiameter <= 0)
                 result.Issues.Add(new("insert-outer-diameter", "热熔螺母外径必须大于 0。"));
+            if (component.InsertDepthCompensation is < 0 or > 1000)
+                result.Issues.Add(new("insert-depth-compensation", "热熔螺母深度补偿必须在 0–1000 mm 之间。"));
             var finalDiameter = InstallationPocketCalculator.HeatSetFinalDiameter(component);
             if (finalDiameter <= spec.NominalDiameter)
                 result.Issues.Add(new(

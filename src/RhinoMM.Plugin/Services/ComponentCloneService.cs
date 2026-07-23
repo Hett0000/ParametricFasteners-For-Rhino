@@ -39,6 +39,12 @@ internal static class ComponentCloneService
         var createdComponentIds = prepared.Select(item => item.Draft.ComponentId).ToArray();
         try
         {
+            foreach (var source in prepared
+                         .Select(item => item.Plan.Source)
+                         .GroupBy(component => component.ComponentId)
+                         .Select(group => group.First()))
+                ComponentPresentationService.PromoteLegacyMaterialsForCopy(doc, source);
+
             var resolved = prepared.Where(item => !item.Unresolved).ToArray();
             var savedById = new Dictionary<Guid, FastenerComponentData>();
             if (resolved.Length > 0)
@@ -63,6 +69,7 @@ internal static class ComponentCloneService
             // This makes manual rollback possible even inside Rhino's command undo record.
             foreach (var item in prepared)
                 DeleteRawCopies(doc, item.Plan);
+            ComponentPresentationService.CleanupUnusedLegacyMaterials(doc);
 
             foreach (var item in prepared)
             {
@@ -145,6 +152,7 @@ internal static class ComponentCloneService
                 };
 
             var componentId = Guid.NewGuid();
+            var display = GlobalDisplaySettingsService.Current;
             var bindingIdMap = plan.Source.Bindings.ToDictionary(
                 binding => binding.BindingId,
                 _ => Guid.NewGuid());
@@ -152,6 +160,8 @@ internal static class ComponentCloneService
             {
                 ComponentId = componentId,
                 Placement = placement,
+                FastenerOpacityPercent = display.FastenerOpacityPercent,
+                CutterOpacityPercent = display.CutterOpacityPercent,
                 ProxyObjectId = Guid.Empty,
                 ControlPointObjectId = Guid.Empty,
                 UpdatedAt = DateTimeOffset.UtcNow

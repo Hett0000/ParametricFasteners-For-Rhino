@@ -47,10 +47,12 @@ public sealed class FastenerGeometryParametersTests
         {
             Placement = component.Placement with { OriginX = 2 }
         };
+        var changedInsertDepth = component with { InsertDepthCompensation = 1 };
 
         Assert.False(FastenerGeometryParameters.Match(component, changedDepth));
         Assert.False(FastenerGeometryParameters.Match(component, changedCorrection));
         Assert.False(FastenerGeometryParameters.Match(component, changedPlacement));
+        Assert.False(FastenerGeometryParameters.Match(component, changedInsertDepth));
     }
 
     private static FastenerComponentData CreateComponent() => new()

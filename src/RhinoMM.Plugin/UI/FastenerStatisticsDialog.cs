@@ -37,16 +37,19 @@ public sealed class FastenerStatisticsDialog : Dialog
     private readonly Button _exportButton = new() { Text = "保存 Excel", Height = FastenerUiTheme.ControlHeight };
     private FastenerStatisticsSnapshot? _snapshot;
     private int? _metricColumnCount;
+    private FastenerThemePalette? _appliedTheme;
 
     public FastenerStatisticsDialog(RhinoDoc document, bool focusExport)
     {
+        FastenerUiTheme.RefreshPalette();
         _document = document;
         Title = "紧固件统计";
         Size = new Size(620, 540);
         MinimumSize = new Size(300, 400);
         Padding = new Padding(0);
         Resizable = true;
-        BackgroundColor = FastenerUiTheme.Canvas;
+        FastenerUiTheme.SetRole(this, FastenerThemeRole.Canvas);
+        FastenerUiTheme.SetRole(_status, FastenerThemeRole.SecondaryText);
 
         _scopeSelector.Add(SelectedScopeKey, "当前选择（0）");
         _scopeSelector.Add(AllScopeKey, "全部组件（0）");
@@ -111,7 +114,6 @@ public sealed class FastenerStatisticsDialog : Dialog
         };
         var content = new TableLayout
         {
-            BackgroundColor = FastenerUiTheme.Canvas,
             Padding = new Padding(FastenerUiTheme.SpaceMedium),
             Spacing = new Size(0, FastenerUiTheme.SpaceSmall),
             Rows =
@@ -123,7 +125,10 @@ public sealed class FastenerStatisticsDialog : Dialog
                 new TableRow(FastenerUiTheme.CreateCard(actionRow, FastenerUiTheme.SpaceSmall))
             }
         };
+        FastenerUiTheme.SetRole(content, FastenerThemeRole.Canvas);
         Content = content;
+        RhinoApp.AppSettingsChanged += RhinoAppSettingsChanged;
+        Closed += (_, _) => RhinoApp.AppSettingsChanged -= RhinoAppSettingsChanged;
         SizeChanged += (_, _) =>
         {
             RebuildMetrics();
@@ -131,11 +136,26 @@ public sealed class FastenerStatisticsDialog : Dialog
         };
         Shown += (_, _) =>
         {
+            ApplyTheme();
             RebuildMetrics(true);
             RefreshStatistics();
             if (focusExport)
                 _exportButton.Focus();
         };
+    }
+
+    private void RhinoAppSettingsChanged(object? sender, EventArgs e) =>
+        Application.Instance.AsyncInvoke(ApplyTheme);
+
+    private void ApplyTheme()
+    {
+        FastenerUiTheme.RefreshPalette();
+        if (_appliedTheme == FastenerUiTheme.Palette)
+            return;
+        _appliedTheme = FastenerUiTheme.Palette;
+        FastenerUiTheme.ApplyTree(this);
+        _scopeSelector.RefreshTheme();
+        Invalidate();
     }
 
     public static void Show(RhinoDoc document, bool focusExport)
@@ -201,9 +221,11 @@ public sealed class FastenerStatisticsDialog : Dialog
         _status.Text = _snapshot.IgnoredComponentCount > 0
             ? $"已忽略 {_snapshot.IgnoredComponentCount} 个缺少有效控制点或数据损坏的组件；请运行“刷新 / 清理”。"
             : report.TotalCount == 0 ? "当前范围没有可统计的紧固件。" : "统计已刷新。";
-        _status.TextColor = _snapshot.IgnoredComponentCount > 0
-            ? Color.FromArgb(184, 105, 0)
-            : FastenerUiTheme.SecondaryText;
+        FastenerUiTheme.SetRole(
+            _status,
+            _snapshot.IgnoredComponentCount > 0
+                ? FastenerThemeRole.StatusWarning
+                : FastenerThemeRole.SecondaryText);
         ResizeColumns();
     }
 
@@ -232,12 +254,12 @@ public sealed class FastenerStatisticsDialog : Dialog
                 report);
             _lastDirectory = Path.GetDirectoryName(dialog.FileName) ?? _lastDirectory;
             _status.Text = $"已导出 {report.TotalCount} 个紧固件：{dialog.FileName}";
-            _status.TextColor = Color.FromArgb(36, 124, 68);
+            FastenerUiTheme.SetRole(_status, FastenerThemeRole.StatusSuccess);
         }
         catch (Exception ex)
         {
             _status.Text = $"Excel 导出失败：{ex.Message}";
-            _status.TextColor = Color.FromArgb(190, 45, 45);
+            FastenerUiTheme.SetRole(_status, FastenerThemeRole.StatusError);
         }
     }
 
@@ -271,12 +293,11 @@ public sealed class FastenerStatisticsDialog : Dialog
         Items = { FastenerUiTheme.SecondaryLabel(title), value }
     }, FastenerUiTheme.SpaceSmall);
 
-    private static Label MetricValue() => new()
+    private static Label MetricValue() => FastenerUiTheme.Register(new Label
     {
         Text = "0",
-        Font = new Font(SystemFont.Bold, 16),
-        TextColor = FastenerUiTheme.PrimaryText
-    };
+        Font = new Font(SystemFont.Bold, 16)
+    }, FastenerThemeRole.PrimaryText);
 
     private static GridColumn Column(
         string header,

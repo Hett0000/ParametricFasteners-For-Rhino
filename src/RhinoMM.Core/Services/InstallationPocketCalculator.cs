@@ -21,6 +21,15 @@ public static class InstallationPocketCalculator
     public static double HeatSetMouthDiameter(FastenerComponentData component) =>
         HeatSetFinalDiameter(component) + HeatSetChamferDepth(component) * 2;
 
-    public static double RequiredDepth(FastenerComponentData component, FastenerSizeSpec spec) =>
+    public static double RequiredHostDepth(FastenerComponentData component, FastenerSizeSpec spec) =>
         component.Kind == FastenerKind.HexNut ? spec.Head.NutThickness : component.Length;
+
+    public static double CuttingDepth(FastenerComponentData component, FastenerSizeSpec spec) =>
+        component.Kind == FastenerKind.HeatSetInsert
+            ? component.Length + component.InsertDepthCompensation
+            : RequiredHostDepth(component, spec);
+
+    // Compatibility wrapper for callers that need the physical installation depth.
+    public static double RequiredDepth(FastenerComponentData component, FastenerSizeSpec spec) =>
+        RequiredHostDepth(component, spec);
 }

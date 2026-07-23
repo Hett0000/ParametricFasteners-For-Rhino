@@ -168,11 +168,11 @@ public static class FastenerStatisticsWorkbookWriter
     private static void WriteDetailSheet(XmlWriter writer, FastenerStatisticsReport report)
     {
         StartWorksheet(writer, 1, 2);
-        WriteColumns(writer, [8, 24, 10, 12, 12, 14, 14, 14, 14, 14, 12, 12, 24, 14, 14, 14, 38]);
+        WriteColumns(writer, [8, 24, 10, 12, 12, 14, 14, 14, 14, 14, 14, 12, 12, 24, 14, 14, 14, 38]);
         writer.WriteStartElement("sheetData", SpreadsheetNamespace);
         var headers = new[]
         {
-            "序号", "类型", "规格", "长度 mm", "外径 mm", "切割补偿 mm", "嵌入深度 mm", "孔径修正 mm", "通孔配合", "咬合缩减 mm",
+            "序号", "类型", "规格", "长度 mm", "外径 mm", "孔径补偿 mm", "深度补偿 mm", "嵌入深度 mm", "孔径修正 mm", "通孔配合", "咬合缩减 mm",
             "通孔宿主数", "咬合宿主数", "咬合深度模式", "控制点 X", "控制点 Y", "控制点 Z", "组件 ID"
         };
         WriteRow(writer, 1, headers.Select(value => Text(value, true)).ToArray());
@@ -193,6 +193,7 @@ public static class FastenerStatisticsWorkbookWriter
                 FastenerKindTraits.UsesLengthInStatistics(component.Kind) ? Number(component.Length) : Blank(),
                 component.Kind == FastenerKind.HeatSetInsert ? Number(component.InsertOuterDiameter) : Blank(),
                 component.Kind == FastenerKind.HeatSetInsert ? Number(component.InsertDiameterCompensation) : Blank(),
+                component.Kind == FastenerKind.HeatSetInsert ? Number(component.InsertDepthCompensation) : Blank(),
                 Number(component.HeadEmbedDepth),
                 Number(component.PrintProfile.HoleDiameterCorrection),
                 clearance is null ? Blank() : Text(FastenerLabels.ClearanceFit(clearance.ClearanceFit)),
@@ -208,7 +209,7 @@ public static class FastenerStatisticsWorkbookWriter
             rowIndex++;
         }
         writer.WriteEndElement();
-        WriteAutoFilter(writer, $"A1:Q{Math.Max(1, rowIndex - 1)}");
+        WriteAutoFilter(writer, $"A1:R{Math.Max(1, rowIndex - 1)}");
         writer.WriteEndElement();
     }
 

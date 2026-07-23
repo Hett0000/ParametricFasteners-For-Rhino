@@ -57,7 +57,16 @@ internal sealed class CardSelector : Panel
     {
         var index = _items.FindIndex(item => item.Key == key);
         if (index >= 0)
+        {
             _items[index].Button.Enabled = enabled;
+            ApplySelectionStyle(_items[index].Button, _items[index].Key == _selectedKey);
+        }
+    }
+
+    public void RefreshTheme()
+    {
+        foreach (var item in _items)
+            ApplySelectionStyle(item.Button, item.Key == _selectedKey);
     }
 
     public void Select(string? key, bool raiseChanged)
@@ -112,12 +121,11 @@ internal sealed class CardSelector : Panel
 
     private static void ApplySelectionStyle(ToggleButton button, bool selected)
     {
-        button.BackgroundColor = selected
-            ? FastenerUiTheme.Accent
-            : FastenerUiTheme.SecondaryFill;
-        button.TextColor = selected
-            ? Colors.White
-            : FastenerUiTheme.PrimaryText;
+        FastenerUiTheme.SetRole(
+            button,
+            selected ? FastenerThemeRole.PrimaryAction : FastenerThemeRole.SecondaryAction);
+        if (!button.Enabled)
+            button.TextColor = FastenerUiTheme.DisabledText;
         button.Font = selected ? SystemFonts.Bold() : SystemFonts.Default();
     }
 }

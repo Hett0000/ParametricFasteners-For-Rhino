@@ -69,7 +69,8 @@ public sealed class FastenerStatisticsWorkbookWriterTests
             Assert.Contains("外径 mm", summary, StringComparison.Ordinal);
             var detail = ReadEntry(archive, "xl/worksheets/sheet2.xml");
             Assert.Contains("r=\"D2\" t=\"n\"><v>12</v>", detail, StringComparison.Ordinal);
-            Assert.Contains("切割补偿 mm", detail, StringComparison.Ordinal);
+            Assert.Contains("孔径补偿 mm", detail, StringComparison.Ordinal);
+            Assert.Contains("深度补偿 mm", detail, StringComparison.Ordinal);
             Assert.Contains("11111111-2222-3333-4444-555555555555", detail, StringComparison.Ordinal);
         }
         finally
@@ -93,6 +94,40 @@ public sealed class FastenerStatisticsWorkbookWriterTests
             using var archive = ZipFile.OpenRead(path);
             Assert.NotNull(archive.GetEntry("xl/worksheets/sheet1.xml"));
             Assert.NotNull(archive.GetEntry("xl/worksheets/sheet2.xml"));
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public void Write_StoresHeatSetDepthCompensationAsNumericDetailValue()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "heat-set.xlsx");
+            var component = new FastenerComponentData
+            {
+                Kind = FastenerKind.HeatSetInsert,
+                Size = "M3",
+                Length = 5,
+                InsertOuterDiameter = 4.6,
+                InsertDiameterCompensation = -0.2,
+                InsertDepthCompensation = 1
+            };
+            var report = FastenerStatisticsBuilder.Build([component], FastenerStatisticsScope.All);
+
+            FastenerStatisticsWorkbookWriter.Write(
+                path,
+                "HeatSet.3dm",
+                DateTimeOffset.UtcNow,
+                report);
+
+            using var archive = ZipFile.OpenRead(path);
+            var detail = ReadEntry(archive, "xl/worksheets/sheet2.xml");
+            Assert.Contains("r=\"G2\" t=\"n\"><v>1</v>", detail, StringComparison.Ordinal);
         }
         finally
         {

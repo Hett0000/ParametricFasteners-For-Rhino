@@ -157,7 +157,12 @@ public static class ComponentRefreshService
             unresolved.Count,
             unresolved.Count,
             unresolved);
-        if (repairDrafts.Count == 0 && deleteIds.Count == 0)
+        var hasLegacyMaterialAssignments = ComponentPresentationService.HasLegacyMaterialAssignments(doc);
+        var hasUnusedLegacyMaterials = ComponentPresentationService.HasUnusedLegacyMaterials(doc);
+        if (repairDrafts.Count == 0
+            && deleteIds.Count == 0
+            && !hasLegacyMaterialAssignments
+            && !hasUnusedLegacyMaterials)
         {
             message = BuildMessage(result);
             return true;
@@ -167,6 +172,8 @@ public static class ComponentRefreshService
         var ownsUndoRecord = undo != 0;
         try
         {
+            var migratedLegacyAssignments = 0;
+            var cleanedLegacyMaterials = 0;
             IReadOnlyList<FastenerComponentData> repaired = [];
             if (repairDrafts.Count > 0
                 && !FastenerComponentService.CreateOrReplaceMany(doc, repairDrafts, out repaired, out var repairMessage))
@@ -183,6 +190,8 @@ public static class ComponentRefreshService
                 }
                 ComponentEditorSession.ForgetComponent(doc, componentId);
             }
+            migratedLegacyAssignments = ComponentPresentationService.MigrateLegacyMaterialAssignments(doc);
+            cleanedLegacyMaterials = ComponentPresentationService.CleanupUnusedLegacyMaterials(doc);
 
             if (ownsUndoRecord)
             {
@@ -194,6 +203,10 @@ public static class ComponentRefreshService
             RestoreControlPointSelection(doc, selectedComponentIds);
             doc.Views.Redraw();
             message = BuildMessage(result);
+            if (migratedLegacyAssignments > 0)
+                message += $" 已将 {migratedLegacyAssignments} 个插件对象切换到共享显示材质。";
+            if (cleanedLegacyMaterials > 0)
+                message += $" 已清理 {cleanedLegacyMaterials} 个未引用的旧显示材质。";
             return true;
         }
         catch (Exception ex)

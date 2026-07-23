@@ -14,6 +14,7 @@ public sealed class EditorState
     public double HeadEmbedDepth { get; set; }
     public double InsertOuterDiameter { get; set; }
     public double InsertDiameterCompensation { get; set; }
+    public double InsertDepthCompensation { get; set; } = 1;
     public double PrinterCorrection { get; set; } = 0.2;
     public ShaftFitRole DefaultRole { get; set; } = ShaftFitRole.Clearance;
     public ClearanceFitClass ClearanceFit { get; set; } = ClearanceFitClass.Normal;
@@ -31,6 +32,7 @@ public sealed class EditorState
         HeadEmbedDepth = FastenerKindTraits.SupportsHeadEmbed(Kind) ? HeadEmbedDepth : 0,
         InsertOuterDiameter = Kind == FastenerKind.HeatSetInsert ? InsertOuterDiameter : 0,
         InsertDiameterCompensation = Kind == FastenerKind.HeatSetInsert ? InsertDiameterCompensation : 0,
+        InsertDepthCompensation = Kind == FastenerKind.HeatSetInsert ? InsertDepthCompensation : 0,
         Placement = placement,
         PrintProfile = new PrintProfileSnapshot("当前 FDM 配置", PrinterCorrection),
         FastenerOpacityPercent = FastenerOpacityPercent,
@@ -51,7 +53,7 @@ public sealed class EditorState
                 ShaftFitRole.InstallationPocket when Kind == FastenerKind.HeatSetInsert => binding with
                 {
                     DepthMode = DepthMode.Blind,
-                    BlindDepth = Length,
+                    BlindDepth = Length + InsertDepthCompensation,
                     IncludeHeadSeat = false
                 },
                 _ => binding
@@ -72,6 +74,7 @@ public sealed class EditorState
         HeadEmbedDepth = component.HeadEmbedDepth;
         InsertOuterDiameter = component.InsertOuterDiameter;
         InsertDiameterCompensation = component.InsertDiameterCompensation;
+        InsertDepthCompensation = component.InsertDepthCompensation;
         PrinterCorrection = component.PrintProfile.HoleDiameterCorrection;
         LoadedComponentId = component.ComponentId;
         if (component.Bindings.Count > 0)

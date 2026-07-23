@@ -130,7 +130,8 @@ public static class FastenerGeometryFactory
     public static (Brep Shaft, Brep LeadIn) CreateHeatSetPocketCutters(
         FastenerComponentData data,
         FastenerSizeSpec spec,
-        double padding)
+        double padding,
+        double cuttingDepth)
     {
         var finalDiameter = InstallationPocketCalculator.HeatSetFinalDiameter(data);
         if (finalDiameter <= spec.NominalDiameter)
@@ -140,9 +141,11 @@ public static class FastenerGeometryFactory
         var chamferDepth = InstallationPocketCalculator.HeatSetChamferDepth(data);
         var mouthRadius = radius + chamferDepth;
         // Extend the 45-degree cone outside the host while preserving the exact
-        // mouth radius at z=0 and the exact blind bottom at z=Length.
+        // mouth radius at z=0. The shaft ends at the compensated cutting depth.
         var outsideRadius = mouthRadius + padding;
-        var shaft = CreateCylinder(radius, data.Length, 0);
+        if (cuttingDepth <= 0)
+            throw new InvalidOperationException("热熔安装孔切割深度必须大于 0。");
+        var shaft = CreateCylinder(radius, cuttingDepth, 0);
         var leadIn = CreateFrustum(
             outsideRadius,
             radius,

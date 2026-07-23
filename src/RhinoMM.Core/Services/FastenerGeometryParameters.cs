@@ -12,6 +12,7 @@ public static class FastenerGeometryParameters
             || left.HeadEmbedDepth != right.HeadEmbedDepth
             || left.InsertOuterDiameter != right.InsertOuterDiameter
             || left.InsertDiameterCompensation != right.InsertDiameterCompensation
+            || left.InsertDepthCompensation != right.InsertDepthCompensation
             || left.Placement != right.Placement
             || left.PrintProfile.HoleDiameterCorrection != right.PrintProfile.HoleDiameterCorrection
             || left.Bindings.Count != right.Bindings.Count)

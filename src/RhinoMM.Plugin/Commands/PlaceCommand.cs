@@ -137,7 +137,7 @@ public sealed class RhinoMMPlaceHoleCommand : Command
         var preset = PlacementPresetService.Current;
         var depth = state.Kind == FastenerKind.HexNut
             ? RhinoMMPlugIn.Catalog.Get(state.Size).Head.NutThickness
-            : state.Length;
+            : state.Length + state.InsertDepthCompensation;
         var heatSetPreset = HeatSetInsertPresetService.Current;
         var preview = state.Kind == FastenerKind.HeatSetInsert
             ? heatSetPreset.PreviewVisible

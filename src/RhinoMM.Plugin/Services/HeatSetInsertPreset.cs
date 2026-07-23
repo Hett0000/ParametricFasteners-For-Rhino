@@ -6,10 +6,11 @@ internal sealed record HeatSetInsertPreset(
     double Length,
     double OuterDiameter,
     double DiameterCompensation,
+    double DepthCompensation,
     bool PreviewVisible,
     bool BooleanEnabled)
 {
-    public static HeatSetInsertPreset Default { get; } = new(0, 0, 0, true, true);
+    public static HeatSetInsertPreset Default { get; } = new(0, 0, 0, 1, true, true);
 }
 
 internal static class HeatSetInsertPresetService
@@ -27,6 +28,7 @@ internal static class HeatSetInsertPresetService
                 Finite(settings.GetDouble(Prefix + "Length", defaults.Length), defaults.Length, 0, 1000),
                 Finite(settings.GetDouble(Prefix + "OuterDiameter", defaults.OuterDiameter), defaults.OuterDiameter, 0, 1000),
                 Finite(settings.GetDouble(Prefix + "DiameterCompensation", defaults.DiameterCompensation), defaults.DiameterCompensation, -20, 20),
+                Finite(settings.GetDouble(Prefix + "DepthCompensation", defaults.DepthCompensation), defaults.DepthCompensation, 0, 1000),
                 settings.GetBool(Prefix + "PreviewVisible", defaults.PreviewVisible),
                 settings.GetBool(Prefix + "BooleanEnabled", defaults.BooleanEnabled));
         }
@@ -44,6 +46,7 @@ internal static class HeatSetInsertPresetService
             settings.SetDouble(Prefix + "Length", preset.Length);
             settings.SetDouble(Prefix + "OuterDiameter", preset.OuterDiameter);
             settings.SetDouble(Prefix + "DiameterCompensation", preset.DiameterCompensation);
+            settings.SetDouble(Prefix + "DepthCompensation", preset.DepthCompensation);
             settings.SetBool(Prefix + "PreviewVisible", preset.PreviewVisible);
             settings.SetBool(Prefix + "BooleanEnabled", preset.BooleanEnabled);
             message = "热熔螺母参数已保存。";

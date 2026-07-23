@@ -80,7 +80,8 @@ public sealed class PluginSourceRegressionTests
         Assert.DoesNotContain("new Panel", source, StringComparison.Ordinal);
         Assert.DoesNotContain("_layout.Rows.Clear()", source, StringComparison.Ordinal);
         Assert.Contains("CardHeight = FastenerUiTheme.ControlHeight", source, StringComparison.Ordinal);
-        Assert.Contains("FastenerUiTheme.Accent", source, StringComparison.Ordinal);
+        Assert.Contains("FastenerThemeRole.PrimaryAction", source, StringComparison.Ordinal);
+        Assert.Contains("FastenerThemeRole.SecondaryAction", source, StringComparison.Ordinal);
         Assert.Contains("SystemFonts.Bold()", source, StringComparison.Ordinal);
         Assert.Contains("ApplySelectionStyle", source, StringComparison.Ordinal);
         Assert.DoesNotContain("row.Add(null!)", source, StringComparison.Ordinal);
@@ -90,13 +91,35 @@ public sealed class PluginSourceRegressionTests
     public void Presentation_UsesAttachedDocumentMaterialIndex()
     {
         var source = ReadSource("src", "RhinoMM.Plugin", "Services", "ComponentPresentationService.cs");
+        var clone = ReadSource("src", "RhinoMM.Plugin", "Services", "ComponentCloneService.cs");
+        var refresh = ReadSource("src", "RhinoMM.Plugin", "Services", "ComponentRefreshService.cs");
 
         Assert.Contains("attributes.MaterialIndex = materialIndex", source, StringComparison.Ordinal);
         Assert.DoesNotContain("attributes.RenderMaterial =", source, StringComparison.Ordinal);
+        Assert.Contains("参数化紧固件::显示::紧固件", source, StringComparison.Ordinal);
+        Assert.Contains("参数化紧固件::显示::切割模块", source, StringComparison.Ordinal);
+        Assert.Contains("Math.Abs(existing.Transparency - transparency) <= 0.000001", source, StringComparison.Ordinal);
         Assert.Contains("doc.Materials.Add(material)", source, StringComparison.Ordinal);
         Assert.Contains("doc.Materials.Modify(material, index, true)", source, StringComparison.Ordinal);
         Assert.Contains("doc.Materials[index].RenderMaterial", source, StringComparison.Ordinal);
+        Assert.Contains("PromoteLegacyMaterialsForCopy", clone, StringComparison.Ordinal);
+        Assert.Contains("MigrateLegacyMaterialAssignments", refresh, StringComparison.Ordinal);
+        Assert.Contains("CleanupUnusedLegacyMaterials", refresh, StringComparison.Ordinal);
         Assert.DoesNotContain("ObjectMode.Locked", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void HeatSetInsertPanel_UsesCompactWidthConstrainedInformation()
+    {
+        var source = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
+
+        Assert.Contains("孔 Ø{finalDiameter:0.###} · 深 {finalDepth:0.###} mm", source, StringComparison.Ordinal);
+        Assert.Contains("入口 45°×0.5 mm ⓘ", source, StringComparison.Ordinal);
+        Assert.Contains("_insertSummaryHost = new() { MinimumSize = new Size(0, 0) }", source, StringComparison.Ordinal);
+        Assert.Contains("_insertNoteHost = new() { MinimumSize = new Size(0, 0) }", source, StringComparison.Ordinal);
+        Assert.Contains("AvailableContentWidth() - 32", source, StringComparison.Ordinal);
+        Assert.Contains("if (profile.PairDimensionFields)", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("最终安装孔：Ø", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -318,12 +341,42 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("IconFrame", icons, StringComparison.Ordinal);
         Assert.Contains("LogicalSize = 24", icons, StringComparison.Ordinal);
         Assert.Contains("GetManifestResourceStream", icons, StringComparison.Ordinal);
+        Assert.Contains("darkMode ? \"dark\" : \"light\"", icons, StringComparison.Ordinal);
+        Assert.Contains("-dark-", icons, StringComparison.Ordinal);
         Assert.DoesNotContain("new Graphics", icons, StringComparison.Ordinal);
         Assert.DoesNotContain("ArtworkScale", icons, StringComparison.Ordinal);
         Assert.Contains("ActionButtonHeight = 40", theme, StringComparison.Ordinal);
         Assert.Contains("Spacing = new Size(2, 0)", panel, StringComparison.Ordinal);
         Assert.Contains("index == 4", panel, StringComparison.Ordinal);
         Assert.DoesNotContain("FooterSingleRowBreakpoint", panel, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RhinoTheme_FollowsHostAndRefreshesOpenWindows()
+    {
+        var theme = ReadSource("src", "RhinoMM.Plugin", "UI", "FastenerUiTheme.cs");
+        var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
+        var dialog = ReadSource("src", "RhinoMM.Plugin", "UI", "FastenerStatisticsDialog.cs");
+        var generator = ReadSource("build", "generate-icon-assets.cjs");
+
+        Assert.Contains("HostUtils.RunningInDarkMode", theme, StringComparison.Ordinal);
+        Assert.Contains("AppearanceSettings.GetPaintColor", theme, StringComparison.Ordinal);
+        Assert.Contains("PaintColor.PanelBackground", theme, StringComparison.Ordinal);
+        Assert.Contains("PaintColor.EditBoxBackground", theme, StringComparison.Ordinal);
+        Assert.Contains("PaintColor.TextEnabled", theme, StringComparison.Ordinal);
+        Assert.Contains("PaintColor.TextDisabled", theme, StringComparison.Ordinal);
+        Assert.Contains("PaintColor.GridLinesOnPanelBackground", theme, StringComparison.Ordinal);
+        Assert.Contains("PaintColor.InactiveTabBackground", theme, StringComparison.Ordinal);
+        Assert.Contains("ConditionalWeakTable<Control, ThemeRoleHolder>", theme, StringComparison.Ordinal);
+        Assert.Contains("root.VisualControls", theme, StringComparison.Ordinal);
+        Assert.Contains("EnsureContrast", theme, StringComparison.Ordinal);
+        Assert.Contains("Style = Panels.EtoPanelStyleName", panel, StringComparison.Ordinal);
+        Assert.Contains("RhinoApp.AppSettingsChanged += RhinoAppSettingsChanged", panel, StringComparison.Ordinal);
+        Assert.Contains("RhinoApp.AppSettingsChanged -= RhinoAppSettingsChanged", panel, StringComparison.Ordinal);
+        Assert.Contains("RhinoApp.AppSettingsChanged += RhinoAppSettingsChanged", dialog, StringComparison.Ordinal);
+        Assert.Contains("_scopeSelector.RefreshTheme()", dialog, StringComparison.Ordinal);
+        Assert.Contains("suffix: '-dark'", generator, StringComparison.Ordinal);
+        Assert.Contains("color: '#D7DEE8'", generator, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -449,7 +502,9 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("CreateHeadSeatCutter", cutter, StringComparison.Ordinal);
         Assert.Contains("CreateHexNutPocketCutter", cutter, StringComparison.Ordinal);
         Assert.Contains("CreateHeatSetPocketCutters", cutter, StringComparison.Ordinal);
-        Assert.Contains("InstallationPocketCalculator.RequiredDepth", cutter, StringComparison.Ordinal);
+        Assert.Contains("InstallationPocketCalculator.RequiredHostDepth", cutter, StringComparison.Ordinal);
+        Assert.Contains("InstallationPocketCalculator.CuttingDepth", cutter, StringComparison.Ordinal);
+        Assert.Contains("补偿深度超过宿主厚度，将贯穿", cutter, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -472,6 +527,9 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("SavePlacementPresetControls", panel, StringComparison.Ordinal);
         Assert.Contains("HeatSetInsertPresetService.Load(Settings)", plugin, StringComparison.Ordinal);
         Assert.Contains("SaveHeatSetPresetControls", panel, StringComparison.Ordinal);
+        Assert.Contains("DepthCompensation", panel, StringComparison.Ordinal);
+        Assert.Contains("new(0, 0, 0, 1, true, true)", ReadSource(
+            "src", "RhinoMM.Plugin", "Services", "HeatSetInsertPreset.cs"), StringComparison.Ordinal);
     }
 
     [Fact]

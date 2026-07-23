@@ -19,12 +19,13 @@ internal static class PanelIconProvider
 {
     private const int LogicalSize = 24;
     private const string ResourcePrefix = "RhinoMM.Plugin.UI.Icons.Generated";
-    private static readonly Dictionary<(PanelActionIcon Icon, bool Inverse), Icon> Cache = [];
+    private static readonly Dictionary<(PanelActionIcon Icon, string Variant), Icon> Cache = [];
     private static readonly (float Scale, int Pixels)[] Frames = [(1f, 24), (1.5f, 36), (2f, 48)];
 
-    public static Icon Get(PanelActionIcon icon, bool inverse)
+    public static Icon Get(PanelActionIcon icon, bool primary, bool darkMode)
     {
-        if (Cache.TryGetValue((icon, inverse), out var cached))
+        var variant = primary ? "inverse" : darkMode ? "dark" : "light";
+        if (Cache.TryGetValue((icon, variant), out var cached))
             return cached;
 
         var stem = icon switch
@@ -42,12 +43,15 @@ internal static class PanelIconProvider
         var frames = Frames
             .Select(frame => new IconFrame(
                 frame.Scale,
-                LoadBitmap(inverse
-                    ? $"{stem}-inverse-{frame.Pixels}.png"
-                    : $"{stem}-{frame.Pixels}.png")))
+                LoadBitmap(variant switch
+                {
+                    "inverse" => $"{stem}-inverse-{frame.Pixels}.png",
+                    "dark" => $"{stem}-dark-{frame.Pixels}.png",
+                    _ => $"{stem}-{frame.Pixels}.png"
+                })))
             .ToArray();
         var result = new Icon(frames).WithSize(LogicalSize, LogicalSize);
-        Cache[(icon, inverse)] = result;
+        Cache[(icon, variant)] = result;
         return result;
     }
 

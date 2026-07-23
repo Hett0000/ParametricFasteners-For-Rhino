@@ -35,13 +35,16 @@ public sealed class InstallationPocketCalculatorTests
             Size = "M3",
             Length = 5,
             InsertOuterDiameter = 4.6,
-            InsertDiameterCompensation = -0.2
+            InsertDiameterCompensation = -0.2,
+            InsertDepthCompensation = 1
         };
 
         Assert.Equal(4.4, InstallationPocketCalculator.HeatSetFinalDiameter(component), 6);
         Assert.Equal(0.5, InstallationPocketCalculator.HeatSetChamferDepth(component), 6);
         Assert.Equal(5.4, InstallationPocketCalculator.HeatSetMouthDiameter(component), 6);
         Assert.Equal(5, InstallationPocketCalculator.RequiredDepth(component, Catalog.Get("M3")), 6);
+        Assert.Equal(5, InstallationPocketCalculator.RequiredHostDepth(component, Catalog.Get("M3")), 6);
+        Assert.Equal(6, InstallationPocketCalculator.CuttingDepth(component, Catalog.Get("M3")), 6);
     }
 
     [Fact]
@@ -84,6 +87,49 @@ public sealed class InstallationPocketCalculatorTests
         Assert.Contains(validation.Issues, issue => issue.Code == "insert-final-diameter" && issue.IsError);
     }
 
+    [Theory]
+    [InlineData(-0.1)]
+    [InlineData(1000.1)]
+    public void ValidatorRejectsOutOfRangeHeatSetDepthCompensation(double compensation)
+    {
+        var component = new FastenerComponentData
+        {
+            Kind = FastenerKind.HeatSetInsert,
+            Size = "M3",
+            Length = 5,
+            InsertOuterDiameter = 4.6,
+            InsertDepthCompensation = compensation,
+            Bindings =
+            [
+                new HoleTargetBinding
+                {
+                    TargetObjectId = Guid.NewGuid(),
+                    Role = ShaftFitRole.InstallationPocket,
+                    DepthMode = DepthMode.Blind,
+                    BlindDepth = 4.9
+                }
+            ]
+        };
+
+        var validation = FastenerComponentValidator.Validate(component, Catalog.Get("M3"));
+
+        Assert.Contains(validation.Issues, issue => issue.Code == "insert-depth-compensation" && issue.IsError);
+    }
+
+    [Fact]
+    public void SchemaV6HeatSetInsertKeepsLegacyZeroDepthCompensation()
+    {
+        var migrated = ComponentJson.Migrate(new FastenerComponentData
+        {
+            SchemaVersion = 6,
+            Kind = FastenerKind.HeatSetInsert,
+            InsertDepthCompensation = 3
+        });
+
+        Assert.Equal(7, migrated.SchemaVersion);
+        Assert.Equal(0, migrated.InsertDepthCompensation);
+    }
+
     [Fact]
     public void SchemaV5HexNutMigratesToOneInstallationPocket()
     {
@@ -109,7 +155,7 @@ public sealed class InstallationPocketCalculatorTests
         var migrated = ComponentJson.Migrate(data);
         var binding = Assert.Single(migrated.Bindings);
 
-        Assert.Equal(6, migrated.SchemaVersion);
+        Assert.Equal(7, migrated.SchemaVersion);
         Assert.Equal(preferredTarget, binding.TargetObjectId);
         Assert.Equal(ShaftFitRole.InstallationPocket, binding.Role);
         Assert.Equal(DepthMode.Blind, binding.DepthMode);

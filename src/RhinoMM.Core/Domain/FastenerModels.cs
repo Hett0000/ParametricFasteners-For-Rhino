@@ -110,7 +110,7 @@ public sealed record HoleTargetBinding
 
 public sealed record FastenerComponentData
 {
-    public const int CurrentSchemaVersion = 6;
+    public const int CurrentSchemaVersion = 7;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
     public Guid ComponentId { get; init; } = Guid.NewGuid();
@@ -120,6 +120,7 @@ public sealed record FastenerComponentData
     public double HeadEmbedDepth { get; init; }
     public double InsertOuterDiameter { get; init; }
     public double InsertDiameterCompensation { get; init; }
+    public double InsertDepthCompensation { get; init; }
     public PlacementFrame Placement { get; init; } = PlacementFrame.WorldXY;
     public PrintProfileSnapshot PrintProfile { get; init; } = new("默认 FDM", 0.2);
     public double FastenerOpacityPercent { get; init; } = 70;

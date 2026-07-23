@@ -64,6 +64,7 @@ public static class FastenerComponentService
             var saved = new List<FastenerComponentData>();
             foreach (var component in prepared)
                 saved.Add(CommitPrepared(doc, component));
+            ComponentPresentationService.CleanupUnusedLegacyMaterials(doc);
             savedComponents = saved;
             doc.Views.Redraw();
 

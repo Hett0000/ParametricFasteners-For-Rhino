@@ -47,6 +47,7 @@ public static class ComponentJson
             FastenerOpacityPercent = sourceVersion < 2 ? 70 : data.FastenerOpacityPercent,
             CutterOpacityPercent = sourceVersion < 2 ? 35 : data.CutterOpacityPercent,
             HeadEmbedDepth = MigrateHeadEmbedDepth(data, sourceVersion),
+            InsertDepthCompensation = sourceVersion < 7 ? 0 : data.InsertDepthCompensation,
             ControlPointObjectId = sourceVersion < 4 ? Guid.Empty : data.ControlPointObjectId,
             Bindings = MigrateBindings(data, sourceVersion)
         };
