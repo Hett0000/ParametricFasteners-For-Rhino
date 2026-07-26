@@ -11,7 +11,9 @@ public sealed class PluginSourceRegressionTests
 
         Assert.DoesNotContain("CommandAlias", source, StringComparison.Ordinal);
         Assert.DoesNotContain("RunScript", source, StringComparison.Ordinal);
-        Assert.Contains("RhinoMMPlaceHoleCommand.Execute(doc, mode)", source, StringComparison.Ordinal);
+        Assert.Contains("SmartPlacementCommand.Execute(doc, mode)", source, StringComparison.Ordinal);
+        Assert.Contains("ParametricFastenersPlaceClassic", source, StringComparison.Ordinal);
+        Assert.Contains("RhinoMMPlaceHoleCommand.ExecuteClassic(doc, mode)", source, StringComparison.Ordinal);
         Assert.Contains("RhinoMMEditHoleCommand.Execute(doc, mode)", source, StringComparison.Ordinal);
         Assert.Contains("RhinoMMAdoptFastenerCommand.Execute(doc, mode)", source, StringComparison.Ordinal);
         Assert.Contains("RhinoMMValidateCommand.Execute(doc, mode)", source, StringComparison.Ordinal);
@@ -144,6 +146,53 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("FastenerKindTraits.UsesSingleHostPlacement", source, StringComparison.Ordinal);
         Assert.Contains("ShaftFitRole.InstallationPocket", source, StringComparison.Ordinal);
         Assert.Contains("face.Brep.IsSolid", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SmartPlacement_PreviewsAndClassifiesVisibleHostsWithoutDocumentObjects()
+    {
+        var command = ReadSource("src", "RhinoMM.Plugin", "Commands", "SmartPlaceCommand.cs");
+        var service = ReadSource("src", "RhinoMM.Plugin", "Services", "SmartPlacementService.cs");
+        var aliases = ReadSource("src", "RhinoMM.Plugin", "Commands", "AliasCommands.cs");
+
+        Assert.Contains("class SmartPlacementGetter : GetPoint", command, StringComparison.Ordinal);
+        Assert.Contains("OnMouseMove", command, StringComparison.Ordinal);
+        Assert.Contains("OnDynamicDraw", command, StringComparison.Ordinal);
+        Assert.Contains("PointOnObject()", command, StringComparison.Ordinal);
+        Assert.Contains("DrawBrepShaded", command, StringComparison.Ordinal);
+        Assert.Contains("DrawBrepWires", command, StringComparison.Ordinal);
+        Assert.Contains("DrawStatusHud", command, StringComparison.Ordinal);
+        Assert.Contains("e.Viewport.Size", command, StringComparison.Ordinal);
+        Assert.DoesNotContain("DrawDot(\n            preview.Anchor", command, StringComparison.Ordinal);
+        Assert.Contains("RefreshForCommit", command, StringComparison.Ordinal);
+        Assert.Contains("FastenerGeometryParameters.Match(preview.Draft, saved)", command, StringComparison.Ordinal);
+        Assert.Contains("SmartPlacementRecognitionMode", command, StringComparison.Ordinal);
+        Assert.Contains("FastenerComponentService.CreateOrReplace", command, StringComparison.Ordinal);
+        Assert.Contains("SmartPlacementParameterSnapshot.Capture", service, StringComparison.Ordinal);
+        Assert.Contains("parameters.CreateDraft", service, StringComparison.Ordinal);
+        Assert.DoesNotContain("private readonly FastenerSizeSpec _spec", service, StringComparison.Ordinal);
+        Assert.DoesNotContain("private readonly PlacementCutterPreset _preset", service, StringComparison.Ordinal);
+        Assert.Contains("SmartHostClassifier.Classify", service, StringComparison.Ordinal);
+        var hostBinding = ReadSource(
+            "src", "RhinoMM.Plugin", "Services", "SmartHostBindingService.cs");
+        Assert.Contains("FastenerGeometryFactory.TryGetTargetInterval", hostBinding, StringComparison.Ordinal);
+        Assert.Contains("SmartHostBindingService.FindIntervals", service, StringComparison.Ordinal);
+        Assert.Contains("|| usedFallback", hostBinding, StringComparison.Ordinal);
+        Assert.Contains("GetFrustumLine", service, StringComparison.Ordinal);
+        Assert.DoesNotContain("ClientToWorld", service, StringComparison.Ordinal);
+        Assert.Contains("Intersection.CurveBrepFace", service, StringComparison.Ordinal);
+        Assert.Contains("point - ray.From", service, StringComparison.Ordinal);
+        Assert.Contains("存在深度重合的多个实体面", service, StringComparison.Ordinal);
+        Assert.Contains("ComponentHostResolver.IsOrdinaryHost", hostBinding, StringComparison.Ordinal);
+        Assert.Contains("!obj.IsLocked", hostBinding, StringComparison.Ordinal);
+        Assert.Contains("FastenerGeometryFactory.CreateProxy", service, StringComparison.Ordinal);
+        Assert.Contains("CutterGeometryService.TryBuild", service, StringComparison.Ordinal);
+        Assert.Contains("ParametricFastenersPlaceClassic", aliases, StringComparison.Ordinal);
+        Assert.Contains("SmartPlacementCommand.Execute", aliases, StringComparison.Ordinal);
+
+        var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
+        Assert.Contains("SmartPlacementDraftChangeService.NotifyChanged", panel, StringComparison.Ordinal);
+        Assert.Contains("RhinoDoc.ActiveDoc?.Views.Redraw()", panel, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -595,6 +644,30 @@ public sealed class PluginSourceRegressionTests
         Assert.True(failureIndex > prepareIndex);
         Assert.True(undoIndex > failureIndex);
         Assert.Contains("CreateOrReplaceMany", service, StringComparison.Ordinal);
+        Assert.Contains("SmartHostBindingService.TryReconcile", service, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SmartComponentsPersistRecognitionModeAndPlacementTemplates()
+    {
+        var models = ReadSource("src", "RhinoMM.Core", "Domain", "FastenerModels.cs");
+        var migration = ReadSource("src", "RhinoMM.Core", "Services", "ComponentJson.cs");
+        var smartPlacement = ReadSource(
+            "src", "RhinoMM.Plugin", "Services", "SmartPlacementService.cs");
+        var hostBinding = ReadSource(
+            "src", "RhinoMM.Plugin", "Services", "SmartHostBindingService.cs");
+        var editor = ReadSource("src", "RhinoMM.Plugin", "Services", "EditorState.cs");
+
+        Assert.Contains("CurrentSchemaVersion = 8", models, StringComparison.Ordinal);
+        Assert.Contains("AutoRecognizeHosts", models, StringComparison.Ordinal);
+        Assert.Contains("SmartRecognitionMode", models, StringComparison.Ordinal);
+        Assert.Contains("SmartBindingProfile", models, StringComparison.Ordinal);
+        Assert.Contains("sourceVersion >= 8 && data.AutoRecognizeHosts", migration, StringComparison.Ordinal);
+        Assert.Contains("AutoRecognizeHosts = recognitionMode.HasValue", smartPlacement, StringComparison.Ordinal);
+        Assert.Contains("Preset.ToSmartBindingProfile()", smartPlacement, StringComparison.Ordinal);
+        Assert.Contains("SmartHostClassifier.Classify", hostBinding, StringComparison.Ordinal);
+        Assert.Contains("SmartBindingReconciler.Reconcile", hostBinding, StringComparison.Ordinal);
+        Assert.Contains("UpdateSmartBindingProfile", editor, StringComparison.Ordinal);
     }
 
     [Fact]

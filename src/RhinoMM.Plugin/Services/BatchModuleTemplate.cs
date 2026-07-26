@@ -61,4 +61,29 @@ internal sealed record BatchModuleTemplate(
             _ => binding
         }).ToArray();
     }
+
+    public FastenerComponentData ApplySmartProfile(FastenerComponentData component)
+    {
+        if (!component.AutoRecognizeHosts || component.SmartBindingProfile is not { } profile)
+            return component;
+        if (HasClearance)
+        {
+            profile = profile with
+            {
+                ClearancePreviewVisible = ClearancePreviewVisible,
+                ClearanceBooleanEnabled = ClearanceBooleanEnabled
+            };
+        }
+        if (HasEngagement)
+        {
+            profile = profile with
+            {
+                EngagementDepthMode = EngagementDepthMode,
+                EngagementBlindDepth = EngagementBlindDepth,
+                EngagementPreviewVisible = EngagementPreviewVisible,
+                EngagementBooleanEnabled = EngagementBooleanEnabled
+            };
+        }
+        return component with { SmartBindingProfile = profile };
+    }
 }

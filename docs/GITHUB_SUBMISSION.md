@@ -1,6 +1,6 @@
 # GitHub 提交与新建仓库信息
 
-本文档用于维护 GitHub 仓库资料并发布 `v0.19.0`。
+本文档用于维护 GitHub 仓库资料并发布 `v0.21.0`。
 
 ## 1. 新建仓库建议
 
@@ -72,12 +72,12 @@ Add RhinoMM parametric fastener plugin baseline
 - Run `ParametricFasteners` and check placement, edit, update, refresh, statistics, and export flows
 ```
 
-## 6. Release `v0.19.0` 建议内容
+## 6. Release `v0.21.0` 建议内容
 
 标题：
 
 ```text
-v0.19.0 - Native Rhino dark mode
+v0.21.0 - Automatic host rediscovery after length updates
 ```
 
 发布说明：
@@ -85,14 +85,15 @@ v0.19.0 - Native Rhino dark mode
 ```markdown
 ## Highlights
 
-- The main panel and fastener statistics window now follow Rhino light and dark appearance settings automatically.
-- Layered dark surfaces, accessible text and status colors, and dedicated dark-mode panel icons remove the previous white-card visual break.
-- Native Eto inputs, checkboxes, expanders, scrollbars, focus behavior, and live theme switching remain integrated with Rhino.
-- Theme changes apply without losing the current component, draft parameters, selection, or editing session.
+- Smart-placed screws persist their host-recognition mode and clearance/thread-engagement process templates.
+- Changing shaft length or embed depth rediscovers hosts inside the new effective reach.
+- Newly reached deepest hosts receive thread engagement; earlier hosts receive clearance holes, while unreachable bindings are removed.
+- Panel, toolbar, batch update, and pre-export apply flows share the same transactional recognition pipeline.
+- Rhino, STEP, and STL outputs use the latest rediscovered host bindings.
 
 ## Compatibility
 
-- Persistent schema remains v7.
+- Persistent schema is v8. Existing v7 and classic-placement components retain manual host bindings.
 - Existing component IDs, `RhinoMM.*` metadata keys, legacy commands, and existing 3DM files remain compatible.
 
 ## Notes

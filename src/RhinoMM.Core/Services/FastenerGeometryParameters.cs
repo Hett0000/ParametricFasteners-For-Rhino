@@ -13,6 +13,9 @@ public static class FastenerGeometryParameters
             || left.InsertOuterDiameter != right.InsertOuterDiameter
             || left.InsertDiameterCompensation != right.InsertDiameterCompensation
             || left.InsertDepthCompensation != right.InsertDepthCompensation
+            || left.AutoRecognizeHosts != right.AutoRecognizeHosts
+            || left.SmartRecognitionMode != right.SmartRecognitionMode
+            || left.SmartBindingProfile != right.SmartBindingProfile
             || left.Placement != right.Placement
             || left.PrintProfile.HoleDiameterCorrection != right.PrintProfile.HoleDiameterCorrection
             || left.Bindings.Count != right.Bindings.Count)

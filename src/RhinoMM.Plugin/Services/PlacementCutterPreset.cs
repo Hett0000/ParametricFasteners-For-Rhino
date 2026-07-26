@@ -46,4 +46,14 @@ internal sealed record PlacementCutterPreset(
         IsPreviewVisible = EngagementPreviewVisible,
         IsBooleanEnabled = EngagementBooleanEnabled
     };
+
+    public SmartBindingProfile ToSmartBindingProfile() => new(
+        ClearanceFit,
+        BiteReduction,
+        EngagementDepthMode,
+        EngagementBlindDepth,
+        ClearancePreviewVisible,
+        ClearanceBooleanEnabled,
+        EngagementPreviewVisible,
+        EngagementBooleanEnabled);
 }

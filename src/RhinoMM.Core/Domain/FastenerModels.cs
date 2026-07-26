@@ -31,6 +31,13 @@ public enum DepthMode
     Blind
 }
 
+public enum SmartPlacementRecognitionMode
+{
+    Automatic,
+    AllClearance,
+    AllEngagement
+}
+
 public sealed record ClearanceDimensions(double Close, double Normal, double Loose)
 {
     public double For(ClearanceFitClass fitClass) => fitClass switch
@@ -108,9 +115,19 @@ public sealed record HoleTargetBinding
     public Guid CutterObjectId { get; init; }
 }
 
+public sealed record SmartBindingProfile(
+    ClearanceFitClass ClearanceFit,
+    double BiteReduction,
+    DepthMode EngagementDepthMode,
+    double EngagementBlindDepth,
+    bool ClearancePreviewVisible,
+    bool ClearanceBooleanEnabled,
+    bool EngagementPreviewVisible,
+    bool EngagementBooleanEnabled);
+
 public sealed record FastenerComponentData
 {
-    public const int CurrentSchemaVersion = 7;
+    public const int CurrentSchemaVersion = 8;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
     public Guid ComponentId { get; init; } = Guid.NewGuid();
@@ -125,6 +142,10 @@ public sealed record FastenerComponentData
     public PrintProfileSnapshot PrintProfile { get; init; } = new("默认 FDM", 0.2);
     public double FastenerOpacityPercent { get; init; } = 70;
     public double CutterOpacityPercent { get; init; } = 35;
+    public bool AutoRecognizeHosts { get; init; }
+    public SmartPlacementRecognitionMode SmartRecognitionMode { get; init; } =
+        SmartPlacementRecognitionMode.Automatic;
+    public SmartBindingProfile? SmartBindingProfile { get; init; }
     public IReadOnlyList<HoleTargetBinding> Bindings { get; init; } = Array.Empty<HoleTargetBinding>();
     public Guid ProxyObjectId { get; init; }
     public Guid ControlPointObjectId { get; init; }

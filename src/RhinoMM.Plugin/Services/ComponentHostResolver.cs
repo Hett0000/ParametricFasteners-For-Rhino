@@ -111,7 +111,7 @@ internal static class ComponentHostResolver
         return x * y * z;
     }
 
-    private static bool IsOrdinaryHost(RhinoObject? obj) => obj is not null
+    internal static bool IsOrdinaryHost(RhinoObject? obj) => obj is not null
         && obj.Geometry is Brep or Extrusion
         && string.IsNullOrWhiteSpace(
             obj.Attributes.GetUserString(ComponentRepository.ComponentIdKey));

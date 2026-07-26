@@ -48,11 +48,25 @@ public sealed class FastenerGeometryParametersTests
             Placement = component.Placement with { OriginX = 2 }
         };
         var changedInsertDepth = component with { InsertDepthCompensation = 1 };
+        var changedHostRecognition = component with
+        {
+            AutoRecognizeHosts = true,
+            SmartBindingProfile = new SmartBindingProfile(
+                ClearanceFitClass.Normal,
+                0.35,
+                DepthMode.FastenerLengthPlusTwoDiameters,
+                12,
+                true,
+                true,
+                true,
+                true)
+        };
 
         Assert.False(FastenerGeometryParameters.Match(component, changedDepth));
         Assert.False(FastenerGeometryParameters.Match(component, changedCorrection));
         Assert.False(FastenerGeometryParameters.Match(component, changedPlacement));
         Assert.False(FastenerGeometryParameters.Match(component, changedInsertDepth));
+        Assert.False(FastenerGeometryParameters.Match(component, changedHostRecognition));
     }
 
     private static FastenerComponentData CreateComponent() => new()

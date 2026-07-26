@@ -126,7 +126,7 @@ public sealed class InstallationPocketCalculatorTests
             InsertDepthCompensation = 3
         });
 
-        Assert.Equal(7, migrated.SchemaVersion);
+        Assert.Equal(8, migrated.SchemaVersion);
         Assert.Equal(0, migrated.InsertDepthCompensation);
     }
 
@@ -155,7 +155,7 @@ public sealed class InstallationPocketCalculatorTests
         var migrated = ComponentJson.Migrate(data);
         var binding = Assert.Single(migrated.Bindings);
 
-        Assert.Equal(7, migrated.SchemaVersion);
+        Assert.Equal(8, migrated.SchemaVersion);
         Assert.Equal(preferredTarget, binding.TargetObjectId);
         Assert.Equal(ShaftFitRole.InstallationPocket, binding.Role);
         Assert.Equal(DepthMode.Blind, binding.DepthMode);

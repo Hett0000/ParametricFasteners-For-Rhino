@@ -32,8 +32,10 @@ docs/
 | 命令 | 用途 |
 | --- | --- |
 | `ParametricFasteners` | 打开或聚焦“参数化紧固件”停靠面板 |
+| `ParametricFastenersPlace` | 启动虚拟紧固件跟随鼠标的智能连续放置 |
+| `ParametricFastenersPlaceClassic` | 使用经典宿主选择、面/点方式放置 |
 | `RhinoMMPanel` | 兼容旧工作流的面板命令 |
-| `RhinoMMPlaceHole` | 通过命令行选项放置组件 |
+| `RhinoMMPlaceHole` | 兼容旧工作流的经典放置组件命令 |
 | `RhinoMMEditHole` | 编辑现有组件 |
 | `RhinoMMAdoptFastener` | 将当前普通螺丝对象接管为 RhinoMM 组件 |
 | `RhinoMMRelinkHole` | 重新绑定宿主 |
@@ -150,6 +152,15 @@ isBooleanEnabled          控制导出布尔，默认 true
 - M1.6 等小尺寸在布尔前比较最小切割尺寸与文档绝对容差：容差大于最小尺寸的 `1/50` 时警告，大于 `1/20` 时阻止计算。
 
 ## 6. 放置和绑定
+
+### 智能所见即所得放置
+
+1. `SmartPlacementGetter` 从视口鼠标坐标生成观察射线；自由落点使用射线与封闭 Brep/Extrusion 的最近准确交点，Osnap 落点优先关联当前面或捕捉对象附近的有效面。
+2. 放置面的局部 UV 框架提供绕轴方向，经过实体朝内法线校正后形成组件 `PlacementFrame`。
+3. 宿主扫描先通过有限螺杆轴段与包围盒相交做候选过滤，再调用准确轴线/Brep 求交；任何包围盒回退结果均不得自动绑定。
+4. `SmartHostClassifier` 按进入深度排序：单宿主为咬合体，多宿主最深处为咬合体、其余为穿过体；实体体积重叠或同深度时返回歧义错误。
+5. 代理体和切割体使用现有几何服务在内存生成，由 `DynamicDraw` 显示；预览阶段不新增 Rhino 对象、图层、组或材质。
+6. 每次有效点击写入新的组件 ID，GetPoint 保持运行；命令结束时最后一颗组件进入编辑会话，整个命令共享 Rhino 的一次 Undo。
 
 ### 面放置
 

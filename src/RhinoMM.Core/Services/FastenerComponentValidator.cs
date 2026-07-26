@@ -31,6 +31,12 @@ public static class FastenerComponentValidator
         if (FastenerKindTraits.IsNut(component.Kind) && component.Bindings.Count != 1)
             result.Issues.Add(new("nut-binding-count", "螺母必须绑定且只能绑定一个安装宿主。"));
 
+        if (component.AutoRecognizeHosts && FastenerKindTraits.IsNut(component.Kind))
+            result.Issues.Add(new("smart-host-nut", "螺母类组件不能启用螺杆宿主重识别。"));
+
+        if (component.AutoRecognizeHosts && component.SmartBindingProfile is null)
+            result.Issues.Add(new("smart-host-profile", "智能组件缺少宿主识别工艺模板。"));
+
         if (component.Kind == FastenerKind.HeatSetInsert)
         {
             if (component.InsertOuterDiameter <= 0)

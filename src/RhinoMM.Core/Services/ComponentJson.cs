@@ -48,6 +48,11 @@ public static class ComponentJson
             CutterOpacityPercent = sourceVersion < 2 ? 35 : data.CutterOpacityPercent,
             HeadEmbedDepth = MigrateHeadEmbedDepth(data, sourceVersion),
             InsertDepthCompensation = sourceVersion < 7 ? 0 : data.InsertDepthCompensation,
+            AutoRecognizeHosts = sourceVersion >= 8 && data.AutoRecognizeHosts,
+            SmartRecognitionMode = sourceVersion >= 8
+                ? data.SmartRecognitionMode
+                : SmartPlacementRecognitionMode.Automatic,
+            SmartBindingProfile = sourceVersion >= 8 ? data.SmartBindingProfile : null,
             ControlPointObjectId = sourceVersion < 4 ? Guid.Empty : data.ControlPointObjectId,
             Bindings = MigrateBindings(data, sourceVersion)
         };

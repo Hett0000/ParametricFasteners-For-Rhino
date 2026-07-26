@@ -7,7 +7,15 @@ public sealed class ParametricFastenersPlaceCommand : Command
     public override string EnglishName => "ParametricFastenersPlace";
 
     protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode) =>
-        RhinoMMPlaceHoleCommand.Execute(doc, mode);
+        SmartPlacementCommand.Execute(doc, mode);
+}
+
+public sealed class ParametricFastenersPlaceClassicCommand : Command
+{
+    public override string EnglishName => "ParametricFastenersPlaceClassic";
+
+    protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode) =>
+        RhinoMMPlaceHoleCommand.ExecuteClassic(doc, mode);
 }
 
 public sealed class ParametricFastenersEditCommand : Command

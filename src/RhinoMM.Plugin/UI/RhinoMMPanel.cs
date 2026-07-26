@@ -937,7 +937,11 @@ public sealed class RhinoMMPanel : Panel, IPanel
             _presetClearancePreview.Checked == true,
             _presetClearanceBoolean.Checked == true);
         if (!HeatSetInsertPresetService.Save(RhinoMMPlugIn.Instance.Settings, preset, out var message))
+        {
             SetStatus(message, StatusKind.Warning);
+            return;
+        }
+        NotifySmartPlacementDraftChanged();
     }
 
     private void LoadHeatSetDefaultsForNewKind()
@@ -1016,7 +1020,11 @@ public sealed class RhinoMMPanel : Panel, IPanel
             EngagementBooleanEnabled = _presetEngagementBoolean.Checked == true
         };
         if (!PlacementPresetService.Save(RhinoMMPlugIn.Instance.Settings, preset, out var message))
+        {
             SetStatus(message, StatusKind.Warning);
+            return;
+        }
+        NotifySmartPlacementDraftChanged();
     }
 
     private void HoleCommonParameterChanged()
@@ -1136,6 +1144,13 @@ public sealed class RhinoMMPanel : Panel, IPanel
         SaveControls();
         UpdateSummary();
         MarkGeometryDirty();
+        NotifySmartPlacementDraftChanged();
+    }
+
+    private static void NotifySmartPlacementDraftChanged()
+    {
+        SmartPlacementDraftChangeService.NotifyChanged();
+        RhinoDoc.ActiveDoc?.Views.Redraw();
     }
 
     private void ScheduleGlobalDisplayUpdate()
@@ -1490,7 +1505,8 @@ public sealed class RhinoMMPanel : Panel, IPanel
     {
         if (_loadedComponent is null)
             return FastenerLabels.Depth(binding.DepthMode);
-        if (binding.DepthMode == DepthMode.ThroughTarget)
+        if (binding.DepthMode == DepthMode.ThroughTarget
+            && binding.Role != ShaftFitRole.Clearance)
             return "贯穿当前宿主";
         var previewComponent = CurrentDraftComponent();
         var spec = RhinoMMPlugIn.Catalog.Get(previewComponent.Size);
@@ -1510,6 +1526,12 @@ public sealed class RhinoMMPanel : Panel, IPanel
             && FastenerGeometryFactory.TryGetTargetInterval(
                 geometry, previewComponent.Placement, doc.ModelAbsoluteTolerance, out var interval, out _))
         {
+            if (binding.Role == ShaftFitRole.Clearance)
+            {
+                return limit >= interval.Max - doc.ModelAbsoluteTolerance
+                    ? "随螺杆长度 · 已到达宿主背面，将贯穿"
+                    : $"随螺杆长度 · 孔底 {limit:0.###} mm · 盲孔";
+            }
             result += limit >= interval.Max - doc.ModelAbsoluteTolerance
                 ? " · 计算深度超过宿主厚度，将贯穿"
                 : " · 盲孔";
@@ -1664,7 +1686,10 @@ public sealed class RhinoMMPanel : Panel, IPanel
                     : selectedComponents.Count > 1 && _batchModuleTemplate is not null
                         ? _batchModuleTemplate.Apply(component.Bindings)
                         : component.Bindings;
-                return EditorState.Current.CreateUpdateDraft(component, bindings);
+                var draft = EditorState.Current.CreateUpdateDraft(component, bindings);
+                return selectedComponents.Count > 1 && _batchModuleTemplate is not null
+                    ? _batchModuleTemplate.ApplySmartProfile(draft)
+                    : draft;
             })
             .ToArray();
         if (FastenerComponentService.CreateOrReplaceMany(doc, drafts, out var saved, out var message))
@@ -1704,7 +1729,10 @@ public sealed class RhinoMMPanel : Panel, IPanel
                 var bindings = _loadedComponents.Count == 1
                     ? _draftBindings ?? component.Bindings
                     : _batchModuleTemplate?.Apply(component.Bindings) ?? component.Bindings;
-                return EditorState.Current.CreateUpdateDraft(component, bindings);
+                var draft = EditorState.Current.CreateUpdateDraft(component, bindings);
+                return _loadedComponents.Count > 1 && _batchModuleTemplate is not null
+                    ? _batchModuleTemplate.ApplySmartProfile(draft)
+                    : draft;
             })
             .ToArray();
         var needsApply = _geometryDirty || drafts

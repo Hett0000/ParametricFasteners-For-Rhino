@@ -98,14 +98,27 @@ internal static class CutterGeometryService
             var limit = FastenerGeometryFactory.DepthLimit(component, spec, binding);
             if (!double.IsPositiveInfinity(limit))
             {
-                if (limit < interval.Min - doc.ModelAbsoluteTolerance)
+                if (limit < interval.Min - doc.ModelAbsoluteTolerance
+                    && binding.Role == ShaftFitRole.Clearance)
+                    throw new InvalidOperationException(
+                        $"螺杆有效长度 {limit:0.###} mm 无法到达穿过宿主“{TargetName(target)}”。");
+                if (limit < interval.Min - doc.ModelAbsoluteTolerance
+                    && binding.Role != ShaftFitRole.Clearance)
                     throw new InvalidOperationException(
                         $"螺杆深度 {limit:0.###} mm 无法到达咬合宿主“{TargetName(target)}”。");
                 start = Math.Max(start, -padding);
                 var reachesExit = limit >= interval.Max - doc.ModelAbsoluteTolerance;
                 end = reachesExit ? interval.Max + padding : limit;
-                if (reachesExit)
+                if (reachesExit && binding.Role != ShaftFitRole.Clearance)
                     warnings.Add($"{TargetName(target)}：计算深度超过宿主厚度，将贯穿。");
+            }
+
+            if (binding.Role == ShaftFitRole.Clearance
+                && !double.IsPositiveInfinity(limit)
+                && limit < interval.Max - doc.ModelAbsoluteTolerance)
+            {
+                warnings.Add(
+                    $"{TargetName(target)}：螺杆尚未到达宿主背面，通孔按当前螺杆长度形成盲孔。");
             }
 
             result = new CutterGeometryBuild(

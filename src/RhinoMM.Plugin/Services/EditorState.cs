@@ -59,11 +59,52 @@ public sealed class EditorState
                 _ => binding
             })
             .ToArray();
+        var smartProfile = UpdateSmartBindingProfile(existing, updatedBindings);
         return CreateDraft(existing.Placement, updatedBindings) with
         {
             ComponentId = existing.ComponentId,
-            AdoptedSourceObjectId = existing.AdoptedSourceObjectId
+            AdoptedSourceObjectId = existing.AdoptedSourceObjectId,
+            AutoRecognizeHosts = existing.AutoRecognizeHosts,
+            SmartRecognitionMode = existing.SmartRecognitionMode,
+            SmartBindingProfile = smartProfile
         };
+    }
+
+    private SmartBindingProfile? UpdateSmartBindingProfile(
+        FastenerComponentData existing,
+        IReadOnlyList<HoleTargetBinding> bindings)
+    {
+        if (!existing.AutoRecognizeHosts || existing.SmartBindingProfile is not { } profile)
+            return existing.SmartBindingProfile;
+
+        profile = profile with
+        {
+            ClearanceFit = ClearanceFit,
+            BiteReduction = BiteReduction
+        };
+        var clearance = bindings.FirstOrDefault(item => item.Role == ShaftFitRole.Clearance);
+        if (clearance is not null)
+        {
+            profile = profile with
+            {
+                ClearanceFit = clearance.ClearanceFit,
+                ClearancePreviewVisible = clearance.IsPreviewVisible,
+                ClearanceBooleanEnabled = clearance.IsBooleanEnabled
+            };
+        }
+        var engagement = bindings.FirstOrDefault(item => item.Role == ShaftFitRole.ThreadEngagement);
+        if (engagement is not null)
+        {
+            profile = profile with
+            {
+                BiteReduction = engagement.BiteReduction,
+                EngagementDepthMode = engagement.DepthMode,
+                EngagementBlindDepth = engagement.BlindDepth,
+                EngagementPreviewVisible = engagement.IsPreviewVisible,
+                EngagementBooleanEnabled = engagement.IsBooleanEnabled
+            };
+        }
+        return profile;
     }
 
     public void Load(FastenerComponentData component)

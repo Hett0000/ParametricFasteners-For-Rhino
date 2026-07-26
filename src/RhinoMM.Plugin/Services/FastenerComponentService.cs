@@ -109,8 +109,19 @@ public static class FastenerComponentService
         message = string.Empty;
         try
         {
-            var spec = RhinoMMPlugIn.Catalog.Get(draft.Size);
-            var validation = FastenerComponentValidator.Validate(draft, spec);
+            if (!SmartHostBindingService.TryReconcile(
+                    doc,
+                    draft,
+                    out var effectiveDraft,
+                    out var bindingChanges,
+                    out var bindingError))
+            {
+                message = $"宿主重识别失败：{bindingError}";
+                return false;
+            }
+
+            var spec = RhinoMMPlugIn.Catalog.Get(effectiveDraft.Size);
+            var validation = FastenerComponentValidator.Validate(effectiveDraft, spec);
             if (!validation.IsValid)
             {
                 message = string.Join(
@@ -119,17 +130,25 @@ public static class FastenerComponentService
                 return false;
             }
 
-            var proxies = FastenerGeometryFactory.CreateProxy(draft, spec);
+            var proxies = FastenerGeometryFactory.CreateProxy(effectiveDraft, spec);
             var cutters = new List<CutterGeometryBuild>();
             var warnings = new List<string>();
-            foreach (var binding in draft.Bindings)
+            if (bindingChanges.HasChanges)
+                warnings.Add(bindingChanges.ToString());
+            foreach (var binding in effectiveDraft.Bindings)
             {
-                if (!CutterGeometryService.TryBuild(doc, draft, spec, binding, out var cutter, out var cutterError))
+                if (!CutterGeometryService.TryBuild(
+                        doc,
+                        effectiveDraft,
+                        spec,
+                        binding,
+                        out var cutter,
+                        out var cutterError))
                     throw new InvalidOperationException(cutterError);
                 cutters.Add(cutter!);
                 warnings.AddRange(cutter!.Warnings);
             }
-            prepared = new PreparedComponent(draft, proxies, cutters, warnings);
+            prepared = new PreparedComponent(effectiveDraft, proxies, cutters, warnings);
             return true;
         }
         catch (Exception ex)

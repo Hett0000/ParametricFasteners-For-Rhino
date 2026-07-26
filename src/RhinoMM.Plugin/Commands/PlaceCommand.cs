@@ -17,9 +17,11 @@ public sealed class RhinoMMPlaceHoleCommand : Command
 {
     public override string EnglishName => "RhinoMMPlaceHole";
 
-    protected override Result RunCommand(RhinoDoc doc, RunMode mode) => Execute(doc, mode);
+    protected override Result RunCommand(RhinoDoc doc, RunMode mode) => ExecuteClassic(doc, mode);
 
-    internal static Result Execute(RhinoDoc doc, RunMode mode)
+    internal static Result Execute(RhinoDoc doc, RunMode mode) => ExecuteClassic(doc, mode);
+
+    internal static Result ExecuteClassic(RhinoDoc doc, RunMode mode)
     {
         var state = EditorState.Current;
         if (FastenerKindTraits.UsesSingleHostPlacement(state.Kind))

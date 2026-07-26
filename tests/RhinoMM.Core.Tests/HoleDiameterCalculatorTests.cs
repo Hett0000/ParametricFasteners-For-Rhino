@@ -111,7 +111,7 @@ public class HoleDiameterCalculatorTests
 
         var migrated = ComponentJson.Deserialize(json);
 
-        Assert.Equal(7, migrated.SchemaVersion);
+        Assert.Equal(8, migrated.SchemaVersion);
         Assert.Equal(3.0, migrated.HeadEmbedDepth, 6);
         Assert.Equal(Guid.Empty, migrated.ControlPointObjectId);
         Assert.Equal(70, migrated.FastenerOpacityPercent);
@@ -138,7 +138,7 @@ public class HoleDiameterCalculatorTests
 
         var migrated = ComponentJson.Migrate(data);
 
-        Assert.Equal(7, migrated.SchemaVersion);
+        Assert.Equal(8, migrated.SchemaVersion);
         Assert.Equal(0.0, migrated.HeadEmbedDepth, 6);
         Assert.Equal(42, migrated.FastenerOpacityPercent);
         Assert.Equal(18, migrated.CutterOpacityPercent);
@@ -165,7 +165,7 @@ public class HoleDiameterCalculatorTests
 
         var migrated = ComponentJson.Migrate(data);
 
-        Assert.Equal(7, migrated.SchemaVersion);
+        Assert.Equal(8, migrated.SchemaVersion);
         Assert.Equal(3.0, migrated.HeadEmbedDepth, 6);
         Assert.Equal(Guid.Empty, migrated.ControlPointObjectId);
         Assert.True(migrated.Bindings.Single().IsPreviewVisible);
@@ -185,7 +185,7 @@ public class HoleDiameterCalculatorTests
 
         var migrated = ComponentJson.Migrate(data);
 
-        Assert.Equal(7, migrated.SchemaVersion);
+        Assert.Equal(8, migrated.SchemaVersion);
         Assert.Equal(1.3, migrated.HeadEmbedDepth, 6);
     }
 
@@ -202,7 +202,7 @@ public class HoleDiameterCalculatorTests
 
         var migrated = ComponentJson.Migrate(data);
 
-        Assert.Equal(7, migrated.SchemaVersion);
+        Assert.Equal(8, migrated.SchemaVersion);
         Assert.Equal(1.0, migrated.HeadEmbedDepth, 6);
     }
 
@@ -257,6 +257,46 @@ public class HoleDiameterCalculatorTests
         };
 
         Assert.Equal(40, HoleDepthCalculator.GetLimit(component, Catalog.Get("M3"), binding), 6);
+    }
+
+    [Theory]
+    [InlineData(12, 0, 12)]
+    [InlineData(20, 2, 22)]
+    [InlineData(40, 3, 43)]
+    public void ClearanceDepthFollowsCurrentShaftReach(
+        double length,
+        double embedDepth,
+        double expected)
+    {
+        var component = new FastenerComponentData
+        {
+            Size = "M3",
+            Length = length,
+            HeadEmbedDepth = embedDepth
+        };
+        var binding = new HoleTargetBinding
+        {
+            TargetObjectId = Guid.NewGuid(),
+            Role = ShaftFitRole.Clearance,
+            DepthMode = DepthMode.ThroughTarget
+        };
+
+        Assert.Equal(expected, HoleDepthCalculator.GetLimit(component, Catalog.Get("M3"), binding), 6);
+    }
+
+    [Fact]
+    public void EngagementThroughTargetRemainsUnlimited()
+    {
+        var component = new FastenerComponentData { Size = "M3", Length = 12 };
+        var binding = new HoleTargetBinding
+        {
+            TargetObjectId = Guid.NewGuid(),
+            Role = ShaftFitRole.ThreadEngagement,
+            DepthMode = DepthMode.ThroughTarget
+        };
+
+        Assert.True(double.IsPositiveInfinity(
+            HoleDepthCalculator.GetLimit(component, Catalog.Get("M3"), binding)));
     }
 
     [Theory]
