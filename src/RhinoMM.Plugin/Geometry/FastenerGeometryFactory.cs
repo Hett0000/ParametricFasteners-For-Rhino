@@ -11,7 +11,7 @@ public static class FastenerGeometryFactory
     public static IReadOnlyList<Brep> CreateProxy(FastenerComponentData data, FastenerSizeSpec spec)
     {
         var local = new List<Brep>();
-        var embed = FastenerKindTraits.SupportsHeadEmbed(data.Kind) ? data.HeadEmbedDepth : 0;
+        var embed = FastenerKindTraits.SupportsEmbedDepth(data.Kind) ? data.HeadEmbedDepth : 0;
         var headHeight = HeadGeometryCalculator.GetHeadHeight(data.Kind, spec);
         var tolerance = RhinoDoc.ActiveDoc?.ModelAbsoluteTolerance ?? 0.001;
         if (FastenerKindTraits.HasShaftProxy(data.Kind))
@@ -45,10 +45,12 @@ public static class FastenerGeometryFactory
                 local.Add(CreateHexPrism(spec.Head.HexAcrossFlats, headHeight, embed - headHeight));
                 break;
             case FastenerKind.HexNut:
+                var nutStart = embed - spec.Head.NutThickness;
                 local.Add(CreateHollowProxy(
-                    CreateHexPrism(spec.Head.NutAcrossFlats, spec.Head.NutThickness, 0),
+                    CreateHexPrism(spec.Head.NutAcrossFlats, spec.Head.NutThickness, nutStart),
                     spec.NominalDiameter / 2,
                     spec.Head.NutThickness,
+                    nutStart,
                     tolerance));
                 break;
             case FastenerKind.HeatSetInsert:
@@ -56,6 +58,7 @@ public static class FastenerGeometryFactory
                     CreateCylinder(data.InsertOuterDiameter / 2, data.Length, 0),
                     spec.NominalDiameter / 2,
                     data.Length,
+                    0,
                     tolerance));
                 break;
         }
@@ -119,9 +122,12 @@ public static class FastenerGeometryFactory
         var acrossFlats = InstallationPocketCalculator.HexNutAcrossFlats(data, spec, binding);
         if (acrossFlats <= 0)
             throw new InvalidOperationException("六角螺母槽最终对边尺寸必须大于 0。");
+        var depth = InstallationPocketCalculator.HexNutEmbedDepth(data);
+        if (depth <= 0)
+            throw new InvalidOperationException("六角螺母嵌入深度为 0 时不应生成安装槽。");
         var cutter = CreateHexPrism(
             acrossFlats,
-            spec.Head.NutThickness + padding,
+            depth + padding,
             -padding);
         cutter.Transform(Transform.PlaneToPlane(Plane.WorldXY, ToPlane(data.Placement)));
         return cutter;
@@ -205,36 +211,62 @@ public static class FastenerGeometryFactory
     public static double DepthLimit(FastenerComponentData data, FastenerSizeSpec spec, HoleTargetBinding binding) =>
         Core.Services.HoleDepthCalculator.GetLimit(data, spec, binding);
 
-    public static Brep? CreateHeadSeatCutter(FastenerComponentData data, FastenerSizeSpec spec, double extra = 0.2)
+    public static IReadOnlyList<Brep> CreateHeadSeatCutters(
+        FastenerComponentData data,
+        FastenerSizeSpec spec,
+        double extra = 0.2)
     {
         if (data.HeadEmbedDepth <= 0 || !FastenerKindTraits.SupportsHeadEmbed(data.Kind))
-            return null;
+            return [];
 
         var headHeight = HeadGeometryCalculator.GetHeadHeight(data.Kind, spec);
-        var start = data.HeadEmbedDepth - headHeight - extra;
-        var height = headHeight + extra * 2;
+        var envelope = HeadGeometryCalculator.GetHeadSeatAxialEnvelope(
+            data.HeadEmbedDepth,
+            headHeight,
+            extra);
         var countersunk = data.Kind == FastenerKind.Countersunk
             ? HeadGeometryCalculator.GetCountersunkSeatProfile(spec, extra, extra)
             : default;
-        Brep? cutter = data.Kind switch
+        var cutters = new List<Brep>();
+        switch (data.Kind)
         {
-            FastenerKind.SocketCap => CreateCylinder(
-                spec.Head.SocketDiameter / 2 + extra,
-                height,
-                start),
-            FastenerKind.Countersunk => CreateFrustum(
-                countersunk.LargeRadius,
-                countersunk.SmallRadius,
-                countersunk.Height,
-                start),
-            FastenerKind.HexBolt => CreateHexPrism(
-                spec.Head.HexAcrossFlats + extra * 2,
-                height,
-                start),
-            _ => null
-        };
-        cutter?.Transform(Transform.PlaneToPlane(Plane.WorldXY, ToPlane(data.Placement)));
-        return cutter;
+            case FastenerKind.SocketCap:
+                cutters.Add(CreateCylinder(
+                    spec.Head.SocketDiameter / 2 + extra,
+                    envelope.End - envelope.CombinedStart,
+                    envelope.CombinedStart));
+                break;
+            case FastenerKind.Countersunk:
+                cutters.Add(CreateFrustum(
+                    countersunk.LargeRadius,
+                    countersunk.SmallRadius,
+                    countersunk.Height,
+                    envelope.CavityStart));
+                if (envelope.RequiresAccess)
+                {
+                    var tolerance = RhinoDoc.ActiveDoc?.ModelAbsoluteTolerance ?? 0.001;
+                    var overlap = Math.Min(
+                        extra,
+                        Math.Max(tolerance * 2, spec.NominalDiameter * 0.005));
+                    var accessEnd = Math.Min(envelope.End, envelope.CavityStart + overlap);
+                    cutters.Add(CreateCylinder(
+                        countersunk.LargeRadius,
+                        accessEnd - envelope.EntryStart,
+                        envelope.EntryStart));
+                }
+                break;
+            case FastenerKind.HexBolt:
+                cutters.Add(CreateHexPrism(
+                    spec.Head.HexAcrossFlats + extra * 2,
+                    envelope.End - envelope.CombinedStart,
+                    envelope.CombinedStart));
+                break;
+        }
+
+        var transform = Transform.PlaneToPlane(Plane.WorldXY, ToPlane(data.Placement));
+        foreach (var cutter in cutters)
+            cutter.Transform(transform);
+        return cutters;
     }
 
     public static Plane ToPlane(PlacementFrame frame) => new(
@@ -303,6 +335,7 @@ public static class FastenerGeometryFactory
         Brep outer,
         double boreRadius,
         double height,
+        double startZ,
         double tolerance)
     {
         if (boreRadius <= 0 || height <= 0)
@@ -310,7 +343,7 @@ public static class FastenerGeometryFactory
         try
         {
             var padding = Math.Max(tolerance * 2, 0.01);
-            var bore = CreateCylinder(boreRadius, height + padding * 2, -padding);
+            var bore = CreateCylinder(boreRadius, height + padding * 2, startZ - padding);
             var difference = Brep.CreateBooleanDifference([outer], [bore], tolerance);
             if (difference is { Length: 1 } && difference[0].IsSolid)
                 return EnsureOutward(difference[0]);

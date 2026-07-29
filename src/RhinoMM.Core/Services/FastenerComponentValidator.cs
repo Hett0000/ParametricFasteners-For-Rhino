@@ -14,7 +14,7 @@ public static class FastenerComponentValidator
         if (component.HeadEmbedDepth < 0)
             result.Issues.Add(new("head-embed-negative", "螺丝头嵌入深度不能小于 0。"));
 
-        if (!FastenerKindTraits.SupportsHeadEmbed(component.Kind) && component.HeadEmbedDepth != 0)
+        if (!FastenerKindTraits.SupportsEmbedDepth(component.Kind) && component.HeadEmbedDepth != 0)
             result.Issues.Add(new("nut-head-embed", "螺母不支持螺丝头嵌入深度。"));
 
         if (FastenerKindTraits.SupportsHeadEmbed(component.Kind)
@@ -66,7 +66,12 @@ public static class FastenerComponentValidator
             if (binding.TargetObjectId == Guid.Empty)
                 result.Issues.Add(new("target", "被切割体引用不能为空。"));
 
-            if (binding.DepthMode == DepthMode.Blind && binding.BlindDepth <= 0)
+            var zeroDepthHexNutPocket = component.Kind == FastenerKind.HexNut
+                && binding.Role == ShaftFitRole.InstallationPocket
+                && component.HeadEmbedDepth == 0;
+            if (binding.DepthMode == DepthMode.Blind
+                && binding.BlindDepth <= 0
+                && !zeroDepthHexNutPocket)
                 result.Issues.Add(new("blind-depth", "盲孔深度必须大于 0。"));
 
             if (FastenerKindTraits.IsNut(component.Kind))
@@ -75,6 +80,11 @@ public static class FastenerComponentValidator
                     result.Issues.Add(new("nut-binding-role", "螺母宿主必须使用安装槽/孔绑定。"));
                 if (binding.DepthMode != DepthMode.Blind)
                     result.Issues.Add(new("nut-depth-mode", "螺母安装槽/孔必须使用盲孔深度。"));
+                if (component.Kind == FastenerKind.HexNut
+                    && Math.Abs(binding.BlindDepth - component.HeadEmbedDepth) > 1e-6)
+                    result.Issues.Add(new(
+                        "nut-embed-depth",
+                        "六角螺母安装槽深度必须与嵌入深度一致。"));
                 continue;
             }
 

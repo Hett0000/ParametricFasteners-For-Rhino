@@ -65,7 +65,7 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("ApplyDraftForExport()", source, StringComparison.Ordinal);
         Assert.Contains("ComponentEditorSession.ActivateMany(doc, saved, false)", source, StringComparison.Ordinal);
         Assert.Contains("_zeroHeadButton.Click", source, StringComparison.Ordinal);
-        Assert.Contains("_zeroHeadButton.Enabled = supportsHeadEmbed", source, StringComparison.Ordinal);
+        Assert.Contains("_zeroHeadButton.Enabled = supportsEmbedDepth", source, StringComparison.Ordinal);
         Assert.DoesNotContain("_-ParametricFastenersExportExcel", source, StringComparison.Ordinal);
     }
 
@@ -441,13 +441,19 @@ public sealed class PluginSourceRegressionTests
     }
 
     [Fact]
-    public void Toolbar_UsesGeneratedPixelsWithoutRuntimeScaling()
+    public void Toolbar_UsesRhino8LightAndDarkSvgIcons()
     {
         var toolbar = ReadSource("build", "generate-toolbar.ps1");
 
-        Assert.Contains("UI\\Icons\\Generated", toolbar, StringComparison.Ordinal);
-        Assert.Contains("DrawImageUnscaled", toolbar, StringComparison.Ordinal);
-        Assert.DoesNotContain("ScaleTransform", toolbar, StringComparison.Ordinal);
+        Assert.Contains("UI\\Icons\\Source", toolbar, StringComparison.Ordinal);
+        Assert.Contains("major_ver=\"8\"", toolbar, StringComparison.Ordinal);
+        Assert.Contains("plug_in_guid=\"ddc747eb-360e-4629-b65b-6bb1ddb4dc8f\"", toolbar, StringComparison.Ordinal);
+        Assert.Contains("<icons>", toolbar, StringComparison.Ordinal);
+        Assert.Contains("<light>$light</light>", toolbar, StringComparison.Ordinal);
+        Assert.Contains("<dark>$dark</dark>", toolbar, StringComparison.Ordinal);
+        Assert.Contains("$lightIconColor = \"#34495E\"", toolbar, StringComparison.Ordinal);
+        Assert.Contains("$darkIconColor = \"#D7DEE8\"", toolbar, StringComparison.Ordinal);
+        Assert.DoesNotContain("DrawImageUnscaled", toolbar, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -540,6 +546,9 @@ public sealed class PluginSourceRegressionTests
         var export = ReadSource("src", "RhinoMM.Plugin", "Services", "BooleanExportService.cs");
         var cutter = ReadSource("src", "RhinoMM.Plugin", "Services", "CutterGeometryService.cs");
         var component = ReadSource("src", "RhinoMM.Plugin", "Services", "FastenerComponentService.cs");
+        var geometry = ReadSource("src", "RhinoMM.Plugin", "Geometry", "FastenerGeometryFactory.cs");
+        var smartPlacement = ReadSource("src", "RhinoMM.Plugin", "Commands", "SmartPlaceCommand.cs");
+        var refresh = ReadSource("src", "RhinoMM.Plugin", "Services", "ComponentRefreshService.cs");
 
         Assert.Contains("ReadAllControlPoints", export, StringComparison.Ordinal);
         Assert.Contains("binding.IsBooleanEnabled", export, StringComparison.Ordinal);
@@ -548,12 +557,45 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("CutterGeometryService.TryBuild", component, StringComparison.Ordinal);
         Assert.Contains("FastenerGeometryFactory.DepthLimit", cutter, StringComparison.Ordinal);
         Assert.Contains("CreateShaftCutter", cutter, StringComparison.Ordinal);
-        Assert.Contains("CreateHeadSeatCutter", cutter, StringComparison.Ordinal);
+        Assert.Contains("CreateHeadSeatCutters", cutter, StringComparison.Ordinal);
+        Assert.Contains("IReadOnlyList<Brep> Heads", cutter, StringComparison.Ordinal);
+        Assert.Contains("IReadOnlyList<Brep> Shafts", cutter, StringComparison.Ordinal);
+        Assert.Contains("depth <= 0", cutter, StringComparison.Ordinal);
+        Assert.Contains("cutters.AddRange(build!.Shafts)", export, StringComparison.Ordinal);
+        Assert.Contains("AddRange(build.Heads)", export, StringComparison.Ordinal);
+        Assert.Contains("GetHeadSeatAxialEnvelope", geometry, StringComparison.Ordinal);
+        Assert.Contains("envelope.End - envelope.CombinedStart", geometry, StringComparison.Ordinal);
+        Assert.Contains("envelope.RequiresAccess", geometry, StringComparison.Ordinal);
+        Assert.Contains("foreach (var head in item.Heads)", component, StringComparison.Ordinal);
+        Assert.Contains("foreach (var head in cutter.Heads)", smartPlacement, StringComparison.Ordinal);
+        Assert.Contains("ExpectedHeadCutterCount", refresh, StringComparison.Ordinal);
+        Assert.Contains("CountBindingObjects", refresh, StringComparison.Ordinal);
+        Assert.Contains("HeadCuttersCoverExpectedEnvelope", refresh, StringComparison.Ordinal);
+        Assert.Contains("GetBoundingBox(placementPlane)", refresh, StringComparison.Ordinal);
         Assert.Contains("CreateHexNutPocketCutter", cutter, StringComparison.Ordinal);
         Assert.Contains("CreateHeatSetPocketCutters", cutter, StringComparison.Ordinal);
         Assert.Contains("InstallationPocketCalculator.RequiredHostDepth", cutter, StringComparison.Ordinal);
         Assert.Contains("InstallationPocketCalculator.CuttingDepth", cutter, StringComparison.Ordinal);
         Assert.Contains("补偿深度超过宿主厚度，将贯穿", cutter, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void HexNutEmbedDepthSupportsZeroFullAndCustomDepth()
+    {
+        var traits = ReadSource(
+            "src", "RhinoMM.Core", "Services", "FastenerKindTraits.cs");
+        var geometry = ReadSource(
+            "src", "RhinoMM.Plugin", "Geometry", "FastenerGeometryFactory.cs");
+        var panel = ReadSource(
+            "src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
+        var migration = ReadSource(
+            "src", "RhinoMM.Core", "Services", "ComponentJson.cs");
+
+        Assert.Contains("SupportsEmbedDepth", traits, StringComparison.Ordinal);
+        Assert.Contains("embed - spec.Head.NutThickness", geometry, StringComparison.Ordinal);
+        Assert.Contains("\"全埋\"", panel, StringComparison.Ordinal);
+        Assert.Contains("spec.Head.NutThickness", panel, StringComparison.Ordinal);
+        Assert.Contains("sourceVersion < 9 && data.Kind == FastenerKind.HexNut", migration, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -658,7 +700,7 @@ public sealed class PluginSourceRegressionTests
             "src", "RhinoMM.Plugin", "Services", "SmartHostBindingService.cs");
         var editor = ReadSource("src", "RhinoMM.Plugin", "Services", "EditorState.cs");
 
-        Assert.Contains("CurrentSchemaVersion = 8", models, StringComparison.Ordinal);
+        Assert.Contains("CurrentSchemaVersion = 9", models, StringComparison.Ordinal);
         Assert.Contains("AutoRecognizeHosts", models, StringComparison.Ordinal);
         Assert.Contains("SmartRecognitionMode", models, StringComparison.Ordinal);
         Assert.Contains("SmartBindingProfile", models, StringComparison.Ordinal);

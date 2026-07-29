@@ -29,7 +29,7 @@ public sealed class EditorState
         Kind = Kind,
         Size = Size,
         Length = Length,
-        HeadEmbedDepth = FastenerKindTraits.SupportsHeadEmbed(Kind) ? HeadEmbedDepth : 0,
+        HeadEmbedDepth = FastenerKindTraits.SupportsEmbedDepth(Kind) ? HeadEmbedDepth : 0,
         InsertOuterDiameter = Kind == FastenerKind.HeatSetInsert ? InsertOuterDiameter : 0,
         InsertDiameterCompensation = Kind == FastenerKind.HeatSetInsert ? InsertDiameterCompensation : 0,
         InsertDepthCompensation = Kind == FastenerKind.HeatSetInsert ? InsertDepthCompensation : 0,
@@ -54,6 +54,12 @@ public sealed class EditorState
                 {
                     DepthMode = DepthMode.Blind,
                     BlindDepth = Length + InsertDepthCompensation,
+                    IncludeHeadSeat = false
+                },
+                ShaftFitRole.InstallationPocket when Kind == FastenerKind.HexNut => binding with
+                {
+                    DepthMode = DepthMode.Blind,
+                    BlindDepth = HeadEmbedDepth,
                     IncludeHeadSeat = false
                 },
                 _ => binding

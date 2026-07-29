@@ -119,11 +119,19 @@ public static class ComponentRefreshService
                         binding.TargetObjectId != component.Bindings[index].TargetObjectId
                         || binding.CutterObjectId != component.Bindings[index].CutterObjectId)
                     .Any();
-            var missingHeadCutter = component.HeadEmbedDepth > 0
-                && FastenerKindTraits.SupportsHeadEmbed(component.Kind)
+            var expectedHeadCutterCount = ExpectedHeadCutterCount(
+                component,
+                doc.ModelAbsoluteTolerance);
+            var missingHeadCutter = expectedHeadCutterCount > 0
                 && component.Bindings.Any(binding =>
                     binding.IncludeHeadSeat
-                    && FindBindingObject(objects, binding.BindingId, "HeadCutter") is null);
+                    && (CountBindingObjects(objects, binding.BindingId, "HeadCutter")
+                        != expectedHeadCutterCount
+                        || !HeadCuttersCoverExpectedEnvelope(
+                            objects,
+                            binding.BindingId,
+                            component,
+                            doc.ModelAbsoluteTolerance)));
             var missingHeatSetLeadIn = component.Kind == FastenerKind.HeatSetInsert
                 && component.Bindings.Any(binding =>
                     binding.Role == ShaftFitRole.InstallationPocket
@@ -296,6 +304,73 @@ public static class ComponentRefreshService
                 obj.Attributes.GetUserString(ComponentRepository.BindingIdKey),
                 out var objectBindingId)
             && objectBindingId == bindingId);
+
+    private static int CountBindingObjects(
+        IEnumerable<RhinoObject> objects,
+        Guid bindingId,
+        string role) => objects.Count(obj =>
+        obj.Attributes.GetUserString(ComponentRepository.RoleKey) == role
+        && Guid.TryParse(
+            obj.Attributes.GetUserString(ComponentRepository.BindingIdKey),
+            out var objectBindingId)
+        && objectBindingId == bindingId);
+
+    private static int ExpectedHeadCutterCount(
+        FastenerComponentData component,
+        double documentTolerance)
+    {
+        if (component.Kind == FastenerKind.HeatSetInsert)
+            return 1;
+        if (component.HeadEmbedDepth <= 0
+            || !FastenerKindTraits.SupportsHeadEmbed(component.Kind))
+            return 0;
+        if (component.Kind != FastenerKind.Countersunk)
+            return 1;
+
+        var spec = RhinoMMPlugIn.Catalog.Get(component.Size);
+        var padding = Math.Max(0.2, documentTolerance * 10);
+        var envelope = HeadGeometryCalculator.GetHeadSeatAxialEnvelope(
+            component.HeadEmbedDepth,
+            HeadGeometryCalculator.GetHeadHeight(component.Kind, spec),
+            padding);
+        return envelope.RequiresAccess ? 2 : 1;
+    }
+
+    private static bool HeadCuttersCoverExpectedEnvelope(
+        IEnumerable<RhinoObject> objects,
+        Guid bindingId,
+        FastenerComponentData component,
+        double documentTolerance)
+    {
+        if (component.HeadEmbedDepth <= 0
+            || !FastenerKindTraits.SupportsHeadEmbed(component.Kind))
+            return true;
+
+        var spec = RhinoMMPlugIn.Catalog.Get(component.Size);
+        var padding = Math.Max(0.2, documentTolerance * 10);
+        var envelope = HeadGeometryCalculator.GetHeadSeatAxialEnvelope(
+            component.HeadEmbedDepth,
+            HeadGeometryCalculator.GetHeadHeight(component.Kind, spec),
+            padding);
+        var placementPlane = FastenerGeometryFactory.ToPlane(component.Placement);
+        var bounds = objects
+            .Where(obj =>
+                obj.Attributes.GetUserString(ComponentRepository.RoleKey) == "HeadCutter"
+                && Guid.TryParse(
+                    obj.Attributes.GetUserString(ComponentRepository.BindingIdKey),
+                    out var objectBindingId)
+                && objectBindingId == bindingId)
+            .Select(obj => obj.Geometry.GetBoundingBox(placementPlane))
+            .Where(box => box.IsValid)
+            .ToArray();
+        if (bounds.Length == 0)
+            return false;
+
+        var actualStart = bounds.Min(box => box.Min.Z);
+        var actualEnd = bounds.Max(box => box.Max.Z);
+        return actualStart <= envelope.CombinedStart + documentTolerance
+            && actualEnd >= envelope.End - documentTolerance;
+    }
 
     private static bool IsOrdinaryHost(RhinoObject obj) =>
         IsValidHost(obj)

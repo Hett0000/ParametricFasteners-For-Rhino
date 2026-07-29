@@ -14,6 +14,9 @@ public static class FastenerKindTraits
 
     public static bool SupportsHeadEmbed(FastenerKind kind) => IsScrew(kind);
 
+    public static bool SupportsEmbedDepth(FastenerKind kind) =>
+        SupportsHeadEmbed(kind) || kind == FastenerKind.HexNut;
+
     public static bool HasShaftProxy(FastenerKind kind) => IsScrew(kind);
 
     public static bool UsesLengthInStatistics(FastenerKind kind) => kind != FastenerKind.HexNut;

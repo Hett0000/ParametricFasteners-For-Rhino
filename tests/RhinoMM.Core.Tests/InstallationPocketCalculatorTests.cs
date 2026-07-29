@@ -15,6 +15,7 @@ public sealed class InstallationPocketCalculatorTests
         {
             Kind = FastenerKind.HexNut,
             Size = "M3",
+            HeadEmbedDepth = 2.4,
             PrintProfile = new PrintProfileSnapshot("FDM", 0.2)
         };
         var binding = new HoleTargetBinding { BindingOverride = -0.05 };
@@ -126,7 +127,7 @@ public sealed class InstallationPocketCalculatorTests
             InsertDepthCompensation = 3
         });
 
-        Assert.Equal(8, migrated.SchemaVersion);
+        Assert.Equal(9, migrated.SchemaVersion);
         Assert.Equal(0, migrated.InsertDepthCompensation);
     }
 
@@ -155,7 +156,8 @@ public sealed class InstallationPocketCalculatorTests
         var migrated = ComponentJson.Migrate(data);
         var binding = Assert.Single(migrated.Bindings);
 
-        Assert.Equal(8, migrated.SchemaVersion);
+        Assert.Equal(9, migrated.SchemaVersion);
+        Assert.Equal(2.4, migrated.HeadEmbedDepth, 6);
         Assert.Equal(preferredTarget, binding.TargetObjectId);
         Assert.Equal(ShaftFitRole.InstallationPocket, binding.Role);
         Assert.Equal(DepthMode.Blind, binding.DepthMode);
@@ -163,5 +165,84 @@ public sealed class InstallationPocketCalculatorTests
         Assert.False(binding.IncludeHeadSeat);
         Assert.False(binding.IsPreviewVisible);
         Assert.False(binding.IsBooleanEnabled);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1.2)]
+    [InlineData(2.4)]
+    [InlineData(4.0)]
+    public void HexNutPocketDepthFollowsEmbedDepth(double embedDepth)
+    {
+        var component = new FastenerComponentData
+        {
+            Kind = FastenerKind.HexNut,
+            Size = "M3",
+            HeadEmbedDepth = embedDepth
+        };
+
+        Assert.Equal(
+            embedDepth,
+            InstallationPocketCalculator.RequiredHostDepth(component, Catalog.Get("M3")),
+            6);
+        Assert.Equal(
+            embedDepth,
+            InstallationPocketCalculator.CuttingDepth(component, Catalog.Get("M3")),
+            6);
+    }
+
+    [Fact]
+    public void ZeroDepthHexNutPocketIsValidAndDoesNotRequireBlindDepth()
+    {
+        var component = new FastenerComponentData
+        {
+            Kind = FastenerKind.HexNut,
+            Size = "M3",
+            HeadEmbedDepth = 0,
+            Bindings =
+            [
+                new HoleTargetBinding
+                {
+                    TargetObjectId = Guid.NewGuid(),
+                    Role = ShaftFitRole.InstallationPocket,
+                    DepthMode = DepthMode.Blind,
+                    BlindDepth = 0
+                }
+            ]
+        };
+
+        var validation = FastenerComponentValidator.Validate(component, Catalog.Get("M3"));
+
+        Assert.True(validation.IsValid);
+    }
+
+    [Fact]
+    public void SchemaV8HexNutMigratesFromLegacyZeroToFullEmbed()
+    {
+        var bindingId = Guid.NewGuid();
+        var migrated = ComponentJson.Migrate(new FastenerComponentData
+        {
+            SchemaVersion = 8,
+            Kind = FastenerKind.HexNut,
+            Size = "M3",
+            HeadEmbedDepth = 0,
+            Bindings =
+            [
+                new HoleTargetBinding
+                {
+                    BindingId = bindingId,
+                    TargetObjectId = Guid.NewGuid(),
+                    Role = ShaftFitRole.InstallationPocket,
+                    DepthMode = DepthMode.Blind,
+                    BlindDepth = 2.4
+                }
+            ]
+        });
+
+        var binding = Assert.Single(migrated.Bindings);
+        Assert.Equal(9, migrated.SchemaVersion);
+        Assert.Equal(2.4, migrated.HeadEmbedDepth, 6);
+        Assert.Equal(2.4, binding.BlindDepth, 6);
+        Assert.Equal(bindingId, binding.BindingId);
     }
 }

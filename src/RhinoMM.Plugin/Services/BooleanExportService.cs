@@ -107,9 +107,8 @@ public static class BooleanExportService
                                 $"组件 {component.Size} · {component.ComponentId.ToString("N")[..8]} 切割体生成失败：{buildError}");
                         }
                         enabledBindingCount++;
-                        cutters.Add(build!.Shaft);
-                        if (build.Head is not null)
-                            cutters.Add(build.Head);
+                        cutters.AddRange(build!.Shafts);
+                        cutters.AddRange(build.Heads);
                         warnings.AddRange(build.Warnings);
                     }
                 }

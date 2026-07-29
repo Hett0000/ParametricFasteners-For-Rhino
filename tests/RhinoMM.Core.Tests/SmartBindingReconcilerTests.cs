@@ -138,7 +138,7 @@ public sealed class SmartBindingReconcilerTests
 
         var migrated = ComponentJson.Migrate(legacy);
 
-        Assert.Equal(8, migrated.SchemaVersion);
+        Assert.Equal(9, migrated.SchemaVersion);
         Assert.False(migrated.AutoRecognizeHosts);
         Assert.Null(migrated.SmartBindingProfile);
     }

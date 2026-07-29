@@ -9,6 +9,13 @@ public static class HeadGeometryCalculator
         double SmallRadius,
         double Height);
 
+    public readonly record struct HeadSeatAxialEnvelope(
+        double CavityStart,
+        double EntryStart,
+        double CombinedStart,
+        double End,
+        bool RequiresAccess);
+
     public static double GetHeadHeight(FastenerKind kind, FastenerSizeSpec spec) => kind switch
     {
         FastenerKind.SocketCap => spec.Head.SocketHeight,
@@ -45,6 +52,28 @@ public static class HeadGeometryCalculator
             largeRadius,
             smallRadius,
             headHeight + axialPadding * 2);
+    }
+
+    public static HeadSeatAxialEnvelope GetHeadSeatAxialEnvelope(
+        double embedDepth,
+        double headHeight,
+        double axialPadding)
+    {
+        if (embedDepth < 0)
+            throw new ArgumentOutOfRangeException(nameof(embedDepth), "螺丝头嵌入深度不能小于 0。");
+        if (headHeight <= 0)
+            throw new ArgumentOutOfRangeException(nameof(headHeight), "螺丝头高度必须大于 0。");
+        if (axialPadding < 0)
+            throw new ArgumentOutOfRangeException(nameof(axialPadding), "头部切割轴向余量不能小于 0。");
+
+        var cavityStart = embedDepth - headHeight - axialPadding;
+        var entryStart = -axialPadding;
+        return new HeadSeatAxialEnvelope(
+            cavityStart,
+            entryStart,
+            Math.Min(cavityStart, entryStart),
+            embedDepth + axialPadding,
+            cavityStart > entryStart);
     }
 
     private static double CountersunkHeight(FastenerSizeSpec spec)

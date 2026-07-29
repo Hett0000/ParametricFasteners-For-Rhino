@@ -185,26 +185,34 @@ public static class FastenerComponentService
         var geometryObjectIds = new List<Guid>(proxyIds);
         foreach (var item in prepared.Cutters)
         {
-            var cutterAttributes = ComponentRepository.CreateAttributes(
-                draft, "Cutter", item.Binding.TargetObjectId, item.Binding.BindingId);
-            ComponentPresentationService.ConfigureAttributes(
-                doc, cutterAttributes, draft, true, item.Binding.IsPreviewVisible);
-            var cutterId = doc.Objects.AddBrep(item.Shaft, cutterAttributes);
-            if (cutterId == Guid.Empty)
-                throw new InvalidOperationException("无法写入孔切割体。");
-            geometryObjectIds.Add(cutterId);
-            if (item.Head is not null)
+            var cutterIds = new List<Guid>();
+            foreach (var shaft in item.Shafts)
+            {
+                var cutterAttributes = ComponentRepository.CreateAttributes(
+                    draft, "Cutter", item.Binding.TargetObjectId, item.Binding.BindingId);
+                ComponentPresentationService.ConfigureAttributes(
+                    doc, cutterAttributes, draft, true, item.Binding.IsPreviewVisible);
+                var cutterId = doc.Objects.AddBrep(shaft, cutterAttributes);
+                if (cutterId == Guid.Empty)
+                    throw new InvalidOperationException("无法写入孔切割体。");
+                cutterIds.Add(cutterId);
+                geometryObjectIds.Add(cutterId);
+            }
+            foreach (var head in item.Heads)
             {
                 var headAttributes = ComponentRepository.CreateAttributes(
                     draft, "HeadCutter", item.Binding.TargetObjectId, item.Binding.BindingId);
                 ComponentPresentationService.ConfigureAttributes(
                     doc, headAttributes, draft, true, item.Binding.IsPreviewVisible);
-                var headId = doc.Objects.AddBrep(item.Head, headAttributes);
+                var headId = doc.Objects.AddBrep(head, headAttributes);
                 if (headId == Guid.Empty)
                     throw new InvalidOperationException("无法写入头部切割体。");
                 geometryObjectIds.Add(headId);
             }
-            bindings.Add(item.Binding with { CutterObjectId = cutterId });
+            bindings.Add(item.Binding with
+            {
+                CutterObjectId = cutterIds.FirstOrDefault()
+            });
         }
 
         var controlAttributes = ComponentRepository.CreateAttributes(draft, "ControlPoint");

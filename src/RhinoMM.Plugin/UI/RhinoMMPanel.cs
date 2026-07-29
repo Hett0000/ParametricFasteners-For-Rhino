@@ -36,7 +36,11 @@ public sealed class RhinoMMPanel : Panel, IPanel
         Wrap = WrapMode.None
     };
     private readonly Panel _insertSummaryHost = new() { MinimumSize = new Size(0, 0) };
-    private readonly Label _nutStandardDimensions = new() { TextColor = FastenerUiTheme.SecondaryText };
+    private readonly Label _nutStandardDimensions = new()
+    {
+        TextColor = FastenerUiTheme.SecondaryText,
+        Wrap = WrapMode.Word
+    };
     private readonly Label _insertChamferNote = new()
     {
         Text = "入口 45°×0.5 mm ⓘ",
@@ -317,6 +321,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
         };
         _kind.SelectedKeyChanged += (_, _) =>
         {
+            ApplyEmbedDefaultForKindChange();
             LoadHeatSetDefaultsForNewKind();
             UpdateHeadEmbedControls();
             RebuildResponsiveLayout(force: true);
@@ -325,6 +330,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
         };
         _size.SelectedKeyChanged += (_, _) =>
         {
+            PreserveHexNutEmbedModeAcrossSizeChange();
             UpdateInsertSummary();
             ScheduleUpdate();
         };
@@ -335,7 +341,11 @@ public sealed class RhinoMMPanel : Panel, IPanel
             SaveHeatSetPresetControls();
             ScheduleUpdate();
         };
-        _headEmbed.ValueChanged += (_, _) => ScheduleUpdate();
+        _headEmbed.ValueChanged += (_, _) =>
+        {
+            UpdateInsertSummary();
+            ScheduleUpdate();
+        };
         _insertOuterDiameter.ValueChanged += (_, _) =>
         {
             UpdateInsertSummary();
@@ -530,6 +540,8 @@ public sealed class RhinoMMPanel : Panel, IPanel
         if (selectedKind == FastenerKind.HexNut)
         {
             _parameterLayout.AddRow(_nutStandardDimensions);
+            _parameterLayout.AddRow(CompactRow(
+                FieldStack("嵌入深度 mm", _headEmbedControl)));
         }
         else if (selectedKind == FastenerKind.HeatSetInsert)
         {
@@ -860,7 +872,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
         if (!string.IsNullOrWhiteSpace(_size.SelectedKey))
             state.Size = _size.SelectedKey;
         state.Length = _length.Value;
-        state.HeadEmbedDepth = FastenerKindTraits.SupportsHeadEmbed(state.Kind) ? _headEmbed.Value : 0;
+        state.HeadEmbedDepth = FastenerKindTraits.SupportsEmbedDepth(state.Kind) ? _headEmbed.Value : 0;
         state.InsertOuterDiameter = state.Kind == FastenerKind.HeatSetInsert
             ? _insertOuterDiameter.Value
             : 0;
@@ -966,7 +978,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
             var spec = RhinoMMPlugIn.Catalog.Get(_size.SelectedKey);
             var finalAcrossFlats = spec.Head.NutAcrossFlats + _printerCorrection.Value;
             _nutStandardDimensions.Text =
-                $"标准对边 {spec.Head.NutAcrossFlats:0.###} mm · 厚度 {spec.Head.NutThickness:0.###} mm · 最终槽对边 {finalAcrossFlats:0.###} mm";
+                $"对边 {spec.Head.NutAcrossFlats:0.###} · 厚 {spec.Head.NutThickness:0.###} · 槽 {finalAcrossFlats:0.###} · 嵌入 {_headEmbed.Value:0.###} mm";
             var finalDiameter = _insertOuterDiameter.Value + _insertDiameterCompensation.Value;
             var finalDepth = _length.Value + _insertDepthCompensation.Value;
             _insertFinalDiameter.Text = $"孔 Ø{finalDiameter:0.###} · 深 {finalDepth:0.###} mm";
@@ -1512,11 +1524,11 @@ public sealed class RhinoMMPanel : Panel, IPanel
         var spec = RhinoMMPlugIn.Catalog.Get(previewComponent.Size);
         if (binding.Role == ShaftFitRole.InstallationPocket)
         {
-            var depth = previewComponent.Kind == FastenerKind.HexNut
-                ? spec.Head.NutThickness
-                : InstallationPocketCalculator.CuttingDepth(previewComponent, spec);
+            var depth = InstallationPocketCalculator.CuttingDepth(previewComponent, spec);
             return previewComponent.Kind == FastenerKind.HexNut
-                ? $"盲槽深度 {depth:0.###} mm"
+                ? depth <= 0
+                    ? "嵌入深度 0 mm · 不切割宿主"
+                    : $"六角槽深度 {depth:0.###} mm"
                 : HeatSetDepthDescription(previewComponent, geometry, depth);
         }
         var limit = FastenerGeometryFactory.DepthLimit(previewComponent, spec, binding);
@@ -1801,22 +1813,65 @@ public sealed class RhinoMMPanel : Panel, IPanel
 
     private void UpdateHeadEmbedControls()
     {
-        var supportsHeadEmbed = FastenerKindTraits.SupportsHeadEmbed(SelectedKind());
-        _headEmbed.Enabled = supportsHeadEmbed;
-        _zeroHeadButton.Enabled = supportsHeadEmbed;
-        _flushHeadButton.Enabled = supportsHeadEmbed;
-        if (!supportsHeadEmbed && _headEmbed.Value != 0)
+        var kind = SelectedKind();
+        var supportsEmbedDepth = FastenerKindTraits.SupportsEmbedDepth(kind);
+        _headEmbed.Enabled = supportsEmbedDepth;
+        _zeroHeadButton.Enabled = supportsEmbedDepth;
+        _flushHeadButton.Enabled = supportsEmbedDepth;
+        _flushHeadButton.Text = kind == FastenerKind.HexNut ? "全埋" : "齐平";
+        _flushHeadButton.ToolTip = kind == FastenerKind.HexNut
+            ? "将嵌入深度设置为当前规格的标准螺母厚度"
+            : "将螺丝头顶面设置为与宿主表面齐平";
+        if (!supportsEmbedDepth && _headEmbed.Value != 0)
             _headEmbed.Value = 0;
+    }
+
+    private void ApplyEmbedDefaultForKindChange()
+    {
+        if (_loadingControls
+            || SelectedKind() != FastenerKind.HexNut
+            || EditorState.Current.Kind == FastenerKind.HexNut
+            || string.IsNullOrWhiteSpace(_size.SelectedKey))
+            return;
+        _headEmbed.Value = RhinoMMPlugIn.Catalog.Get(_size.SelectedKey).Head.NutThickness;
+    }
+
+    private void PreserveHexNutEmbedModeAcrossSizeChange()
+    {
+        if (_loadingControls
+            || SelectedKind() != FastenerKind.HexNut
+            || string.IsNullOrWhiteSpace(_size.SelectedKey)
+            || string.IsNullOrWhiteSpace(EditorState.Current.Size)
+            || EditorState.Current.Size == _size.SelectedKey)
+            return;
+        try
+        {
+            var previousThickness = RhinoMMPlugIn.Catalog
+                .Get(EditorState.Current.Size)
+                .Head.NutThickness;
+            if (Math.Abs(_headEmbed.Value - previousThickness) <= 0.01)
+            {
+                _headEmbed.Value = RhinoMMPlugIn.Catalog
+                    .Get(_size.SelectedKey)
+                    .Head.NutThickness;
+            }
+        }
+        catch
+        {
+            // Keep a custom absolute depth when either size cannot be resolved.
+        }
     }
 
     private void SetFlushHeadDepth()
     {
         if (!Enum.TryParse<FastenerKind>(_kind.SelectedKey, out var kind)
-            || !FastenerKindTraits.SupportsHeadEmbed(kind)
+            || !FastenerKindTraits.SupportsEmbedDepth(kind)
             || string.IsNullOrWhiteSpace(_size.SelectedKey))
             return;
         var spec = RhinoMMPlugIn.Catalog.Get(_size.SelectedKey);
-        _headEmbed.Value = HeadGeometryCalculator.GetHeadHeight(kind, spec);
+        _headEmbed.Value = kind == FastenerKind.HexNut
+            ? spec.Head.NutThickness
+            : HeadGeometryCalculator.GetHeadHeight(kind, spec);
     }
 
     private void SetStatus(string message, StatusKind kind)

@@ -111,7 +111,7 @@ public class HoleDiameterCalculatorTests
 
         var migrated = ComponentJson.Deserialize(json);
 
-        Assert.Equal(8, migrated.SchemaVersion);
+        Assert.Equal(9, migrated.SchemaVersion);
         Assert.Equal(3.0, migrated.HeadEmbedDepth, 6);
         Assert.Equal(Guid.Empty, migrated.ControlPointObjectId);
         Assert.Equal(70, migrated.FastenerOpacityPercent);
@@ -138,7 +138,7 @@ public class HoleDiameterCalculatorTests
 
         var migrated = ComponentJson.Migrate(data);
 
-        Assert.Equal(8, migrated.SchemaVersion);
+        Assert.Equal(9, migrated.SchemaVersion);
         Assert.Equal(0.0, migrated.HeadEmbedDepth, 6);
         Assert.Equal(42, migrated.FastenerOpacityPercent);
         Assert.Equal(18, migrated.CutterOpacityPercent);
@@ -165,7 +165,7 @@ public class HoleDiameterCalculatorTests
 
         var migrated = ComponentJson.Migrate(data);
 
-        Assert.Equal(8, migrated.SchemaVersion);
+        Assert.Equal(9, migrated.SchemaVersion);
         Assert.Equal(3.0, migrated.HeadEmbedDepth, 6);
         Assert.Equal(Guid.Empty, migrated.ControlPointObjectId);
         Assert.True(migrated.Bindings.Single().IsPreviewVisible);
@@ -185,7 +185,7 @@ public class HoleDiameterCalculatorTests
 
         var migrated = ComponentJson.Migrate(data);
 
-        Assert.Equal(8, migrated.SchemaVersion);
+        Assert.Equal(9, migrated.SchemaVersion);
         Assert.Equal(1.3, migrated.HeadEmbedDepth, 6);
     }
 
@@ -202,7 +202,7 @@ public class HoleDiameterCalculatorTests
 
         var migrated = ComponentJson.Migrate(data);
 
-        Assert.Equal(8, migrated.SchemaVersion);
+        Assert.Equal(9, migrated.SchemaVersion);
         Assert.Equal(1.0, migrated.HeadEmbedDepth, 6);
     }
 
@@ -332,6 +332,31 @@ public class HoleDiameterCalculatorTests
             profile.SmallRadius + padding * slope,
             6);
         Assert.Equal(headHeight + padding * 2, profile.Height, 6);
+    }
+
+    [Theory]
+    [InlineData(1.0, 3.0, 0.2, -2.2, -2.2, 1.2, false)]
+    [InlineData(3.0, 3.0, 0.2, -0.2, -0.2, 3.2, false)]
+    [InlineData(5.0, 3.0, 0.2, 1.8, -0.2, 5.2, true)]
+    public void HeadSeatEnvelopeReachesPlacementSurfaceWhenHeadIsDeeplyEmbedded(
+        double embedDepth,
+        double headHeight,
+        double padding,
+        double expectedCavityStart,
+        double expectedCombinedStart,
+        double expectedEnd,
+        bool expectedAccess)
+    {
+        var envelope = HeadGeometryCalculator.GetHeadSeatAxialEnvelope(
+            embedDepth,
+            headHeight,
+            padding);
+
+        Assert.Equal(expectedCavityStart, envelope.CavityStart, 6);
+        Assert.Equal(-padding, envelope.EntryStart, 6);
+        Assert.Equal(expectedCombinedStart, envelope.CombinedStart, 6);
+        Assert.Equal(expectedEnd, envelope.End, 6);
+        Assert.Equal(expectedAccess, envelope.RequiresAccess);
     }
 
     [Fact]

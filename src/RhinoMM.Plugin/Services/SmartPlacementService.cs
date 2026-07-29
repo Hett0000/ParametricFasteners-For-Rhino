@@ -114,7 +114,7 @@ internal sealed record SmartPlacementParameterSnapshot(
         Kind = Signature.Kind,
         Size = Signature.Size,
         Length = Signature.Length,
-        HeadEmbedDepth = FastenerKindTraits.SupportsHeadEmbed(Signature.Kind)
+        HeadEmbedDepth = FastenerKindTraits.SupportsEmbedDepth(Signature.Kind)
             ? Signature.HeadEmbedDepth
             : 0,
         InsertOuterDiameter = Signature.Kind == FastenerKind.HeatSetInsert
@@ -295,7 +295,7 @@ internal sealed class SmartPlacementService
         string snapLabel)
     {
         var depth = parameters.Signature.Kind == FastenerKind.HexNut
-            ? parameters.Spec.Head.NutThickness
+            ? parameters.Signature.HeadEmbedDepth
             : parameters.Signature.Length + parameters.Signature.InsertDepthCompensation;
         var preview = parameters.Signature.Kind == FastenerKind.HeatSetInsert
             ? parameters.HeatSetPreset.PreviewVisible

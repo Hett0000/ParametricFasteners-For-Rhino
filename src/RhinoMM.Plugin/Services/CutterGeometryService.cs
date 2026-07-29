@@ -8,8 +8,8 @@ namespace RhinoMM.Plugin.Services;
 
 internal sealed record CutterGeometryBuild(
     HoleTargetBinding Binding,
-    Brep Shaft,
-    Brep? Head,
+    IReadOnlyList<Brep> Shafts,
+    IReadOnlyList<Brep> Heads,
     IReadOnlyList<string> Warnings);
 
 internal static class CutterGeometryService
@@ -64,10 +64,17 @@ internal static class CutterGeometryService
 
                 if (component.Kind == FastenerKind.HexNut)
                 {
+                    var depth = InstallationPocketCalculator.HexNutEmbedDepth(component);
                     result = new CutterGeometryBuild(
                         binding,
-                        FastenerGeometryFactory.CreateHexNutPocketCutter(component, spec, binding, padding),
-                        null,
+                        depth <= 0
+                            ? []
+                            : [FastenerGeometryFactory.CreateHexNutPocketCutter(
+                                component,
+                                spec,
+                                binding,
+                                padding)],
+                        [],
                         warnings);
                     return true;
                 }
@@ -87,8 +94,8 @@ internal static class CutterGeometryService
                     cuttingDepth);
                 result = new CutterGeometryBuild(
                     binding,
-                    heatSet.Shaft,
-                    heatSet.LeadIn,
+                    [heatSet.Shaft],
+                    [heatSet.LeadIn],
                     warnings);
                 return true;
             }
@@ -123,10 +130,10 @@ internal static class CutterGeometryService
 
             result = new CutterGeometryBuild(
                 binding,
-                FastenerGeometryFactory.CreateShaftCutter(component, spec, binding, start, end),
+                [FastenerGeometryFactory.CreateShaftCutter(component, spec, binding, start, end)],
                 binding.IncludeHeadSeat
-                    ? FastenerGeometryFactory.CreateHeadSeatCutter(component, spec)
-                    : null,
+                    ? FastenerGeometryFactory.CreateHeadSeatCutters(component, spec, padding)
+                    : [],
                 warnings);
             return true;
         }

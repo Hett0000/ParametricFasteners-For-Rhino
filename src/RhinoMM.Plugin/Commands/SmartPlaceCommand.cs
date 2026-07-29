@@ -228,12 +228,15 @@ internal sealed class SmartPlacementGetter : GetPoint
             var material = new DisplayMaterial(
                 color,
                 1 - Math.Clamp(displaySettings.CutterOpacityPercent, 0, 100) / 100.0);
-            e.Display.DrawBrepShaded(cutter.Shaft, material);
-            e.Display.DrawBrepWires(cutter.Shaft, color, 1);
-            if (cutter.Head is not null)
+            foreach (var shaft in cutter.Shafts)
             {
-                e.Display.DrawBrepShaded(cutter.Head, material);
-                e.Display.DrawBrepWires(cutter.Head, color, 1);
+                e.Display.DrawBrepShaded(shaft, material);
+                e.Display.DrawBrepWires(shaft, color, 1);
+            }
+            foreach (var head in cutter.Heads)
+            {
+                e.Display.DrawBrepShaded(head, material);
+                e.Display.DrawBrepWires(head, color, 1);
             }
         }
 

@@ -67,20 +67,13 @@ public static class ComponentJson
             IsPreviewVisible = sourceVersion < 2 || binding.IsPreviewVisible,
             IsBooleanEnabled = sourceVersion < 3 || binding.IsBooleanEnabled
         }).ToArray();
-        if (sourceVersion >= 6 || data.Kind != FastenerKind.HexNut || bindings.Length == 0)
+        if (data.Kind != FastenerKind.HexNut
+            || bindings.Length == 0
+            || sourceVersion >= 9)
             return bindings;
 
         var selected = bindings.FirstOrDefault(binding => binding.IncludeHeadSeat) ?? bindings[0];
-        var depth = selected.BlindDepth;
-        try
-        {
-            depth = Catalog.Value.Get(data.Size).Head.NutThickness;
-        }
-        catch
-        {
-            if (depth <= 0)
-                depth = 0.1;
-        }
+        var depth = LegacyHexNutEmbedDepth(data, selected.BlindDepth);
         return
         [
             selected with
@@ -95,6 +88,10 @@ public static class ComponentJson
 
     private static double MigrateHeadEmbedDepth(FastenerComponentData data, int sourceVersion)
     {
+        if (sourceVersion < 9 && data.Kind == FastenerKind.HexNut)
+            return LegacyHexNutEmbedDepth(
+                data,
+                data.Bindings.FirstOrDefault()?.BlindDepth ?? 0);
         if (sourceVersion < 4)
             return LegacyHeadEmbedDepth(data);
         if (sourceVersion == 4 && data.Kind == FastenerKind.Countersunk)
@@ -112,6 +109,20 @@ public static class ComponentJson
             }
         }
         return data.HeadEmbedDepth;
+    }
+
+    private static double LegacyHexNutEmbedDepth(
+        FastenerComponentData data,
+        double fallbackDepth)
+    {
+        try
+        {
+            return Catalog.Value.Get(data.Size).Head.NutThickness;
+        }
+        catch
+        {
+            return fallbackDepth > 0 ? fallbackDepth : 0.1;
+        }
     }
 
     private static double LegacyHeadEmbedDepth(FastenerComponentData data)

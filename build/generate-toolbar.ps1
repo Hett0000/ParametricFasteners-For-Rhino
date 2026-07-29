@@ -4,7 +4,6 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-Add-Type -AssemblyName System.Drawing
 
 function Decode-Text([string]$value) {
     return [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($value))
@@ -22,7 +21,7 @@ $labels = @(
     (Decode-Text "57Sn5Zu65Lu257uf6K6h")
 )
 
-$bitmapIds = @(
+$iconIds = @(
     "9c0684e5-48b5-4f5f-b2aa-1894b118cc20",
     "40e48fe9-0e2b-4428-a92e-f94ec6b0bba6",
     "944862fe-bf89-4b90-87c9-b79d22f217ce",
@@ -35,47 +34,35 @@ $bitmapIds = @(
 )
 
 $root = Split-Path -Parent $PSScriptRoot
-$iconDirectory = Join-Path $root "src\RhinoMM.Plugin\UI\Icons\Generated"
+$iconDirectory = Join-Path $root "src\RhinoMM.Plugin\UI\Icons\Source"
 $iconStems = @("rhino", "read", "place", "apply", "refresh", "rhino", "step", "statistics", "more")
+$lightIconColor = "#34495E"
+$darkIconColor = "#D7DEE8"
 
-function New-IconStripBase64([int]$size) {
-    $bitmap = New-Object System.Drawing.Bitmap($size, ($size * $bitmapIds.Count), [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
-    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-    $graphics.Clear([System.Drawing.Color]::Transparent)
-    for ($index = 0; $index -lt $bitmapIds.Count; $index++) {
-        $sourcePath = Join-Path $iconDirectory "$($iconStems[$index])-$size.png"
-        if (-not (Test-Path -LiteralPath $sourcePath)) {
-            throw "Missing generated toolbar icon: $sourcePath"
-        }
-        $source = [System.Drawing.Image]::FromFile($sourcePath)
-        try {
-            $graphics.DrawImageUnscaled($source, 0, ($index * $size))
-        }
-        finally {
-            $source.Dispose()
-        }
+function Get-ThemedSvg([string]$stem, [string]$color) {
+    $sourcePath = Join-Path $iconDirectory "$stem.svg"
+    if (-not (Test-Path -LiteralPath $sourcePath)) {
+        throw "Missing toolbar SVG icon: $sourcePath"
     }
 
-    $stream = New-Object System.IO.MemoryStream
-    $bitmap.Save($stream, [System.Drawing.Imaging.ImageFormat]::Png)
-    $result = [Convert]::ToBase64String($stream.ToArray())
-    $stream.Dispose()
-    $graphics.Dispose()
-    $bitmap.Dispose()
-    return $result
+    return ([System.IO.File]::ReadAllText($sourcePath).Trim()).Replace("currentColor", $color)
 }
 
-function BitmapItems {
-    $items = for ($index = 0; $index -lt $bitmapIds.Count; $index++) {
-        "      <bitmap_item guid=`"$($bitmapIds[$index])`" index=`"$index`" />"
+function IconItems {
+    $items = for ($index = 0; $index -lt $iconIds.Count; $index++) {
+        $light = Get-ThemedSvg $iconStems[$index] $lightIconColor
+        $dark = Get-ThemedSvg $iconStems[$index] $darkIconColor
+        @"
+    <icon guid="$($iconIds[$index])">
+      <light>$light</light>
+      <dark>$dark</dark>
+    </icon>
+"@
     }
     return ($items -join [Environment]::NewLine)
 }
 
-$items = BitmapItems
-$small = New-IconStripBase64 16
-$normal = New-IconStripBase64 24
-$large = New-IconStripBase64 32
+$items = IconItems
 $toolbarItems = @(
     @("1c6499e1-00cc-4754-83c3-feaf3fb44d61", "8f72ca22-3e3a-41c4-9914-aa5cc1c681d5", $labels[0]),
     @("61d7dd38-0058-4f6c-b0ac-208691758f07", "d37963f4-fe65-40ea-8a2a-2fdc1b2a2f05", $labels[1]),
@@ -100,18 +87,18 @@ $toolXml = for ($i = 0; $i -lt $toolbarItems.Count; $i++) {
     "      <tool_bar_item guid=`"$($toolbarItems[$i][0])`"><text><locale_2052>$($toolbarItems[$i][2])</locale_2052></text><left_macro_id>$($toolbarItems[$i][1])</left_macro_id></tool_bar_item>"
 }
 $macroXml = for ($i = 0; $i -lt $toolbarItems.Count; $i++) {
-    $bitmapId = $bitmapIds[$i + 1]
-    "    <macro_item guid=`"$($toolbarItems[$i][1])`" bitmap_id=`"$bitmapId`"><text><locale_2052>$($toolbarItems[$i][2])</locale_2052></text><tooltip><locale_2052>$($toolbarItems[$i][2])</locale_2052></tooltip><script>! _$($commands[$i])</script></macro_item>"
+    $iconId = $iconIds[$i + 1]
+    "    <macro_item guid=`"$($toolbarItems[$i][1])`" bitmap_id=`"$iconId`"><text><locale_2052>$($toolbarItems[$i][2])</locale_2052></text><tooltip><locale_2052>$($toolbarItems[$i][2])</locale_2052></tooltip><script>! _$($commands[$i])</script></macro_item>"
 }
 
 $xml = @"
 <?xml version="1.0" encoding="utf-8"?>
-<RhinoUI major_ver="3" minor_ver="0" guid="5c120a44-494a-4973-a495-e8c4218b0c22" localize="False" default_language_id="2052" dpi_scale="100">
+<RhinoUI major_ver="8" minor_ver="0" guid="5c120a44-494a-4973-a495-e8c4218b0c22" plug_in_guid="ddc747eb-360e-4629-b65b-6bb1ddb4dc8f" localize="False" default_language_id="2052">
   <extend_rhino_menus />
   <menus />
   <tool_bar_groups />
   <tool_bars>
-    <tool_bar guid="cfbd6692-bca7-4bb9-bd8a-9070f2a4ab08" bitmap_id="$($bitmapIds[0])">
+    <tool_bar guid="cfbd6692-bca7-4bb9-bd8a-9070f2a4ab08" bitmap_id="$($iconIds[0])">
       <text><locale_2052>$toolbarName</locale_2052></text>
 $($toolXml -join [Environment]::NewLine)
     </tool_bar>
@@ -119,20 +106,10 @@ $($toolXml -join [Environment]::NewLine)
   <macros>
 $($macroXml -join [Environment]::NewLine)
   </macros>
-  <bitmaps>
-    <small_bitmap item_width="16" item_height="16">
+  <icons>
 $items
-      <bitmap>$small</bitmap>
-    </small_bitmap>
-    <normal_bitmap item_width="24" item_height="24">
-$items
-      <bitmap>$normal</bitmap>
-    </normal_bitmap>
-    <large_bitmap item_width="32" item_height="32">
-$items
-      <bitmap>$large</bitmap>
-    </large_bitmap>
-  </bitmaps>
+  </icons>
+  <bitmaps />
 </RhinoUI>
 "@
 

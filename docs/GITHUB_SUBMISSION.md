@@ -93,7 +93,7 @@ v0.21.0 - Automatic host rediscovery after length updates
 
 ## Compatibility
 
-- Persistent schema is v8. Existing v7 and classic-placement components retain manual host bindings.
+- Persistent schema is v9. Existing v8 hex nuts migrate to their standard full-embed depth, while v7 and classic-placement screws retain manual host bindings.
 - Existing component IDs, `RhinoMM.*` metadata keys, legacy commands, and existing 3DM files remain compatible.
 
 ## Notes
