@@ -22,7 +22,7 @@ public sealed class RhinoMMEditHoleCommand : Command
             return Result.Nothing;
         }
 
-        ComponentEditorSession.ActivateMany(doc, components, true);
+        ComponentEditorSession.ActivateMany(doc, components, false);
         RhinoApp.WriteLine(
             components.Count == 1
                 ? $"已读取 {components[0].Size} / {components[0].Kind}。请在面板修改后点击“应用更新”。"

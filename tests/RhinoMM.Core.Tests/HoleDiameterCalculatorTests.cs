@@ -111,7 +111,7 @@ public class HoleDiameterCalculatorTests
 
         var migrated = ComponentJson.Deserialize(json);
 
-        Assert.Equal(9, migrated.SchemaVersion);
+        Assert.Equal(FastenerComponentData.CurrentSchemaVersion, migrated.SchemaVersion);
         Assert.Equal(3.0, migrated.HeadEmbedDepth, 6);
         Assert.Equal(Guid.Empty, migrated.ControlPointObjectId);
         Assert.Equal(70, migrated.FastenerOpacityPercent);
@@ -138,7 +138,7 @@ public class HoleDiameterCalculatorTests
 
         var migrated = ComponentJson.Migrate(data);
 
-        Assert.Equal(9, migrated.SchemaVersion);
+        Assert.Equal(FastenerComponentData.CurrentSchemaVersion, migrated.SchemaVersion);
         Assert.Equal(0.0, migrated.HeadEmbedDepth, 6);
         Assert.Equal(42, migrated.FastenerOpacityPercent);
         Assert.Equal(18, migrated.CutterOpacityPercent);
@@ -165,7 +165,7 @@ public class HoleDiameterCalculatorTests
 
         var migrated = ComponentJson.Migrate(data);
 
-        Assert.Equal(9, migrated.SchemaVersion);
+        Assert.Equal(FastenerComponentData.CurrentSchemaVersion, migrated.SchemaVersion);
         Assert.Equal(3.0, migrated.HeadEmbedDepth, 6);
         Assert.Equal(Guid.Empty, migrated.ControlPointObjectId);
         Assert.True(migrated.Bindings.Single().IsPreviewVisible);
@@ -185,7 +185,7 @@ public class HoleDiameterCalculatorTests
 
         var migrated = ComponentJson.Migrate(data);
 
-        Assert.Equal(9, migrated.SchemaVersion);
+        Assert.Equal(FastenerComponentData.CurrentSchemaVersion, migrated.SchemaVersion);
         Assert.Equal(1.3, migrated.HeadEmbedDepth, 6);
     }
 
@@ -202,13 +202,14 @@ public class HoleDiameterCalculatorTests
 
         var migrated = ComponentJson.Migrate(data);
 
-        Assert.Equal(9, migrated.SchemaVersion);
+        Assert.Equal(FastenerComponentData.CurrentSchemaVersion, migrated.SchemaVersion);
         Assert.Equal(1.0, migrated.HeadEmbedDepth, 6);
     }
 
     [Theory]
-    [InlineData(DepthMode.ThroughTarget, "贯穿宿主")]
+    [InlineData(DepthMode.ThroughTarget, "完全贯穿")]
     [InlineData(DepthMode.FastenerLengthPlusOneDiameter, "螺杆长度 + 1D")]
+    [InlineData(DepthMode.FastenerLengthPlusCustom, "螺杆长度 + 自定数值")]
     [InlineData(DepthMode.FastenerLengthPlusTwoDiameters, "螺杆长度 + 2D")]
     [InlineData(DepthMode.Blind, "自定义深度")]
     public void DepthModesHaveChineseLabels(DepthMode mode, string expected)
@@ -217,7 +218,7 @@ public class HoleDiameterCalculatorTests
     }
 
     [Theory]
-    [InlineData(FastenerKind.SocketCap, "内六角圆柱头螺钉")]
+    [InlineData(FastenerKind.SocketCap, "内六角杯头螺丝")]
     [InlineData(FastenerKind.Countersunk, "内六角沉头螺钉")]
     [InlineData(FastenerKind.HexBolt, "六角头螺栓")]
     [InlineData(FastenerKind.HexNut, "六角螺母")]
@@ -257,6 +258,35 @@ public class HoleDiameterCalculatorTests
         };
 
         Assert.Equal(40, HoleDepthCalculator.GetLimit(component, Catalog.Get("M3"), binding), 6);
+    }
+
+    [Theory]
+    [InlineData(5, 22)]
+    [InlineData(0, 17)]
+    [InlineData(-4, 13)]
+    public void CustomExtensionAddsMillimetersToEmbeddedShaftReach(
+        double extension,
+        double expected)
+    {
+        var component = new FastenerComponentData
+        {
+            Size = "M3",
+            Length = 12,
+            HeadEmbedDepth = 5
+        };
+        var binding = new HoleTargetBinding
+        {
+            TargetObjectId = Guid.NewGuid(),
+            Role = ShaftFitRole.ThreadEngagement,
+            DepthMode = DepthMode.FastenerLengthPlusCustom,
+            BlindDepth = extension,
+            BiteReduction = 0.35
+        };
+
+        Assert.Equal(
+            expected,
+            HoleDepthCalculator.GetLimit(component, Catalog.Get("M3"), binding),
+            6);
     }
 
     [Theory]

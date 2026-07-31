@@ -19,6 +19,9 @@ public sealed class EditorState
     public ShaftFitRole DefaultRole { get; set; } = ShaftFitRole.Clearance;
     public ClearanceFitClass ClearanceFit { get; set; } = ClearanceFitClass.Normal;
     public double BiteReduction { get; set; } = 0.35;
+    public DepthMode EngagementDepthMode { get; set; } =
+        DepthMode.FastenerLengthPlusOneDiameter;
+    public double EngagementBlindDepth { get; set; } = 3;
     public double FastenerOpacityPercent { get; set; } = 70;
     public double CutterOpacityPercent { get; set; } = 35;
     public Guid LoadedComponentId { get; set; }
@@ -43,75 +46,24 @@ public sealed class EditorState
 
     public FastenerComponentData CreateUpdateDraft(
         FastenerComponentData existing,
-        IReadOnlyList<HoleTargetBinding>? bindings = null)
-    {
-        var updatedBindings = (bindings ?? existing.Bindings)
-            .Select(binding => binding.Role switch
-            {
-                ShaftFitRole.Clearance => binding with { ClearanceFit = ClearanceFit },
-                ShaftFitRole.ThreadEngagement => binding with { BiteReduction = BiteReduction },
-                ShaftFitRole.InstallationPocket when Kind == FastenerKind.HeatSetInsert => binding with
-                {
-                    DepthMode = DepthMode.Blind,
-                    BlindDepth = Length + InsertDepthCompensation,
-                    IncludeHeadSeat = false
-                },
-                ShaftFitRole.InstallationPocket when Kind == FastenerKind.HexNut => binding with
-                {
-                    DepthMode = DepthMode.Blind,
-                    BlindDepth = HeadEmbedDepth,
-                    IncludeHeadSeat = false
-                },
-                _ => binding
-            })
-            .ToArray();
-        var smartProfile = UpdateSmartBindingProfile(existing, updatedBindings);
-        return CreateDraft(existing.Placement, updatedBindings) with
-        {
-            ComponentId = existing.ComponentId,
-            AdoptedSourceObjectId = existing.AdoptedSourceObjectId,
-            AutoRecognizeHosts = existing.AutoRecognizeHosts,
-            SmartRecognitionMode = existing.SmartRecognitionMode,
-            SmartBindingProfile = smartProfile
-        };
-    }
+        IReadOnlyList<HoleTargetBinding>? bindings = null) =>
+        CaptureUpdateTemplate().ApplyTo(existing, bindings);
 
-    private SmartBindingProfile? UpdateSmartBindingProfile(
-        FastenerComponentData existing,
-        IReadOnlyList<HoleTargetBinding> bindings)
-    {
-        if (!existing.AutoRecognizeHosts || existing.SmartBindingProfile is not { } profile)
-            return existing.SmartBindingProfile;
-
-        profile = profile with
-        {
-            ClearanceFit = ClearanceFit,
-            BiteReduction = BiteReduction
-        };
-        var clearance = bindings.FirstOrDefault(item => item.Role == ShaftFitRole.Clearance);
-        if (clearance is not null)
-        {
-            profile = profile with
-            {
-                ClearanceFit = clearance.ClearanceFit,
-                ClearancePreviewVisible = clearance.IsPreviewVisible,
-                ClearanceBooleanEnabled = clearance.IsBooleanEnabled
-            };
-        }
-        var engagement = bindings.FirstOrDefault(item => item.Role == ShaftFitRole.ThreadEngagement);
-        if (engagement is not null)
-        {
-            profile = profile with
-            {
-                BiteReduction = engagement.BiteReduction,
-                EngagementDepthMode = engagement.DepthMode,
-                EngagementBlindDepth = engagement.BlindDepth,
-                EngagementPreviewVisible = engagement.IsPreviewVisible,
-                EngagementBooleanEnabled = engagement.IsBooleanEnabled
-            };
-        }
-        return profile;
-    }
+    internal FastenerUpdateTemplate CaptureUpdateTemplate() => new(
+        Kind,
+        Size,
+        Length,
+        HeadEmbedDepth,
+        InsertOuterDiameter,
+        InsertDiameterCompensation,
+        InsertDepthCompensation,
+        PrinterCorrection,
+        ClearanceFit,
+        BiteReduction,
+        EngagementDepthMode,
+        EngagementBlindDepth,
+        FastenerOpacityPercent,
+        CutterOpacityPercent);
 
     public void Load(FastenerComponentData component)
     {
@@ -135,7 +87,17 @@ public sealed class EditorState
             var engagementBinding = component.Bindings.FirstOrDefault(
                 binding => binding.Role == ShaftFitRole.ThreadEngagement);
             if (engagementBinding is not null)
+            {
                 BiteReduction = engagementBinding.BiteReduction;
+                EngagementDepthMode = engagementBinding.DepthMode;
+                EngagementBlindDepth = engagementBinding.BlindDepth;
+            }
+            else if (component.SmartBindingProfile is { } profile)
+            {
+                BiteReduction = profile.BiteReduction;
+                EngagementDepthMode = profile.EngagementDepthMode;
+                EngagementBlindDepth = profile.EngagementBlindDepth;
+            }
         }
     }
 }

@@ -13,6 +13,7 @@ public static class HoleDepthCalculator
             DepthMode.ThroughTarget when binding.Role == ShaftFitRole.Clearance =>
                 component.HeadEmbedDepth + component.Length,
             DepthMode.FastenerLengthPlusOneDiameter => component.HeadEmbedDepth + component.Length + spec.NominalDiameter,
+            DepthMode.FastenerLengthPlusCustom => component.HeadEmbedDepth + component.Length + binding.BlindDepth,
             DepthMode.FastenerLengthPlusTwoDiameters => component.HeadEmbedDepth + component.Length + 2 * spec.NominalDiameter,
             DepthMode.Blind => binding.BlindDepth,
             _ => double.PositiveInfinity

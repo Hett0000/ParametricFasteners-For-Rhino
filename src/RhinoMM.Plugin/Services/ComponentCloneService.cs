@@ -92,7 +92,11 @@ internal static class ComponentCloneService
                 if (point is not null)
                     doc.Objects.Select(point.Id, false);
             }
-            ComponentEditorSession.ActivateMany(doc, components, false);
+            ComponentEditorSession.ActivateMany(
+                doc,
+                components,
+                false,
+                ComponentActivationIntent.SynchronizeOnly);
             doc.Views.Redraw();
             message = $"已创建 {components.Length} 个独立参数化副本，重新绑定 {result.RelinkedBindings} 个宿主。";
             if (unresolved.Length > 0)

@@ -22,9 +22,9 @@ internal static class PanelIconProvider
     private static readonly Dictionary<(PanelActionIcon Icon, string Variant), Icon> Cache = [];
     private static readonly (float Scale, int Pixels)[] Frames = [(1f, 24), (1.5f, 36), (2f, 48)];
 
-    public static Icon Get(PanelActionIcon icon, bool primary, bool darkMode)
+    public static Icon Get(PanelActionIcon icon, bool darkMode)
     {
-        var variant = primary ? "inverse" : darkMode ? "dark" : "light";
+        var variant = darkMode ? "dark" : "light";
         if (Cache.TryGetValue((icon, variant), out var cached))
             return cached;
 
@@ -43,12 +43,9 @@ internal static class PanelIconProvider
         var frames = Frames
             .Select(frame => new IconFrame(
                 frame.Scale,
-                LoadBitmap(variant switch
-                {
-                    "inverse" => $"{stem}-inverse-{frame.Pixels}.png",
-                    "dark" => $"{stem}-dark-{frame.Pixels}.png",
-                    _ => $"{stem}-{frame.Pixels}.png"
-                })))
+                LoadBitmap(variant == "dark"
+                    ? $"{stem}-dark-{frame.Pixels}.png"
+                    : $"{stem}-{frame.Pixels}.png")))
             .ToArray();
         var result = new Icon(frames).WithSize(LogicalSize, LogicalSize);
         Cache[(icon, variant)] = result;

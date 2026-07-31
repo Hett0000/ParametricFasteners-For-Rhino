@@ -27,6 +27,8 @@ public enum DepthMode
 {
     ThroughTarget,
     FastenerLengthPlusOneDiameter,
+    FastenerLengthPlusCustom,
+    // Legacy values are retained for JSON compatibility and migrated by ComponentJson.
     FastenerLengthPlusTwoDiameters,
     Blind
 }
@@ -127,7 +129,7 @@ public sealed record SmartBindingProfile(
 
 public sealed record FastenerComponentData
 {
-    public const int CurrentSchemaVersion = 9;
+    public const int CurrentSchemaVersion = 10;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
     public Guid ComponentId { get; init; } = Guid.NewGuid();

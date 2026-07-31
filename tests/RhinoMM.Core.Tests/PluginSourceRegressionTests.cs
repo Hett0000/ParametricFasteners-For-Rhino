@@ -36,7 +36,8 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("_parameterLayout.Clear();", source, StringComparison.Ordinal);
         Assert.Contains("_parameterLayout.Create();", source, StringComparison.Ordinal);
         Assert.DoesNotContain("_contentHost.Content = null", source, StringComparison.Ordinal);
-        Assert.Contains("? \"新建\" : \"单选\"", source, StringComparison.Ordinal);
+        Assert.Contains("模板 ·", source, StringComparison.Ordinal);
+        Assert.Contains("SelectedComponentSummary.Capture", source, StringComparison.Ordinal);
         Assert.Contains("Enabled = true", source, StringComparison.Ordinal);
         Assert.DoesNotContain("_updateTimer", source, StringComparison.Ordinal);
         Assert.DoesNotContain("参数修改后自动重建", source, StringComparison.Ordinal);
@@ -52,7 +53,7 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("刷新 / 清理", source, StringComparison.Ordinal);
         Assert.Contains("FastenerUiTheme.SectionTitle(\"紧固件尺寸\")", source, StringComparison.Ordinal);
         Assert.Contains("FastenerUiTheme.SectionTitle(\"孔与切割\")", source, StringComparison.Ordinal);
-        Assert.Contains("宿主切割模块（{moduleCount}）", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("宿主切割模块（", source, StringComparison.Ordinal);
         Assert.Contains("KindCardText", source, StringComparison.Ordinal);
         Assert.Contains("PanelActionIcon.Rhino", source, StringComparison.Ordinal);
         Assert.Contains("PanelActionIcon.Step", source, StringComparison.Ordinal);
@@ -63,7 +64,7 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("_-ParametricFastenersExportStep", source, StringComparison.Ordinal);
         Assert.Contains("RunExport", source, StringComparison.Ordinal);
         Assert.Contains("ApplyDraftForExport()", source, StringComparison.Ordinal);
-        Assert.Contains("ComponentEditorSession.ActivateMany(doc, saved, false)", source, StringComparison.Ordinal);
+        Assert.Contains("ComponentActivationIntent.SynchronizeOnly", source, StringComparison.Ordinal);
         Assert.Contains("_zeroHeadButton.Click", source, StringComparison.Ordinal);
         Assert.Contains("_zeroHeadButton.Enabled = supportsEmbedDepth", source, StringComparison.Ordinal);
         Assert.DoesNotContain("_-ParametricFastenersExportExcel", source, StringComparison.Ordinal);
@@ -298,7 +299,7 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("NeedsRelink", resolver, StringComparison.Ordinal);
         Assert.Contains("PendingRelinkComponents", refresh, StringComparison.Ordinal);
         Assert.Contains("尚未绑定宿主", export, StringComparison.Ordinal);
-        Assert.Contains("_loadedComponents.Any(ComponentHostResolver.NeedsRelink)", panel, StringComparison.Ordinal);
+        Assert.Contains("_selectedSummary.HasBlockingIssues", panel, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -365,16 +366,16 @@ public sealed class PluginSourceRegressionTests
     [Fact]
     public void BatchUpdate_UnifiesModuleSettingsByBindingRole()
     {
-        var template = ReadSource("src", "RhinoMM.Plugin", "Services", "BatchModuleTemplate.cs");
+        var template = ReadSource("src", "RhinoMM.Core", "Services", "FastenerUpdateTemplate.cs");
         var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
 
-        Assert.Contains("ShaftFitRole.Clearance when HasClearance", template, StringComparison.Ordinal);
-        Assert.Contains("ShaftFitRole.ThreadEngagement when HasEngagement", template, StringComparison.Ordinal);
+        Assert.Contains("ShaftFitRole.Clearance =>", template, StringComparison.Ordinal);
+        Assert.Contains("ShaftFitRole.ThreadEngagement =>", template, StringComparison.Ordinal);
         Assert.Contains("DepthMode = EngagementDepthMode", template, StringComparison.Ordinal);
-        Assert.Contains("IsPreviewVisible = EngagementPreviewVisible", template, StringComparison.Ordinal);
-        Assert.Contains("IsBooleanEnabled = EngagementBooleanEnabled", template, StringComparison.Ordinal);
-        Assert.Contains("BuildBatchModuleTemplateControls", panel, StringComparison.Ordinal);
-        Assert.Contains("_batchModuleTemplate.Apply(component.Bindings)", panel, StringComparison.Ordinal);
+        Assert.Contains("previewVisible ?? binding.IsPreviewVisible", template, StringComparison.Ordinal);
+        Assert.Contains("booleanEnabled ?? binding.IsBooleanEnabled", template, StringComparison.Ordinal);
+        Assert.Contains("Select(component => template.ApplyTo(component))", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("scrollingContent.AddRow(_moduleCard)", panel, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -392,6 +393,9 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("GetManifestResourceStream", icons, StringComparison.Ordinal);
         Assert.Contains("darkMode ? \"dark\" : \"light\"", icons, StringComparison.Ordinal);
         Assert.Contains("-dark-", icons, StringComparison.Ordinal);
+        Assert.DoesNotContain("inverse", icons, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("FastenerThemeRole.PrimaryAction", panel, StringComparison.Ordinal);
+        Assert.Contains("FastenerThemeRole.SecondaryAction", panel, StringComparison.Ordinal);
         Assert.DoesNotContain("new Graphics", icons, StringComparison.Ordinal);
         Assert.DoesNotContain("ArtworkScale", icons, StringComparison.Ordinal);
         Assert.Contains("ActionButtonHeight = 40", theme, StringComparison.Ordinal);
@@ -599,7 +603,7 @@ public sealed class PluginSourceRegressionTests
     }
 
     [Fact]
-    public void PlacementPresetDefaultsToLPlusTwoDAndPersistsAcrossSessions()
+    public void PlacementPresetDefaultsToLPlusOneDAndPersistsAcrossSessions()
     {
         var preset = ReadSource("src", "RhinoMM.Plugin", "Services", "PlacementCutterPreset.cs");
         var persistence = ReadSource("src", "RhinoMM.Plugin", "Services", "PlacementPresetService.cs");
@@ -607,7 +611,8 @@ public sealed class PluginSourceRegressionTests
         var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
         var plugin = ReadSource("src", "RhinoMM.Plugin", "RhinoMMPlugIn.cs");
 
-        Assert.Contains("DepthMode.FastenerLengthPlusTwoDiameters", preset, StringComparison.Ordinal);
+        Assert.Contains("DepthMode.FastenerLengthPlusOneDiameter", preset, StringComparison.Ordinal);
+        Assert.Contains("DepthMode.FastenerLengthPlusCustom", persistence, StringComparison.Ordinal);
         Assert.Contains("CreateClearanceBinding", place, StringComparison.Ordinal);
         Assert.Contains("CreateEngagementBinding", place, StringComparison.Ordinal);
         Assert.Contains("preset.PrinterCorrection", place, StringComparison.Ordinal);
@@ -634,8 +639,9 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("_holeContext.Add(HoleEditingContext.CurrentComponent", panel, StringComparison.Ordinal);
         Assert.Contains("_holeContext.Add(HoleEditingContext.PlacementPreset", panel, StringComparison.Ordinal);
         Assert.Contains("_presetOptionsLayout.Visible", panel, StringComparison.Ordinal);
-        Assert.Contains("_moduleCard.Visible = editing", panel, StringComparison.Ordinal);
-        Assert.Contains("_applyButton.Enabled = editing", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("scrollingContent.AddRow(_moduleCard)", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("SectionHeader(\"宿主切割模块", panel, StringComparison.Ordinal);
+        Assert.Contains("HasTargets: true, HasBlockingIssues: false", panel, StringComparison.Ordinal);
         Assert.Contains("ApplyCompactFieldWidths", panel, StringComparison.Ordinal);
         Assert.Contains("CompactRow", panel, StringComparison.Ordinal);
         Assert.DoesNotContain("_presetPrinterCorrection", panel, StringComparison.Ordinal);
@@ -700,7 +706,7 @@ public sealed class PluginSourceRegressionTests
             "src", "RhinoMM.Plugin", "Services", "SmartHostBindingService.cs");
         var editor = ReadSource("src", "RhinoMM.Plugin", "Services", "EditorState.cs");
 
-        Assert.Contains("CurrentSchemaVersion = 9", models, StringComparison.Ordinal);
+        Assert.Contains("CurrentSchemaVersion = 10", models, StringComparison.Ordinal);
         Assert.Contains("AutoRecognizeHosts", models, StringComparison.Ordinal);
         Assert.Contains("SmartRecognitionMode", models, StringComparison.Ordinal);
         Assert.Contains("SmartBindingProfile", models, StringComparison.Ordinal);
@@ -709,7 +715,9 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("Preset.ToSmartBindingProfile()", smartPlacement, StringComparison.Ordinal);
         Assert.Contains("SmartHostClassifier.Classify", hostBinding, StringComparison.Ordinal);
         Assert.Contains("SmartBindingReconciler.Reconcile", hostBinding, StringComparison.Ordinal);
-        Assert.Contains("UpdateSmartBindingProfile", editor, StringComparison.Ordinal);
+        var updateTemplate = ReadSource(
+            "src", "RhinoMM.Core", "Services", "FastenerUpdateTemplate.cs");
+        Assert.Contains("UpdateSmartBindingProfile", updateTemplate, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -717,12 +725,27 @@ public sealed class PluginSourceRegressionTests
     {
         var repository = ReadSource("src", "RhinoMM.Plugin", "Persistence", "ComponentRepository.cs");
         var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
+        var edit = ReadSource("src", "RhinoMM.Plugin", "Commands", "EditCommand.cs");
 
         Assert.Contains("ReadSelectedControlPoints", repository, StringComparison.Ordinal);
         Assert.Contains("RoleKey) != \"ControlPoint\"", repository, StringComparison.Ordinal);
         Assert.Contains("ActivateMany", panel, StringComparison.Ordinal);
         Assert.Contains("CreateOrReplaceMany", panel, StringComparison.Ordinal);
         Assert.Contains("批量更新", panel, StringComparison.Ordinal);
+        Assert.Contains("ActivateMany(doc, components, false)", edit, StringComparison.Ordinal);
+        var activateIndex = panel.IndexOf(
+            "private void ActivateComponents",
+            StringComparison.Ordinal);
+        var guardIndex = panel.IndexOf("_loadingControls = true;", activateIndex, StringComparison.Ordinal);
+        var loadIndex = panel.IndexOf("EditorState.Current.Load(_loadedComponent)", activateIndex, StringComparison.Ordinal);
+        var contextIndex = panel.IndexOf(
+            "_holeEditingContext = HoleEditingContext.CurrentComponent",
+            activateIndex,
+            StringComparison.Ordinal);
+        Assert.True(guardIndex > activateIndex);
+        Assert.True(loadIndex > guardIndex);
+        Assert.True(contextIndex > loadIndex);
+        Assert.Contains("_kind.Select(state.Kind.ToString(), false)", panel, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -734,11 +757,11 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("return ComponentRepository.ReadSelectedControlPoints(doc);", command, StringComparison.Ordinal);
         Assert.DoesNotContain("TryGetActiveSet", command, StringComparison.Ordinal);
         var applyIndex = panel.IndexOf("private bool ApplyLoaded()", StringComparison.Ordinal);
-        var selectionIndex = panel.IndexOf("ComponentRepository.ReadSelectedControlPoints(doc)", applyIndex, StringComparison.Ordinal);
+        var selectionIndex = panel.IndexOf("RefreshSelectedTargets()", applyIndex, StringComparison.Ordinal);
         var draftIndex = panel.IndexOf("var drafts = selectedComponents", applyIndex, StringComparison.Ordinal);
         Assert.True(selectionIndex > applyIndex);
         Assert.True(draftIndex > selectionIndex);
-        Assert.Contains("未更新历史组件", panel, StringComparison.Ordinal);
+        Assert.Contains("_selectedSummary.Components", panel, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -751,8 +774,8 @@ public sealed class PluginSourceRegressionTests
         Assert.True(nextMethodIndex > exportIndex);
         var exportCommit = panel[exportIndex..nextMethodIndex];
 
-        Assert.Contains("_draftBindings ?? component.Bindings", exportCommit, StringComparison.Ordinal);
-        Assert.Contains("_batchModuleTemplate?.Apply(component.Bindings)", exportCommit, StringComparison.Ordinal);
+        Assert.Contains("CaptureUpdateTemplate()", exportCommit, StringComparison.Ordinal);
+        Assert.Contains("template.ApplyTo(component)", exportCommit, StringComparison.Ordinal);
         Assert.Contains("CreateOrReplaceMany", exportCommit, StringComparison.Ordinal);
         Assert.DoesNotContain("ReadSelectedControlPoints", exportCommit, StringComparison.Ordinal);
         Assert.Contains("_loadedComponents = _loadedComponents", panel, StringComparison.Ordinal);

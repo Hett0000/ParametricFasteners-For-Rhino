@@ -88,7 +88,11 @@ internal static class SmartPlacementCommand
         if (placed.Count == 0)
             return Result.Cancel;
 
-        ComponentEditorSession.Activate(doc, placed[^1], true);
+        ComponentEditorSession.Activate(
+            doc,
+            placed[^1],
+            true,
+            ComponentActivationIntent.SynchronizeOnly);
         RhinoApp.WriteLine(
             placed.Count == 1
                 ? "智能放置完成：已生成 1 颗紧固件。"

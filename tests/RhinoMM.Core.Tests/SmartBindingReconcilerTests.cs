@@ -9,8 +9,8 @@ public sealed class SmartBindingReconcilerTests
     private static readonly SmartBindingProfile Profile = new(
         ClearanceFitClass.Loose,
         0.35,
-        DepthMode.FastenerLengthPlusTwoDiameters,
-        18,
+        DepthMode.FastenerLengthPlusCustom,
+        6,
         true,
         false,
         false,
@@ -51,7 +51,7 @@ public sealed class SmartBindingReconcilerTests
         Assert.True(clearance.IncludeHeadSeat);
         Assert.False(clearance.IsBooleanEnabled);
         var engagement = result.Bindings.Single(item => item.TargetObjectId == rear);
-        Assert.Equal(DepthMode.FastenerLengthPlusTwoDiameters, engagement.DepthMode);
+        Assert.Equal(DepthMode.FastenerLengthPlusCustom, engagement.DepthMode);
         Assert.False(engagement.IsPreviewVisible);
         Assert.True(engagement.IsBooleanEnabled);
     }
@@ -138,7 +138,7 @@ public sealed class SmartBindingReconcilerTests
 
         var migrated = ComponentJson.Migrate(legacy);
 
-        Assert.Equal(9, migrated.SchemaVersion);
+        Assert.Equal(FastenerComponentData.CurrentSchemaVersion, migrated.SchemaVersion);
         Assert.False(migrated.AutoRecognizeHosts);
         Assert.Null(migrated.SmartBindingProfile);
     }

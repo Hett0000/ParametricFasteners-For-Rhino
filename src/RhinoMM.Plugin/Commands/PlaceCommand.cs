@@ -90,7 +90,11 @@ public sealed class RhinoMMPlaceHoleCommand : Command
             }
         }
 
-        ComponentEditorSession.Activate(doc, placed[^1], true);
+        ComponentEditorSession.Activate(
+            doc,
+            placed[^1],
+            true,
+            ComponentActivationIntent.SynchronizeOnly);
         RhinoApp.WriteLine(
             placed.Count == 1
                 ? message
@@ -166,7 +170,11 @@ public sealed class RhinoMMPlaceHoleCommand : Command
             RhinoApp.WriteLine(message);
             return Result.Failure;
         }
-        ComponentEditorSession.Activate(doc, saved, true);
+        ComponentEditorSession.Activate(
+            doc,
+            saved,
+            true,
+            ComponentActivationIntent.SynchronizeOnly);
         RhinoApp.WriteLine(message);
         return Result.Success;
     }

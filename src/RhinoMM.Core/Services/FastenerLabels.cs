@@ -6,7 +6,7 @@ public static class FastenerLabels
 {
     public static string Kind(FastenerKind kind) => kind switch
     {
-        FastenerKind.SocketCap => "内六角圆柱头螺钉",
+        FastenerKind.SocketCap => "内六角杯头螺丝",
         FastenerKind.Countersunk => "内六角沉头螺钉",
         FastenerKind.HexBolt => "六角头螺栓",
         FastenerKind.HexNut => "六角螺母",
@@ -32,8 +32,9 @@ public static class FastenerLabels
 
     public static string Depth(DepthMode mode) => mode switch
     {
-        DepthMode.ThroughTarget => "贯穿宿主",
+        DepthMode.ThroughTarget => "完全贯穿",
         DepthMode.FastenerLengthPlusOneDiameter => "螺杆长度 + 1D",
+        DepthMode.FastenerLengthPlusCustom => "螺杆长度 + 自定数值",
         DepthMode.FastenerLengthPlusTwoDiameters => "螺杆长度 + 2D",
         DepthMode.Blind => "自定义深度",
         _ => mode.ToString()

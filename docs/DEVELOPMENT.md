@@ -34,4 +34,4 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./build/build.ps1 -Confi
 2. `Compat.exe` 通过 Rhino 8.18 API 检查。
 3. Rhino 实际加载后，面板在 280–500 DIP 和 100%–200% 缩放下无横向滚动条。
 4. 放置、读取、更新、Undo、透明度、模块开关和 STL/STEP 导出完成实际验证。
-5. M1.6 数据、M3 `L+2D` 深度和多宿主不同孔径具备回归测试。
+5. M1.6 数据、M3 `L+1D`/自定追加深度和多宿主不同孔径具备回归测试。

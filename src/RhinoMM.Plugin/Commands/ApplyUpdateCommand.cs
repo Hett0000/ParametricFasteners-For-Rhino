@@ -31,7 +31,11 @@ public sealed class RhinoMMApplyUpdateCommand : Command
             RhinoApp.WriteLine(message);
             return Result.Failure;
         }
-        ComponentEditorSession.ActivateMany(doc, saved);
+        ComponentEditorSession.ActivateMany(
+            doc,
+            saved,
+            false,
+            ComponentActivationIntent.SynchronizeOnly);
         RhinoApp.WriteLine(message);
         return Result.Success;
     }

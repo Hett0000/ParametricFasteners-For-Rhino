@@ -4,6 +4,12 @@ using RhinoMM.Plugin.Persistence;
 
 namespace RhinoMM.Plugin.Services;
 
+public enum ComponentActivationIntent
+{
+    LoadIntoEditor,
+    SynchronizeOnly
+}
+
 public sealed class ComponentChangedEventArgs(RhinoDoc document, FastenerComponentData component) : EventArgs
 {
     public RhinoDoc Document { get; } = document;
@@ -12,27 +18,35 @@ public sealed class ComponentChangedEventArgs(RhinoDoc document, FastenerCompone
 
 public sealed class ComponentSelectionChangedEventArgs(
     RhinoDoc document,
-    IReadOnlyList<FastenerComponentData> components) : EventArgs
+    IReadOnlyList<FastenerComponentData> components,
+    ComponentActivationIntent intent) : EventArgs
 {
     public RhinoDoc Document { get; } = document;
     public IReadOnlyList<FastenerComponentData> Components { get; } = components;
+    public ComponentActivationIntent Intent { get; } = intent;
 }
 
 public static class ComponentEditorSession
 {
     private static readonly Dictionary<uint, FastenerComponentData> ActiveComponents = [];
     private static readonly Dictionary<uint, IReadOnlyList<FastenerComponentData>> ActiveSelections = [];
+    private static readonly Dictionary<uint, ComponentActivationIntent> ActiveIntents = [];
 
     public static event EventHandler<ComponentChangedEventArgs>? ActiveComponentChanged;
     public static event EventHandler<ComponentSelectionChangedEventArgs>? ActiveSelectionChanged;
 
-    public static void Activate(RhinoDoc doc, FastenerComponentData component, bool deselectComponent = false)
-        => ActivateMany(doc, [component], deselectComponent);
+    public static void Activate(
+        RhinoDoc doc,
+        FastenerComponentData component,
+        bool deselectComponent = false,
+        ComponentActivationIntent intent = ComponentActivationIntent.LoadIntoEditor)
+        => ActivateMany(doc, [component], deselectComponent, intent);
 
     public static void ActivateMany(
         RhinoDoc doc,
         IReadOnlyList<FastenerComponentData> components,
-        bool deselectComponent = false)
+        bool deselectComponent = false,
+        ComponentActivationIntent intent = ComponentActivationIntent.LoadIntoEditor)
     {
         if (components.Count == 0)
         {
@@ -41,14 +55,18 @@ public static class ComponentEditorSession
         }
         ActiveSelections[doc.RuntimeSerialNumber] = components.ToArray();
         ActiveComponents[doc.RuntimeSerialNumber] = components[0];
-        EditorState.Current.Load(components[0]);
+        ActiveIntents[doc.RuntimeSerialNumber] = intent;
+        if (intent == ComponentActivationIntent.LoadIntoEditor)
+            EditorState.Current.Load(components[0]);
         if (deselectComponent)
         {
             doc.Objects.UnselectAll(false);
             doc.Views.Redraw();
         }
-        ActiveSelectionChanged?.Invoke(null, new ComponentSelectionChangedEventArgs(doc, components));
-        if (components.Count == 1)
+        ActiveSelectionChanged?.Invoke(
+            null,
+            new ComponentSelectionChangedEventArgs(doc, components, intent));
+        if (components.Count == 1 && intent == ComponentActivationIntent.LoadIntoEditor)
             ActiveComponentChanged?.Invoke(null, new ComponentChangedEventArgs(doc, components[0]));
     }
 
@@ -85,7 +103,16 @@ public static class ComponentEditorSession
     }
 
     public static bool TryGetActiveSet(RhinoDoc doc, out IReadOnlyList<FastenerComponentData> components)
+        => TryGetActiveSet(doc, out components, out _);
+
+    public static bool TryGetActiveSet(
+        RhinoDoc doc,
+        out IReadOnlyList<FastenerComponentData> components,
+        out ComponentActivationIntent intent)
     {
+        intent = ActiveIntents.GetValueOrDefault(
+            doc.RuntimeSerialNumber,
+            ComponentActivationIntent.SynchronizeOnly);
         if (!ActiveSelections.TryGetValue(doc.RuntimeSerialNumber, out var cached))
         {
             components = [];
@@ -146,14 +173,24 @@ public static class ComponentEditorSession
         }
         ActiveSelections[doc.RuntimeSerialNumber] = remaining;
         ActiveComponents[doc.RuntimeSerialNumber] = remaining[0];
-        EditorState.Current.Load(remaining[0]);
-        ActiveSelectionChanged?.Invoke(null, new ComponentSelectionChangedEventArgs(doc, remaining));
+        ActiveSelectionChanged?.Invoke(
+            null,
+            new ComponentSelectionChangedEventArgs(
+                doc,
+                remaining,
+                ComponentActivationIntent.SynchronizeOnly));
     }
 
     public static void Forget(RhinoDoc doc)
     {
         ActiveComponents.Remove(doc.RuntimeSerialNumber);
         ActiveSelections.Remove(doc.RuntimeSerialNumber);
-        ActiveSelectionChanged?.Invoke(null, new ComponentSelectionChangedEventArgs(doc, []));
+        ActiveIntents.Remove(doc.RuntimeSerialNumber);
+        ActiveSelectionChanged?.Invoke(
+            null,
+            new ComponentSelectionChangedEventArgs(
+                doc,
+                [],
+                ComponentActivationIntent.SynchronizeOnly));
     }
 }

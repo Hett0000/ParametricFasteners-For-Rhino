@@ -127,7 +127,7 @@ public sealed class InstallationPocketCalculatorTests
             InsertDepthCompensation = 3
         });
 
-        Assert.Equal(9, migrated.SchemaVersion);
+        Assert.Equal(FastenerComponentData.CurrentSchemaVersion, migrated.SchemaVersion);
         Assert.Equal(0, migrated.InsertDepthCompensation);
     }
 
@@ -156,7 +156,7 @@ public sealed class InstallationPocketCalculatorTests
         var migrated = ComponentJson.Migrate(data);
         var binding = Assert.Single(migrated.Bindings);
 
-        Assert.Equal(9, migrated.SchemaVersion);
+        Assert.Equal(FastenerComponentData.CurrentSchemaVersion, migrated.SchemaVersion);
         Assert.Equal(2.4, migrated.HeadEmbedDepth, 6);
         Assert.Equal(preferredTarget, binding.TargetObjectId);
         Assert.Equal(ShaftFitRole.InstallationPocket, binding.Role);
@@ -240,7 +240,7 @@ public sealed class InstallationPocketCalculatorTests
         });
 
         var binding = Assert.Single(migrated.Bindings);
-        Assert.Equal(9, migrated.SchemaVersion);
+        Assert.Equal(FastenerComponentData.CurrentSchemaVersion, migrated.SchemaVersion);
         Assert.Equal(2.4, migrated.HeadEmbedDepth, 6);
         Assert.Equal(2.4, binding.BlindDepth, 6);
         Assert.Equal(bindingId, binding.BindingId);

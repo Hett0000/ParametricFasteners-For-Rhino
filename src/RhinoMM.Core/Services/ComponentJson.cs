@@ -41,49 +41,130 @@ public static class ComponentJson
             return data;
 
         var sourceVersion = data.SchemaVersion;
+        var migratedHeadEmbedDepth = MigrateHeadEmbedDepth(data, sourceVersion);
         return data with
         {
             SchemaVersion = FastenerComponentData.CurrentSchemaVersion,
             FastenerOpacityPercent = sourceVersion < 2 ? 70 : data.FastenerOpacityPercent,
             CutterOpacityPercent = sourceVersion < 2 ? 35 : data.CutterOpacityPercent,
-            HeadEmbedDepth = MigrateHeadEmbedDepth(data, sourceVersion),
+            HeadEmbedDepth = migratedHeadEmbedDepth,
             InsertDepthCompensation = sourceVersion < 7 ? 0 : data.InsertDepthCompensation,
             AutoRecognizeHosts = sourceVersion >= 8 && data.AutoRecognizeHosts,
             SmartRecognitionMode = sourceVersion >= 8
                 ? data.SmartRecognitionMode
                 : SmartPlacementRecognitionMode.Automatic,
-            SmartBindingProfile = sourceVersion >= 8 ? data.SmartBindingProfile : null,
+            SmartBindingProfile = MigrateSmartBindingProfile(
+                data,
+                sourceVersion,
+                migratedHeadEmbedDepth),
             ControlPointObjectId = sourceVersion < 4 ? Guid.Empty : data.ControlPointObjectId,
-            Bindings = MigrateBindings(data, sourceVersion)
+            Bindings = MigrateBindings(data, sourceVersion, migratedHeadEmbedDepth)
         };
     }
 
     private static IReadOnlyList<HoleTargetBinding> MigrateBindings(
         FastenerComponentData data,
-        int sourceVersion)
+        int sourceVersion,
+        double migratedHeadEmbedDepth)
     {
         var bindings = data.Bindings.Select(binding => binding with
         {
             IsPreviewVisible = sourceVersion < 2 || binding.IsPreviewVisible,
             IsBooleanEnabled = sourceVersion < 3 || binding.IsBooleanEnabled
         }).ToArray();
-        if (data.Kind != FastenerKind.HexNut
-            || bindings.Length == 0
-            || sourceVersion >= 9)
+        if (data.Kind == FastenerKind.HexNut
+            && bindings.Length > 0
+            && sourceVersion < 9)
+        {
+            var selected = bindings.FirstOrDefault(binding => binding.IncludeHeadSeat) ?? bindings[0];
+            var depth = LegacyHexNutEmbedDepth(data, selected.BlindDepth);
+            return
+            [
+                selected with
+                {
+                    Role = ShaftFitRole.InstallationPocket,
+                    DepthMode = DepthMode.Blind,
+                    BlindDepth = depth,
+                    IncludeHeadSeat = false
+                }
+            ];
+        }
+
+        if (sourceVersion >= 10 || FastenerKindTraits.IsNut(data.Kind))
             return bindings;
 
-        var selected = bindings.FirstOrDefault(binding => binding.IncludeHeadSeat) ?? bindings[0];
-        var depth = LegacyHexNutEmbedDepth(data, selected.BlindDepth);
-        return
-        [
-            selected with
+        var nominalDiameter = TryGetNominalDiameter(data.Size);
+        return bindings.Select(binding =>
+            binding.Role == ShaftFitRole.ThreadEngagement
+                ? MigrateEngagementDepth(
+                    binding,
+                    data.Length,
+                    migratedHeadEmbedDepth,
+                    nominalDiameter)
+                : binding).ToArray();
+    }
+
+    private static SmartBindingProfile? MigrateSmartBindingProfile(
+        FastenerComponentData data,
+        int sourceVersion,
+        double migratedHeadEmbedDepth)
+    {
+        if (sourceVersion < 8 || data.SmartBindingProfile is not { } profile)
+            return null;
+        if (sourceVersion >= 10 || FastenerKindTraits.IsNut(data.Kind))
+            return profile;
+        var migrated = MigrateEngagementDepth(
+            new HoleTargetBinding
             {
-                Role = ShaftFitRole.InstallationPocket,
-                DepthMode = DepthMode.Blind,
-                BlindDepth = depth,
-                IncludeHeadSeat = false
-            }
-        ];
+                Role = ShaftFitRole.ThreadEngagement,
+                DepthMode = profile.EngagementDepthMode,
+                BlindDepth = profile.EngagementBlindDepth
+            },
+            data.Length,
+            migratedHeadEmbedDepth,
+            TryGetNominalDiameter(data.Size));
+        return profile with
+        {
+            EngagementDepthMode = migrated.DepthMode,
+            EngagementBlindDepth = migrated.BlindDepth
+        };
+    }
+
+    private static HoleTargetBinding MigrateEngagementDepth(
+        HoleTargetBinding binding,
+        double length,
+        double headEmbedDepth,
+        double nominalDiameter) => binding.DepthMode switch
+        {
+            DepthMode.FastenerLengthPlusTwoDiameters => binding with
+            {
+                DepthMode = DepthMode.FastenerLengthPlusCustom,
+                BlindDepth = 2 * nominalDiameter
+            },
+            DepthMode.Blind => binding with
+            {
+                DepthMode = DepthMode.FastenerLengthPlusCustom,
+                BlindDepth = binding.BlindDepth - headEmbedDepth - length
+            },
+            _ => binding
+        };
+
+    private static double TryGetNominalDiameter(string size)
+    {
+        try
+        {
+            return Catalog.Value.Get(size).NominalDiameter;
+        }
+        catch
+        {
+            return double.TryParse(
+                size.TrimStart('M', 'm'),
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var parsed)
+                ? parsed
+                : 0;
+        }
     }
 
     private static double MigrateHeadEmbedDepth(FastenerComponentData data, int sourceVersion)

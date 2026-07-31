@@ -12,7 +12,6 @@ public sealed class RhinoMMPanelCommand : Command
 
     protected override Result RunCommand(RhinoDoc doc, RunMode mode)
     {
-        ComponentEditorSession.TryActivateSelectionSet(doc, true, out _);
         Panels.OpenPanel(typeof(RhinoMMPanel).GUID);
         return Result.Success;
     }
@@ -24,7 +23,6 @@ public sealed class ParametricFastenersCommand : Command
 
     protected override Result RunCommand(RhinoDoc doc, RunMode mode)
     {
-        ComponentEditorSession.TryActivateSelectionSet(doc, true, out _);
         Panels.OpenPanel(typeof(RhinoMMPanel).GUID);
         return Result.Success;
     }

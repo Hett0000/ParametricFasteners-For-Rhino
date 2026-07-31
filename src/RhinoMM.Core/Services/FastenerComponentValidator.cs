@@ -73,6 +73,15 @@ public static class FastenerComponentValidator
                 && binding.BlindDepth <= 0
                 && !zeroDepthHexNutPocket)
                 result.Issues.Add(new("blind-depth", "盲孔深度必须大于 0。"));
+            if (binding.Role == ShaftFitRole.ThreadEngagement
+                && binding.DepthMode == DepthMode.FastenerLengthPlusCustom)
+            {
+                var finalDepth = component.HeadEmbedDepth + component.Length + binding.BlindDepth;
+                if (!double.IsFinite(binding.BlindDepth) || finalDepth <= 0)
+                    result.Issues.Add(new(
+                        "engagement-custom-depth",
+                        "螺杆长度与自定追加深度计算后的孔底必须大于放置面。"));
+            }
 
             if (FastenerKindTraits.IsNut(component.Kind))
             {

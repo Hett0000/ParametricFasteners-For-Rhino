@@ -144,7 +144,7 @@ isBooleanEnabled          控制导出布尔，默认 true
 - 咬合预孔的最终建模直径：`D_engagement = D_nominal - I_bite + C_printer + C_binding`，其中 `I_bite > 0` 来自按规格校准的数据或显式输入。
 - 必须验证 `D_clearance > D_nominal + tolerance`，以及 `0 < D_engagement < D_nominal - tolerance`。
 - 切割体必须是闭合、方向一致的 Brep；生成后立即验证 `IsSolid`、有效性和包围盒。
-- 圆柱头由通孔柱体和头部沉孔组成；沉头由通孔和数据驱动角度的锥台组成。
+- 杯头由通孔柱体和头部沉孔组成；沉头由通孔和数据驱动角度的锥台组成。
 - 六角头和螺母槽使用以对边尺寸定义的六角柱，允许绕轴旋转。
 - 贯穿长度按每个宿主与轴线的进入点、离开点分别计算，并在两端增加 `max(10 × absoluteTolerance, 0.2 mm)` 余量；交点失败时才回退到紧包围盒投影。
 - 咬合孔深度可取 `L + 2D_nominal` 或自定义值，均从螺杆头下方起算，并裁到当前宿主的实际重叠区间。
@@ -228,6 +228,20 @@ isBooleanEnabled          控制导出布尔，默认 true
 
 RhinoCommon 提供官方的 [STEP 写出接口](https://developer.rhino3d.com/api/rhinocommon/rhino.fileio.filestp)、[STL 写出接口](https://developer.rhino3d.com/api/rhinocommon/rhino.fileio.filestl)和 [Brep 布尔差集](https://developer.rhino3d.com/api/rhinocommon/rhino.geometry.brep/createbooleandifference?overload=1)。
 
+### 模板式更新状态
+
+0.23.0 起，面板状态拆分为三个互不覆盖的职责：
+
+- `FastenerUpdateTemplate` 保存用户当前准备应用的几何与工艺参数。
+- `SelectedComponentSummary` 只读统计当前选中的控制点、规格分布、宿主数量和健康状态。
+- `ComponentEditorSession` 仅在用户执行“读取组件”时把既有组件载入模板；放置、复制、变换和刷新只同步对象缓存。
+
+批量更新以当前控制点选择作为唯一目标来源。模板先覆盖每个组件的基础参数和同角色绑定，再由智能组件执行宿主重识别与几何预检。预览及导出布尔开关使用可空覆盖语义：未操作时保留各组件原值，用户明确操作后才批量统一。全部草稿预检通过后才能进入一次 Rhino Undo 提交。
+
+### 咬合孔深度 v10
+
+0.24.0 起，界面只暴露完全贯穿、L+1D 和 L+自定毫米三种咬合孔深度。自定模式继续使用 `HoleTargetBinding.BlindDepth` 存储追加毫米，计算为 `HeadEmbedDepth + Length + BlindDepth`。旧 L+2D 和绝对盲孔枚举保留用于 JSON 反序列化，组件载入时迁移为等效追加毫米；新写入数据不再产生旧模式。
+
 ## 8. 容差、单位与错误处理
 
 - 未设置模型单位时禁止生成与导出。
@@ -254,12 +268,12 @@ RhinoCommon 提供官方的 [STEP 写出接口](https://developer.rhino3d.com/ap
 
 标准题录以国家标准信息公共服务平台为准。当前首版关注：
 
-- [GB/T 70.1-2008 内六角圆柱头螺钉](https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=AA481BA038B2F9CE68879E6B087F4F73)
+- [杯头对应标准（GB/T 70.1-2008）](https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=AA481BA038B2F9CE68879E6B087F4F73)
 - [GB/T 70.3-2023 降低承载能力内六角沉头螺钉](https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=F6B723A6B05D3C27FD72C3D925A956A4)
 - GB/T 5783-2025 紧固件 六角头螺栓 全螺纹
 - [GB/T 6170-2015 1 型六角螺母](https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=BDDE5AF77AC2FBC2D194289F10C69A4B)
 - [GB/T 5277-1985 紧固件 螺栓和螺钉通孔](https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=7C6B6039F8E5FB5FD8F318E06BAFB0B5)
-- [GB/T 152.3-1988 紧固件 圆柱头用沉孔](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=9959F71ECC47D1E24E0FF3B19CF53CE8)
+- [杯头沉孔参考（GB/T 152.3-1988）](https://openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=9959F71ECC47D1E24E0FF3B19CF53CE8)
 - [GB/T 196-2025 普通螺纹 基本尺寸](https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=7923264EF5B418EA786AAEACA4835708)
 - [GB/T 197-2018 普通螺纹 公差](https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=4B9C1010476FF8385A59AD3076EC3A68)
 

@@ -284,7 +284,7 @@ internal sealed class SmartPlacementService
         var clearanceCount = bindings.Count(item => item.Role == ShaftFitRole.Clearance);
         var engagementCount = bindings.Count(item => item.Role == ShaftFitRole.ThreadEngagement);
         var message =
-            $"{draft.Size}×{draft.Length:0.##} · 通{clearanceCount} / 咬{engagementCount} · {DepthLabel(parameters.Preset.EngagementDepthMode)}";
+            $"{draft.Size}×{draft.Length:0.##} · 通{clearanceCount} / 咬{engagementCount} · {DepthLabel(parameters.Preset.EngagementDepthMode, parameters.Preset.EngagementBlindDepth)}";
         return BuildGeometryPreview(parameters, draft, message, snapLabel);
     }
 
@@ -611,10 +611,11 @@ internal sealed class SmartPlacementService
         _ => "对象捕捉"
     };
 
-    private static string DepthLabel(DepthMode mode) => mode switch
+    private static string DepthLabel(DepthMode mode, double customDepth) => mode switch
     {
         DepthMode.ThroughTarget => "贯穿",
         DepthMode.FastenerLengthPlusOneDiameter => "L+1D",
+        DepthMode.FastenerLengthPlusCustom => $"L+{customDepth:0.##}",
         DepthMode.FastenerLengthPlusTwoDiameters => "L+2D",
         DepthMode.Blind => "自定义",
         _ => mode.ToString()

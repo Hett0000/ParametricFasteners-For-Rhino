@@ -310,7 +310,11 @@ public static class ComponentLifecycleService
         if (e.CommandEnglishName is not ("Undo" or "Redo"))
             return;
         if (ComponentEditorSession.TryGetActiveSet(doc, out var components))
-            ComponentEditorSession.ActivateMany(doc, components, false);
+            ComponentEditorSession.ActivateMany(
+                doc,
+                components,
+                false,
+                ComponentActivationIntent.SynchronizeOnly);
     }
 
     private static void CompletePendingTransform(PendingTransform pending)

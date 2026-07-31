@@ -23,7 +23,7 @@ internal static class PlacementPresetService
                 fit,
                 FiniteOrDefault(settings.GetDouble(Prefix + "BiteReduction", defaults.BiteReduction), defaults.BiteReduction, 0.001, 5),
                 depth,
-                FiniteOrDefault(settings.GetDouble(Prefix + "EngagementBlindDepth", defaults.EngagementBlindDepth), defaults.EngagementBlindDepth, 0.1, 1000),
+                FiniteOrDefault(settings.GetDouble(Prefix + "EngagementBlindDepth", defaults.EngagementBlindDepth), defaults.EngagementBlindDepth, -1000, 1000),
                 settings.GetBool(Prefix + "ClearancePreviewVisible", defaults.ClearancePreviewVisible),
                 settings.GetBool(Prefix + "ClearanceBooleanEnabled", defaults.ClearanceBooleanEnabled),
                 settings.GetBool(Prefix + "EngagementPreviewVisible", defaults.EngagementPreviewVisible),
@@ -66,8 +66,7 @@ internal static class PlacementPresetService
         Enum.TryParse<DepthMode>(value, out var parsed)
         && parsed is DepthMode.ThroughTarget
             or DepthMode.FastenerLengthPlusOneDiameter
-            or DepthMode.FastenerLengthPlusTwoDiameters
-            or DepthMode.Blind
+            or DepthMode.FastenerLengthPlusCustom
             ? parsed
             : fallback;
 
