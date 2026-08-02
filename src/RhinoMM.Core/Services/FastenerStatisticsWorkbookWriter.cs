@@ -10,6 +10,7 @@ public static class FastenerStatisticsWorkbookWriter
 {
     private const string SpreadsheetNamespace = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
     private const string RelationshipNamespace = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+    private static readonly Lazy<FastenerCatalog> Catalog = new(FastenerCatalog.LoadEmbedded);
 
     public static void Write(
         string path,
@@ -153,7 +154,9 @@ public static class FastenerStatisticsWorkbookWriter
         {
             WriteRow(writer, rowIndex++,
             [
-                Text(FastenerLabels.Kind(row.Kind)),
+                Text(row.Kind == FastenerKind.HexNut && row.NutStyle.HasValue
+                    ? FastenerLabels.NutStyle(row.NutStyle.Value)
+                    : FastenerLabels.Kind(row.Kind)),
                 Text(row.Size),
                 row.Length.HasValue ? Number(row.Length.Value) : Blank(),
                 row.OuterDiameter.HasValue ? Number(row.OuterDiameter.Value) : Blank(),
@@ -168,11 +171,11 @@ public static class FastenerStatisticsWorkbookWriter
     private static void WriteDetailSheet(XmlWriter writer, FastenerStatisticsReport report)
     {
         StartWorksheet(writer, 1, 2);
-        WriteColumns(writer, [8, 24, 10, 12, 12, 14, 14, 14, 14, 14, 14, 12, 12, 24, 14, 14, 14, 38]);
+        WriteColumns(writer, [8, 24, 18, 22, 10, 12, 12, 14, 14, 14, 14, 14, 14, 14, 12, 12, 24, 14, 14, 14, 38]);
         writer.WriteStartElement("sheetData", SpreadsheetNamespace);
         var headers = new[]
         {
-            "序号", "类型", "规格", "长度 mm", "外径 mm", "孔径补偿 mm", "深度补偿 mm", "嵌入深度 mm", "孔径修正 mm", "通孔配合", "咬合缩减 mm",
+            "序号", "类型", "螺母样式", "尺寸标准", "规格", "长度 mm", "外径 mm", "孔径补偿 mm", "深度补偿 mm", "嵌入深度 mm", "孔径修正 mm", "通孔最终直径 mm", "咬合缩减 mm", "咬合最终直径 mm",
             "通孔宿主数", "咬合宿主数", "咬合深度模式", "控制点 X", "控制点 Y", "控制点 Z", "组件 ID"
         };
         WriteRow(writer, 1, headers.Select(value => Text(value, true)).ToArray());
@@ -185,10 +188,24 @@ public static class FastenerStatisticsWorkbookWriter
                 .Where(binding => binding.Role == ShaftFitRole.ThreadEngagement)
                 .Select(binding => FastenerLabels.Depth(binding.DepthMode))
                 .Distinct());
+            var spec = Catalog.Value.Sizes.FirstOrDefault(item =>
+                string.Equals(item.Designation, component.Size, StringComparison.OrdinalIgnoreCase));
+            var clearanceDiameter = spec is not null && clearance is not null
+                ? HoleDiameterCalculator.Calculate(component, spec, clearance).FinalDiameter
+                : (double?)null;
+            var engagementDiameter = spec is not null && engagement is not null
+                ? HoleDiameterCalculator.Calculate(component, spec, engagement).FinalDiameter
+                : (double?)null;
             WriteRow(writer, rowIndex,
             [
                 Number(rowIndex - 1),
                 Text(FastenerLabels.Kind(component.Kind)),
+                component.Kind == FastenerKind.HexNut
+                    ? Text(HexNutDimensions.StyleLabel(component.HexNutStyle))
+                    : Blank(),
+                component.Kind == FastenerKind.HexNut
+                    ? Text(FastenerLabels.NutStandard(component))
+                    : Blank(),
                 Text(component.Size),
                 FastenerKindTraits.UsesLengthInStatistics(component.Kind) ? Number(component.Length) : Blank(),
                 component.Kind == FastenerKind.HeatSetInsert ? Number(component.InsertOuterDiameter) : Blank(),
@@ -196,8 +213,9 @@ public static class FastenerStatisticsWorkbookWriter
                 component.Kind == FastenerKind.HeatSetInsert ? Number(component.InsertDepthCompensation) : Blank(),
                 Number(component.HeadEmbedDepth),
                 Number(component.PrintProfile.HoleDiameterCorrection),
-                clearance is null ? Blank() : Text(FastenerLabels.ClearanceFit(clearance.ClearanceFit)),
+                clearanceDiameter.HasValue ? Number(clearanceDiameter.Value) : Blank(),
                 engagement is null ? Blank() : Number(engagement.BiteReduction),
+                engagementDiameter.HasValue ? Number(engagementDiameter.Value) : Blank(),
                 Number(component.Bindings.Count(binding => binding.Role == ShaftFitRole.Clearance)),
                 Number(component.Bindings.Count(binding => binding.Role == ShaftFitRole.ThreadEngagement)),
                 Text(depthModes),
@@ -209,7 +227,7 @@ public static class FastenerStatisticsWorkbookWriter
             rowIndex++;
         }
         writer.WriteEndElement();
-        WriteAutoFilter(writer, $"A1:R{Math.Max(1, rowIndex - 1)}");
+        WriteAutoFilter(writer, $"A1:U{Math.Max(1, rowIndex - 1)}");
         writer.WriteEndElement();
     }
 

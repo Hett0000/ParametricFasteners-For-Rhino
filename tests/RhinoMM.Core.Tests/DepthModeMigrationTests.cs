@@ -23,7 +23,7 @@ public sealed class DepthModeMigrationTests
         var migrated = ComponentJson.Migrate(legacy);
         var binding = Assert.Single(migrated.Bindings);
 
-        Assert.Equal(10, migrated.SchemaVersion);
+        Assert.Equal(FastenerComponentData.CurrentSchemaVersion, migrated.SchemaVersion);
         Assert.Equal(DepthMode.FastenerLengthPlusCustom, binding.DepthMode);
         Assert.Equal(6, binding.BlindDepth);
         Assert.Equal(

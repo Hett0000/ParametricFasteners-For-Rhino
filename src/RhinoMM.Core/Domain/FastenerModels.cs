@@ -33,11 +33,23 @@ public enum DepthMode
     Blind
 }
 
+public enum HexNutStyle
+{
+    Standard,
+    NylonInsertLocking
+}
+
 public enum SmartPlacementRecognitionMode
 {
     Automatic,
     AllClearance,
     AllEngagement
+}
+
+public enum HoleDiameterFormula
+{
+    LegacyStandardWithSharedCorrection,
+    NominalIndependent
 }
 
 public sealed record ClearanceDimensions(double Close, double Normal, double Loose)
@@ -73,6 +85,19 @@ public sealed record FastenerCatalogDocument(
     string StandardFamily,
     string Disclaimer,
     IReadOnlyList<FastenerSizeSpec> Sizes);
+
+public sealed record LockingNutSizeSpec(
+    string Designation,
+    double AcrossFlats,
+    double TotalHeight,
+    string Standard,
+    bool IsEngineeringExtension);
+
+public sealed record LockingNutCatalogDocument(
+    int SchemaVersion,
+    string StandardFamily,
+    string Disclaimer,
+    IReadOnlyList<LockingNutSizeSpec> Sizes);
 
 public sealed record PrintProfileSnapshot(
     string Name,
@@ -129,14 +154,17 @@ public sealed record SmartBindingProfile(
 
 public sealed record FastenerComponentData
 {
-    public const int CurrentSchemaVersion = 10;
+    public const int CurrentSchemaVersion = 15;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
     public Guid ComponentId { get; init; } = Guid.NewGuid();
     public FastenerKind Kind { get; init; } = FastenerKind.SocketCap;
+    public HexNutStyle HexNutStyle { get; init; } = HexNutStyle.Standard;
     public string Size { get; init; } = "M3";
     public double Length { get; init; } = 12;
     public double HeadEmbedDepth { get; init; }
+    public bool CounterboreBridgeEnabled { get; init; }
+    public double CounterboreBridgeLayerHeight { get; init; } = 0.2;
     public double InsertOuterDiameter { get; init; }
     public double InsertDiameterCompensation { get; init; }
     public double InsertDepthCompensation { get; init; }
@@ -144,6 +172,9 @@ public sealed record FastenerComponentData
     public PrintProfileSnapshot PrintProfile { get; init; } = new("默认 FDM", 0.2);
     public double FastenerOpacityPercent { get; init; } = 70;
     public double CutterOpacityPercent { get; init; } = 35;
+    public HoleDiameterFormula HoleDiameterFormula { get; init; } =
+        HoleDiameterFormula.NominalIndependent;
+    public bool EngagementOnly { get; init; }
     public bool AutoRecognizeHosts { get; init; }
     public SmartPlacementRecognitionMode SmartRecognitionMode { get; init; } =
         SmartPlacementRecognitionMode.Automatic;

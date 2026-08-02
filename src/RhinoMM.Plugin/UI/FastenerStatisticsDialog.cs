@@ -213,7 +213,9 @@ public sealed class FastenerStatisticsDialog : Dialog
         _nutValue.Text = report.NutCount.ToString();
         _materialValue.Text = report.MaterialCount.ToString();
         _grid.DataStore = report.SummaryRows.Select(row => new StatisticsRowView(
-            FastenerLabels.Kind(row.Kind),
+            row.Kind == FastenerKind.HexNut && row.NutStyle.HasValue
+                ? FastenerLabels.NutStyle(row.NutStyle.Value)
+                : FastenerLabels.Kind(row.Kind),
             row.Size,
             row.Length?.ToString("0.###") ?? "—",
             row.OuterDiameter?.ToString("0.###") ?? "—",

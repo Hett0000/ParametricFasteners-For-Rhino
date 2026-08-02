@@ -63,6 +63,13 @@ internal sealed class CardSelector : Panel
         }
     }
 
+    public void SetToolTip(string key, string toolTip)
+    {
+        var index = _items.FindIndex(item => item.Key == key);
+        if (index >= 0)
+            _items[index].Button.ToolTip = toolTip;
+    }
+
     public void RefreshTheme()
     {
         foreach (var item in _items)

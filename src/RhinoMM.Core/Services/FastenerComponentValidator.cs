@@ -17,6 +17,34 @@ public static class FastenerComponentValidator
         if (!FastenerKindTraits.SupportsEmbedDepth(component.Kind) && component.HeadEmbedDepth != 0)
             result.Issues.Add(new("nut-head-embed", "螺母不支持螺丝头嵌入深度。"));
 
+        if (component.EngagementOnly)
+        {
+            if (FastenerKindTraits.IsNut(component.Kind))
+                result.Issues.Add(new("engagement-only-kind", "“只咬合”模式仅支持螺丝。"));
+            if (component.Bindings.Count != 1
+                || component.Bindings[0].Role != ShaftFitRole.ThreadEngagement)
+                result.Issues.Add(new(
+                    "engagement-only-binding",
+                    "“只咬合”模式必须且只能绑定一个咬合宿主。"));
+        }
+
+        if (component.CounterboreBridgeEnabled)
+        {
+            if (component.Kind != FastenerKind.SocketCap)
+                result.Issues.Add(new(
+                    "counterbore-bridge-kind",
+                    "悬垂沉孔架桥仅支持内六角杯头螺丝。"));
+            if (component.HeadEmbedDepth <= 0)
+                result.Issues.Add(new(
+                    "counterbore-bridge-embed",
+                    "启用悬垂沉孔架桥时，杯头螺丝嵌入深度必须大于 0。"));
+            if (!double.IsFinite(component.CounterboreBridgeLayerHeight)
+                || component.CounterboreBridgeLayerHeight is < 0.05 or > 1.0)
+                result.Issues.Add(new(
+                    "counterbore-bridge-height",
+                    "悬垂沉孔架桥层高必须在 0.05–1.00 mm 之间。"));
+        }
+
         if (FastenerKindTraits.SupportsHeadEmbed(component.Kind)
             && component.HeadEmbedDepth > 0
             && component.Bindings.All(binding => !binding.IncludeHeadSeat))
@@ -52,10 +80,23 @@ public static class FastenerComponentValidator
 
         if (component.Kind == FastenerKind.HexNut)
         {
+            if (!HexNutDimensions.Supports(component.HexNutStyle, component.Size))
+            {
+                result.Issues.Add(new(
+                    "locking-nut-size",
+                    $"尼龙防松螺母不支持规格 {component.Size}；请选择 M2–M12。"));
+            }
             var binding = component.Bindings.FirstOrDefault() ?? new HoleTargetBinding();
-            var finalAcrossFlats = InstallationPocketCalculator.HexNutAcrossFlats(component, spec, binding);
-            if (finalAcrossFlats <= 0)
-                result.Issues.Add(new("nut-pocket-size", "六角螺母槽最终对边尺寸必须大于 0。"));
+            try
+            {
+                var finalAcrossFlats = InstallationPocketCalculator.HexNutAcrossFlats(component, spec, binding);
+                if (finalAcrossFlats <= 0)
+                    result.Issues.Add(new("nut-pocket-size", "六角螺母槽最终对边尺寸必须大于 0。"));
+            }
+            catch (InvalidOperationException ex)
+            {
+                result.Issues.Add(new("nut-pocket-size", ex.Message));
+            }
         }
 
         if (component.Bindings.Count(x => x.IncludeHeadSeat) > 1)
@@ -109,7 +150,7 @@ public static class FastenerComponentValidator
             if (binding.Role == ShaftFitRole.ThreadEngagement && binding.BiteReduction <= 0)
                 result.Issues.Add(new("bite-required", "咬合孔必须输入大于 0 的咬合缩减量，不能使用未校准默认值。"));
 
-            var diameter = HoleDiameterCalculator.Calculate(spec, binding, component.PrintProfile).FinalDiameter;
+            var diameter = HoleDiameterCalculator.Calculate(component, spec, binding).FinalDiameter;
             if (diameter <= 0)
                 result.Issues.Add(new("diameter-positive", "最终孔径必须大于 0。"));
 

@@ -43,10 +43,7 @@ internal static class GlobalDisplaySettingsService
         GlobalDisplaySettings displaySettings,
         out string message)
     {
-        Current = new GlobalDisplaySettings(
-            Clamp(displaySettings.FastenerOpacityPercent, GlobalDisplaySettings.Default.FastenerOpacityPercent),
-            Clamp(displaySettings.CutterOpacityPercent, GlobalDisplaySettings.Default.CutterOpacityPercent));
-        ApplyToEditorState();
+        SetCurrent(displaySettings);
         try
         {
             settings.SetDouble(
@@ -63,6 +60,14 @@ internal static class GlobalDisplaySettingsService
             message = $"设置已用于当前会话，但无法写入 Rhino 设置：{ex.Message}";
             return false;
         }
+    }
+
+    public static void SetCurrent(GlobalDisplaySettings displaySettings)
+    {
+        Current = new GlobalDisplaySettings(
+            Clamp(displaySettings.FastenerOpacityPercent, GlobalDisplaySettings.Default.FastenerOpacityPercent),
+            Clamp(displaySettings.CutterOpacityPercent, GlobalDisplaySettings.Default.CutterOpacityPercent));
+        ApplyToEditorState();
     }
 
     public static void ApplyToEditorState()

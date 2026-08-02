@@ -14,6 +14,7 @@ public static class FastenerStatisticsBuilder
             .Select(group => group.First())
             .OrderBy(component => component.Kind)
             .ThenBy(component => NominalSize(component.Size))
+            .ThenBy(component => component.Kind == FastenerKind.HexNut ? component.HexNutStyle : 0)
             .ThenBy(component => FastenerKindTraits.UsesLengthInStatistics(component.Kind) ? component.Length : 0)
             .ThenBy(component => component.Kind == FastenerKind.HeatSetInsert ? component.InsertOuterDiameter : 0)
             .ThenBy(component => component.ComponentId)
@@ -21,6 +22,7 @@ public static class FastenerStatisticsBuilder
         var summary = components
             .GroupBy(component => new StatisticsKey(
                 component.Kind,
+                component.Kind == FastenerKind.HexNut ? component.HexNutStyle : null,
                 component.Size,
                 FastenerKindTraits.UsesLengthInStatistics(component.Kind)
                     ? Math.Round(component.Length, 3)
@@ -30,6 +32,7 @@ public static class FastenerStatisticsBuilder
                     : null))
             .Select(group => new FastenerStatisticsRow(
                 group.Key.Kind,
+                group.Key.NutStyle,
                 group.Key.Size,
                 group.Key.Length,
                 group.Key.OuterDiameter,
@@ -61,6 +64,7 @@ public static class FastenerStatisticsBuilder
 
     private sealed record StatisticsKey(
         FastenerKind Kind,
+        HexNutStyle? NutStyle,
         string Size,
         double? Length,
         double? OuterDiameter);

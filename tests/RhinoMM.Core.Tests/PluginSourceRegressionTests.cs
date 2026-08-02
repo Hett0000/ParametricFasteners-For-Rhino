@@ -316,6 +316,49 @@ public sealed class PluginSourceRegressionTests
     }
 
     [Fact]
+    public void ThroughCuttersUseFullCircularFootprintEnvelope()
+    {
+        var cutter = ReadSource("src", "RhinoMM.Plugin", "Services", "CutterGeometryService.cs");
+        var envelope = ReadSource(
+            "src", "RhinoMM.Plugin", "Services", "CutterFootprintEnvelopeService.cs");
+
+        Assert.Contains("CutterFootprintEnvelopeService.TryGet", cutter, StringComparison.Ordinal);
+        Assert.Contains("Brep.CreateBooleanIntersection", envelope, StringComparison.Ordinal);
+        Assert.Contains("minimum = Math.Min", envelope, StringComparison.Ordinal);
+        Assert.Contains("maximum = Math.Max", envelope, StringComparison.Ordinal);
+        Assert.Contains("避免倾斜背面残留", envelope, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BlindEngagementCuttersClearObliqueEntranceButKeepExactBottom()
+    {
+        var cutter = ReadSource("src", "RhinoMM.Plugin", "Services", "CutterGeometryService.cs");
+
+        var footprintIndex = cutter.IndexOf(
+            "CutterFootprintEnvelopeService.TryGet",
+            StringComparison.Ordinal);
+        var throughIndex = cutter.IndexOf(
+            "var isThrough",
+            StringComparison.Ordinal);
+        Assert.True(footprintIndex >= 0 && footprintIndex < throughIndex);
+        Assert.Contains("var start = footprint.Min - padding", cutter, StringComparison.Ordinal);
+        Assert.Contains("limit >= footprint.Max", cutter, StringComparison.Ordinal);
+        Assert.Contains("end = reachesExit ? footprint.Max + padding : limit", cutter, StringComparison.Ordinal);
+        Assert.DoesNotContain("start = Math.Max(start, -padding)", cutter, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PanelHidesLegacyClearanceFitSelector()
+    {
+        var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
+
+        Assert.DoesNotContain("_clearanceFit", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("通孔配合", panel, StringComparison.Ordinal);
+        Assert.Contains("通孔 Ø", panel, StringComparison.Ordinal);
+        Assert.Contains("咬合 Ø", panel, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Refresh_RepairsMovedComponentsAndOnlyDeletesMissingControlPoints()
     {
         var refresh = ReadSource("src", "RhinoMM.Plugin", "Services", "ComponentRefreshService.cs");
@@ -436,12 +479,18 @@ public sealed class PluginSourceRegressionTests
     public void ResponsiveProfile_UsesProfessionalFullWidthGrid()
     {
         var profile = ReadSource("src", "RhinoMM.Plugin", "UI", "ResponsiveLayoutProfile.cs");
+        var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
 
+        Assert.Contains("NarrowBreakpoint = 300", profile, StringComparison.Ordinal);
         Assert.Contains("CompactBreakpoint = 340", profile, StringComparison.Ordinal);
-        Assert.Contains("new ResponsiveLayoutProfile(5, 5, 6, true, 3, 88, 108, 104, 156)", profile, StringComparison.Ordinal);
-        Assert.Contains("new ResponsiveLayoutProfile(5, 5, 4, false", profile, StringComparison.Ordinal);
+        Assert.Contains("WideBreakpoint = 420", profile, StringComparison.Ordinal);
+        Assert.Contains("new ResponsiveLayoutProfile(5, 5, 6, true, 3", profile, StringComparison.Ordinal);
+        Assert.Contains("new ResponsiveLayoutProfile(3, 5, 4, false, 2", profile, StringComparison.Ordinal);
         Assert.Contains("NumericFieldWidth", profile, StringComparison.Ordinal);
         Assert.Contains("DepthFieldWidth", profile, StringComparison.Ordinal);
+        Assert.DoesNotContain("DepthPresetRow()", panel, StringComparison.Ordinal);
+        Assert.Contains("var isEngagementOnly = _engagementOnly.Checked == true", panel, StringComparison.Ordinal);
+        Assert.Contains("FieldStack(\"追加深度 mm\", _presetBlindDepth)", panel, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -526,17 +575,22 @@ public sealed class PluginSourceRegressionTests
         var presentation = ReadSource("src", "RhinoMM.Plugin", "Services", "ComponentPresentationService.cs");
         var editor = ReadSource("src", "RhinoMM.Plugin", "Services", "EditorState.cs");
         var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
+        var dialog = ReadSource(
+            "src", "RhinoMM.Plugin", "UI", "GlobalDisplaySettingsDialog.cs");
         var plugin = ReadSource("src", "RhinoMM.Plugin", "RhinoMMPlugIn.cs");
 
         Assert.Contains("new(70, 35)", settings, StringComparison.Ordinal);
         Assert.Contains("settings.GetDouble", settings, StringComparison.Ordinal);
         Assert.Contains("settings.SetDouble", settings, StringComparison.Ordinal);
         Assert.Contains("GlobalDisplaySettingsService.Load(Settings)", plugin, StringComparison.Ordinal);
-        Assert.Contains("全局显示", panel, StringComparison.Ordinal);
-        Assert.Contains("应用于当前文档全部组件", panel, StringComparison.Ordinal);
-        Assert.Contains("ComponentRepository.ReadAllControlPoints", panel, StringComparison.Ordinal);
-        Assert.Contains("ApplyGlobalDisplaySettings", panel, StringComparison.Ordinal);
-        Assert.Contains("UpdateCachedComponents", panel, StringComparison.Ordinal);
+        Assert.Contains("GlobalDisplaySettingsDialog.Show", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("使用说明", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("ApplyGlobalDisplaySettings", panel, StringComparison.Ordinal);
+        Assert.Contains("应用于当前文档全部参数化组件", dialog, StringComparison.Ordinal);
+        Assert.Contains("ComponentRepository.ReadAllControlPoints", dialog, StringComparison.Ordinal);
+        Assert.Contains("manageUndoRecord: false", dialog, StringComparison.Ordinal);
+        Assert.Contains("RestoreOriginal", dialog, StringComparison.Ordinal);
+        Assert.Contains("UpdateCachedComponents", dialog, StringComparison.Ordinal);
         Assert.Contains("IReadOnlyList<FastenerComponentData> components", presentation, StringComparison.Ordinal);
         Assert.Contains("GroupBy(component => component.ComponentId)", presentation, StringComparison.Ordinal);
         Assert.Equal(1, CountOccurrences(presentation, "doc.BeginUndoRecord"));
@@ -596,10 +650,26 @@ public sealed class PluginSourceRegressionTests
             "src", "RhinoMM.Core", "Services", "ComponentJson.cs");
 
         Assert.Contains("SupportsEmbedDepth", traits, StringComparison.Ordinal);
-        Assert.Contains("embed - spec.Head.NutThickness", geometry, StringComparison.Ordinal);
+        Assert.Contains("embed - nutDimensions.TotalHeight", geometry, StringComparison.Ordinal);
         Assert.Contains("\"全埋\"", panel, StringComparison.Ordinal);
-        Assert.Contains("spec.Head.NutThickness", panel, StringComparison.Ordinal);
+        Assert.Contains("HexNutDimensions.Resolve", panel, StringComparison.Ordinal);
         Assert.Contains("sourceVersion < 9 && data.Kind == FastenerKind.HexNut", migration, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NylonLockingNutStyleUsesDedicatedDimensionsAndFullHexPocket()
+    {
+        var models = ReadSource("src", "RhinoMM.Core", "Domain", "FastenerModels.cs");
+        var dimensions = ReadSource("src", "RhinoMM.Core", "Services", "HexNutDimensions.cs");
+        var geometry = ReadSource("src", "RhinoMM.Plugin", "Geometry", "FastenerGeometryFactory.cs");
+        var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
+
+        Assert.Contains("enum HexNutStyle", models, StringComparison.Ordinal);
+        Assert.Contains("locking-nut-presets.v1.json", dimensions, StringComparison.Ordinal);
+        Assert.Contains("AddNylonLockingNutProxy", geometry, StringComparison.Ordinal);
+        Assert.Contains("CreateHexNutPocketCutter", geometry, StringComparison.Ordinal);
+        Assert.Contains("尼龙防松", panel, StringComparison.Ordinal);
+        Assert.Contains("UpdateHexNutSizeAvailability", panel, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -706,7 +776,7 @@ public sealed class PluginSourceRegressionTests
             "src", "RhinoMM.Plugin", "Services", "SmartHostBindingService.cs");
         var editor = ReadSource("src", "RhinoMM.Plugin", "Services", "EditorState.cs");
 
-        Assert.Contains("CurrentSchemaVersion = 10", models, StringComparison.Ordinal);
+        Assert.Contains("CurrentSchemaVersion = 15", models, StringComparison.Ordinal);
         Assert.Contains("AutoRecognizeHosts", models, StringComparison.Ordinal);
         Assert.Contains("SmartRecognitionMode", models, StringComparison.Ordinal);
         Assert.Contains("SmartBindingProfile", models, StringComparison.Ordinal);
@@ -718,6 +788,63 @@ public sealed class PluginSourceRegressionTests
         var updateTemplate = ReadSource(
             "src", "RhinoMM.Core", "Services", "FastenerUpdateTemplate.cs");
         Assert.Contains("UpdateSmartBindingProfile", updateTemplate, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EngagementOnlyUsesStrictSingleHostPipeline()
+    {
+        var models = ReadSource("src", "RhinoMM.Core", "Domain", "FastenerModels.cs");
+        var validator = ReadSource(
+            "src", "RhinoMM.Core", "Services", "EngagementOnlyHostValidator.cs");
+        var smartPlacement = ReadSource(
+            "src", "RhinoMM.Plugin", "Services", "SmartPlacementService.cs");
+        var hostBinding = ReadSource(
+            "src", "RhinoMM.Plugin", "Services", "SmartHostBindingService.cs");
+        var classic = ReadSource(
+            "src", "RhinoMM.Plugin", "Commands", "PlaceCommand.cs");
+        var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
+        var booleanExport = ReadSource(
+            "src", "RhinoMM.Plugin", "Services", "BooleanExportService.cs");
+
+        Assert.Contains("EngagementOnly", models, StringComparison.Ordinal);
+        Assert.Contains("placement.Exit - headEmbedDepth", validator, StringComparison.Ordinal);
+        Assert.Contains("检测到螺杆范围内存在第二个实体", validator, StringComparison.Ordinal);
+        Assert.Contains("EngagementOnlyHostValidator.Validate", smartPlacement, StringComparison.Ordinal);
+        Assert.Contains("preserveFullExit: true", hostBinding, StringComparison.Ordinal);
+        Assert.Contains("SelectSingleTarget", classic, StringComparison.Ordinal);
+        Assert.Contains("只咬合", panel, StringComparison.Ordinal);
+        Assert.Contains("SmartHostBindingService.TryReconcile", booleanExport, StringComparison.Ordinal);
+        Assert.Contains("UpdateSmartModuleSwitch", panel, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CounterboreBridgeUsesSharedThreeStageCutterPipeline()
+    {
+        var models = ReadSource("src", "RhinoMM.Core", "Domain", "FastenerModels.cs");
+        var calculator = ReadSource(
+            "src", "RhinoMM.Core", "Services", "CounterboreBridgeCalculator.cs");
+        var geometry = ReadSource(
+            "src", "RhinoMM.Plugin", "Geometry", "FastenerGeometryFactory.cs");
+        var cutter = ReadSource(
+            "src", "RhinoMM.Plugin", "Services", "CutterGeometryService.cs");
+        var preset = ReadSource(
+            "src", "RhinoMM.Plugin", "Services", "PlacementPresetService.cs");
+        var smartPlacement = ReadSource(
+            "src", "RhinoMM.Plugin", "Services", "SmartPlacementService.cs");
+        var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
+
+        Assert.Contains("CounterboreBridgeEnabled", models, StringComparison.Ordinal);
+        Assert.Contains("CounterboreBridgeLayerHeight", models, StringComparison.Ordinal);
+        Assert.Contains("HoleDiameterCalculator", calculator, StringComparison.Ordinal);
+        Assert.Contains("Math.Sqrt(2) * shaftRadius", calculator, StringComparison.Ordinal);
+        Assert.Contains("CreateCounterboreBridgeSlot", geometry, StringComparison.Ordinal);
+        Assert.Contains("CreateSquarePrism", geometry, StringComparison.Ordinal);
+        Assert.Contains("CounterboreBridgeCalculator.Create", geometry, StringComparison.Ordinal);
+        Assert.Contains("component.CounterboreBridgeLayerHeight * 2", cutter, StringComparison.Ordinal);
+        Assert.Contains("CounterboreBridgeEnabled", preset, StringComparison.Ordinal);
+        Assert.Contains("CounterboreBridgeEnabled", smartPlacement, StringComparison.Ordinal);
+        Assert.Contains("悬垂沉孔架桥", panel, StringComparison.Ordinal);
+        Assert.Contains("每层", panel, StringComparison.Ordinal);
     }
 
     [Fact]

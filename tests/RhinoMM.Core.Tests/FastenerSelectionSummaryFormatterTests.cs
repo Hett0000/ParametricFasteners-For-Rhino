@@ -103,7 +103,7 @@ public sealed class FastenerSelectionSummaryFormatterTests
             ]
         };
 
-        Assert.Equal("六角螺母 M4 嵌入3.2 安装1", FastenerSelectionSummaryFormatter.Compact(hexNut));
+        Assert.Equal("普通六角螺母 M4 嵌入3.2 安装1", FastenerSelectionSummaryFormatter.Compact(hexNut));
         Assert.Equal("热熔螺母 M3*5 Ø4.6 安装1", FastenerSelectionSummaryFormatter.Compact(insert));
     }
 

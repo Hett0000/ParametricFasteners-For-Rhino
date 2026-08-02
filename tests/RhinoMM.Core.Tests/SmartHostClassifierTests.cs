@@ -58,6 +58,63 @@ public sealed class SmartHostClassifierTests
             });
     }
 
+    [Fact]
+    public void ProductionAutomatic_RejectsShaftThatDoesNotExitPlacementHost()
+    {
+        var first = Guid.NewGuid();
+
+        var result = SmartHostClassifier.Classify(
+            [new SmartHostInterval(first, 0, 8)],
+            SmartPlacementRecognitionMode.Automatic,
+            0.001,
+            first,
+            headEmbedDepth: 1,
+            fastenerLength: 6);
+
+        Assert.False(result.IsValid);
+        Assert.Contains("至少需要长度 7", result.Message);
+        Assert.Contains("只咬合", result.Message);
+    }
+
+    [Fact]
+    public void ProductionAutomatic_RejectsNoRearEngagementHost()
+    {
+        var first = Guid.NewGuid();
+
+        var result = SmartHostClassifier.Classify(
+            [new SmartHostInterval(first, 0, 8)],
+            SmartPlacementRecognitionMode.Automatic,
+            0.001,
+            first,
+            headEmbedDepth: 0,
+            fastenerLength: 12);
+
+        Assert.False(result.IsValid);
+        Assert.Contains("未检测到后方咬合宿主", result.Message);
+    }
+
+    [Fact]
+    public void ProductionAutomatic_AssignsFirstToClearanceAndRearToEngagement()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+
+        var result = SmartHostClassifier.Classify(
+            [
+                new SmartHostInterval(first, 0, 8),
+                new SmartHostInterval(second, 10, 14)
+            ],
+            SmartPlacementRecognitionMode.Automatic,
+            0.001,
+            first,
+            headEmbedDepth: 0,
+            fastenerLength: 16);
+
+        Assert.True(result.IsValid);
+        Assert.Equal(ShaftFitRole.Clearance, result.Assignments[0].Role);
+        Assert.Equal(ShaftFitRole.ThreadEngagement, result.Assignments[1].Role);
+    }
+
     [Theory]
     [InlineData(SmartPlacementRecognitionMode.AllClearance, ShaftFitRole.Clearance)]
     [InlineData(SmartPlacementRecognitionMode.AllEngagement, ShaftFitRole.ThreadEngagement)]

@@ -101,7 +101,7 @@ public static class RhinoPlacementExportService
                 var materialKind = component.Kind == FastenerKind.HeatSetInsert
                     ? RhinoExportMaterialKind.Brass
                     : RhinoExportMaterialKind.Steel;
-                var name = $"{component.Size} · {FastenerLabels.Kind(component.Kind)} · 渲染实体";
+                var name = $"{component.Size} · {FastenerLabels.Kind(component)} · 渲染实体";
                 fastenerBodies.AddRange(proxies.Select(proxy => new RhinoExportFastenerBody(
                     component.ComponentId,
                     component.Kind,

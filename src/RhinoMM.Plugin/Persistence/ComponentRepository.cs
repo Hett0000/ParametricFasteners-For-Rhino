@@ -36,7 +36,10 @@ public static class ComponentRepository
             "ControlPoint" => "控制点",
             _ => role
         };
-        return $"参数化紧固件 {data.Size} {roleName}";
+        var typeName = data.Kind == FastenerKind.HexNut
+            ? FastenerLabels.NutStyle(data.HexNutStyle)
+            : FastenerLabels.Kind(data.Kind);
+        return $"参数化紧固件 {data.Size} {typeName} {roleName}";
     }
 
     public static void Write(

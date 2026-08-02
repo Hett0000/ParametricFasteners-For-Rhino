@@ -8,6 +8,7 @@ public enum FastenerStatisticsScope
 
 public sealed record FastenerStatisticsRow(
     FastenerKind Kind,
+    HexNutStyle? NutStyle,
     string Size,
     double? Length,
     double? OuterDiameter,

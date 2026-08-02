@@ -58,8 +58,8 @@ public static class BooleanExportService
 
         try
         {
-            var components = ComponentRepository.ReadAllControlPoints(doc, out var ignoredComponentCount);
-            var unresolvedComponents = components
+            var storedComponents = ComponentRepository.ReadAllControlPoints(doc, out var ignoredComponentCount);
+            var unresolvedComponents = storedComponents
                 .Where(ComponentHostResolver.NeedsRelink)
                 .ToArray();
             if (unresolvedComponents.Length > 0)
@@ -67,6 +67,22 @@ public static class BooleanExportService
                     $"文档中有 {unresolvedComponents.Length} 个复制组件尚未绑定宿主；请选择对应宿主并运行“刷新 / 清理”后再导出。"
                     + " 控制点："
                     + string.Join(", ", unresolvedComponents.Select(component => component.ComponentId.ToString("N")[..8])));
+            var components = new List<FastenerComponentData>(storedComponents.Count);
+            foreach (var stored in storedComponents)
+            {
+                if (!SmartHostBindingService.TryReconcile(
+                        doc,
+                        stored,
+                        out var effective,
+                        out _,
+                        out var reconcileMessage))
+                {
+                    throw new InvalidOperationException(
+                        $"组件 {stored.Size} · {stored.ComponentId.ToString("N")[..8]} "
+                        + $"宿主复核失败：{reconcileMessage}");
+                }
+                components.Add(effective);
+            }
             var componentsById = components.ToDictionary(component => component.ComponentId);
             ValidateSelectedHostLinks(doc, hosts, componentsById);
             var output = new List<BooleanExportBody>();

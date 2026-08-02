@@ -46,6 +46,28 @@ internal static class CutterGeometryService
                         $"螺丝头嵌入深度 {component.HeadEmbedDepth:0.###} mm 超过宿主“{TargetName(target)}”的有效厚度 {interval.Max:0.###} mm。");
             }
 
+            if (binding.IncludeHeadSeat
+                && component.HeadEmbedDepth > 0
+                && component.Kind == FastenerKind.SocketCap
+                && component.CounterboreBridgeEnabled)
+            {
+                if (component.CounterboreBridgeLayerHeight
+                    <= doc.ModelAbsoluteTolerance)
+                {
+                    throw new InvalidOperationException(
+                        $"架桥层高 {component.CounterboreBridgeLayerHeight:0.###} mm "
+                        + $"必须大于文档绝对公差 {doc.ModelAbsoluteTolerance:0.###} mm。");
+                }
+                var bridgeEnd = component.HeadEmbedDepth
+                    + component.CounterboreBridgeLayerHeight * 2;
+                if (interval.Max < bridgeEnd - doc.ModelAbsoluteTolerance)
+                {
+                    throw new InvalidOperationException(
+                        $"宿主“{TargetName(target)}”在沉孔底面后没有足够空间容纳双层架桥；"
+                        + $"至少需要到达 {bridgeEnd:0.###} mm，当前有效厚度为 {interval.Max:0.###} mm。");
+                }
+            }
+
             var warnings = new List<string>();
             if (usedFallback)
                 warnings.Add($"{TargetName(target)} 的切割范围使用了包围盒估算。");
@@ -100,39 +122,51 @@ internal static class CutterGeometryService
                 return true;
             }
 
-            var start = interval.Min - padding;
-            var end = interval.Max + padding;
+            var finalDiameter = HoleDiameterCalculator
+                .Calculate(component, spec, binding)
+                .FinalDiameter;
+            if (!CutterFootprintEnvelopeService.TryGet(
+                    target.Geometry,
+                    component.Placement,
+                    finalDiameter,
+                    doc.ModelAbsoluteTolerance,
+                    out var footprint,
+                    out var footprintError))
+                throw new InvalidOperationException(footprintError);
+
+            // The center-axis interval is insufficient when the host surface is
+            // oblique to the screw. Always begin before the earliest point touched
+            // by the complete hole circle so the entrance cannot retain a wedge.
+            var start = footprint.Min - padding;
+            var end = footprint.Max + padding;
             var limit = FastenerGeometryFactory.DepthLimit(component, spec, binding);
-            if (!double.IsPositiveInfinity(limit))
+            var isThrough = binding.Role == ShaftFitRole.Clearance
+                || binding.DepthMode == DepthMode.ThroughTarget;
+            if (!isThrough && !double.IsPositiveInfinity(limit))
             {
-                if (limit < interval.Min - doc.ModelAbsoluteTolerance
+                if (limit < footprint.Min - doc.ModelAbsoluteTolerance
                     && binding.Role == ShaftFitRole.Clearance)
                     throw new InvalidOperationException(
                         $"螺杆有效长度 {limit:0.###} mm 无法到达穿过宿主“{TargetName(target)}”。");
-                if (limit < interval.Min - doc.ModelAbsoluteTolerance
+                if (limit < footprint.Min - doc.ModelAbsoluteTolerance
                     && binding.Role != ShaftFitRole.Clearance)
                     throw new InvalidOperationException(
                         $"螺杆深度 {limit:0.###} mm 无法到达咬合宿主“{TargetName(target)}”。");
-                start = Math.Max(start, -padding);
-                var reachesExit = limit >= interval.Max - doc.ModelAbsoluteTolerance;
-                end = reachesExit ? interval.Max + padding : limit;
+                var reachesExit = limit >= footprint.Max - doc.ModelAbsoluteTolerance;
+                end = reachesExit ? footprint.Max + padding : limit;
                 if (reachesExit && binding.Role != ShaftFitRole.Clearance)
                     warnings.Add($"{TargetName(target)}：计算深度超过宿主厚度，将贯穿。");
-            }
-
-            if (binding.Role == ShaftFitRole.Clearance
-                && !double.IsPositiveInfinity(limit)
-                && limit < interval.Max - doc.ModelAbsoluteTolerance)
-            {
-                warnings.Add(
-                    $"{TargetName(target)}：螺杆尚未到达宿主背面，通孔按当前螺杆长度形成盲孔。");
             }
 
             result = new CutterGeometryBuild(
                 binding,
                 [FastenerGeometryFactory.CreateShaftCutter(component, spec, binding, start, end)],
                 binding.IncludeHeadSeat
-                    ? FastenerGeometryFactory.CreateHeadSeatCutters(component, spec, padding)
+                    ? FastenerGeometryFactory.CreateHeadSeatCutters(
+                        component,
+                        spec,
+                        binding,
+                        padding)
                     : [],
                 warnings);
             return true;

@@ -68,9 +68,12 @@ public sealed class FastenerStatisticsWorkbookWriterTests
             Assert.Contains("M3&lt;&amp;&gt;", summary, StringComparison.Ordinal);
             Assert.Contains("外径 mm", summary, StringComparison.Ordinal);
             var detail = ReadEntry(archive, "xl/worksheets/sheet2.xml");
-            Assert.Contains("r=\"D2\" t=\"n\"><v>12</v>", detail, StringComparison.Ordinal);
+            Assert.Contains("r=\"F2\" t=\"n\"><v>12</v>", detail, StringComparison.Ordinal);
             Assert.Contains("孔径补偿 mm", detail, StringComparison.Ordinal);
             Assert.Contains("深度补偿 mm", detail, StringComparison.Ordinal);
+            Assert.Contains("通孔最终直径 mm", detail, StringComparison.Ordinal);
+            Assert.Contains("咬合最终直径 mm", detail, StringComparison.Ordinal);
+            Assert.DoesNotContain("通孔配合", detail, StringComparison.Ordinal);
             Assert.Contains("11111111-2222-3333-4444-555555555555", detail, StringComparison.Ordinal);
         }
         finally
@@ -127,7 +130,45 @@ public sealed class FastenerStatisticsWorkbookWriterTests
 
             using var archive = ZipFile.OpenRead(path);
             var detail = ReadEntry(archive, "xl/worksheets/sheet2.xml");
-            Assert.Contains("r=\"G2\" t=\"n\"><v>1</v>", detail, StringComparison.Ordinal);
+            Assert.Contains("r=\"I2\" t=\"n\"><v>1</v>", detail, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public void Write_StoresIndependentFinalHoleDiameters()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "diameters.xlsx");
+            var component = new FastenerComponentData
+            {
+                Kind = FastenerKind.SocketCap,
+                Size = "M3",
+                PrintProfile = new PrintProfileSnapshot("FDM", 0.2),
+                HoleDiameterFormula = HoleDiameterFormula.NominalIndependent,
+                Bindings =
+                [
+                    new HoleTargetBinding { Role = ShaftFitRole.Clearance },
+                    new HoleTargetBinding
+                    {
+                        Role = ShaftFitRole.ThreadEngagement,
+                        BiteReduction = 0.35
+                    }
+                ]
+            };
+            var report = FastenerStatisticsBuilder.Build([component], FastenerStatisticsScope.All);
+
+            FastenerStatisticsWorkbookWriter.Write(path, "Diameters.3dm", DateTimeOffset.UtcNow, report);
+
+            using var archive = ZipFile.OpenRead(path);
+            var detail = ReadEntry(archive, "xl/worksheets/sheet2.xml");
+            Assert.Contains("r=\"L2\" t=\"n\"><v>3.2</v>", detail, StringComparison.Ordinal);
+            Assert.Contains("r=\"N2\" t=\"n\"><v>2.65</v>", detail, StringComparison.Ordinal);
         }
         finally
         {
@@ -154,6 +195,37 @@ public sealed class FastenerStatisticsWorkbookWriterTests
             Assert.DoesNotContain(
                 Directory.EnumerateFiles(parent),
                 file => Path.GetFileName(file).StartsWith(prefix, StringComparison.Ordinal));
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public void Write_StoresLockingNutStyleAndStandard()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "locking-nut.xlsx");
+            var component = new FastenerComponentData
+            {
+                Kind = FastenerKind.HexNut,
+                HexNutStyle = HexNutStyle.NylonInsertLocking,
+                Size = "M4",
+                HeadEmbedDepth = 6
+            };
+            var report = FastenerStatisticsBuilder.Build([component], FastenerStatisticsScope.All);
+
+            FastenerStatisticsWorkbookWriter.Write(path, "Locking.3dm", DateTimeOffset.UtcNow, report);
+
+            using var archive = ZipFile.OpenRead(path);
+            var summary = ReadEntry(archive, "xl/worksheets/sheet1.xml");
+            var detail = ReadEntry(archive, "xl/worksheets/sheet2.xml");
+            Assert.Contains("尼龙防松螺母", summary, StringComparison.Ordinal);
+            Assert.Contains("螺母样式", detail, StringComparison.Ordinal);
+            Assert.Contains("GB/T 889.1-2015", detail, StringComparison.Ordinal);
         }
         finally
         {

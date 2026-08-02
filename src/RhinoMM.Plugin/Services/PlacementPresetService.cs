@@ -22,12 +22,21 @@ internal static class PlacementPresetService
                 FiniteOrDefault(settings.GetDouble(Prefix + "PrinterCorrection", defaults.PrinterCorrection), defaults.PrinterCorrection, -2, 2),
                 fit,
                 FiniteOrDefault(settings.GetDouble(Prefix + "BiteReduction", defaults.BiteReduction), defaults.BiteReduction, 0.001, 5),
+                settings.GetBool(Prefix + "CounterboreBridgeEnabled", defaults.CounterboreBridgeEnabled),
+                FiniteOrDefault(
+                    settings.GetDouble(
+                        Prefix + "CounterboreBridgeLayerHeight",
+                        defaults.CounterboreBridgeLayerHeight),
+                    defaults.CounterboreBridgeLayerHeight,
+                    0.05,
+                    1.0),
                 depth,
                 FiniteOrDefault(settings.GetDouble(Prefix + "EngagementBlindDepth", defaults.EngagementBlindDepth), defaults.EngagementBlindDepth, -1000, 1000),
                 settings.GetBool(Prefix + "ClearancePreviewVisible", defaults.ClearancePreviewVisible),
                 settings.GetBool(Prefix + "ClearanceBooleanEnabled", defaults.ClearanceBooleanEnabled),
                 settings.GetBool(Prefix + "EngagementPreviewVisible", defaults.EngagementPreviewVisible),
-                settings.GetBool(Prefix + "EngagementBooleanEnabled", defaults.EngagementBooleanEnabled));
+                settings.GetBool(Prefix + "EngagementBooleanEnabled", defaults.EngagementBooleanEnabled),
+                settings.GetBool(Prefix + "EngagementOnly", defaults.EngagementOnly));
         }
         catch
         {
@@ -43,12 +52,19 @@ internal static class PlacementPresetService
             settings.SetDouble(Prefix + "PrinterCorrection", preset.PrinterCorrection);
             settings.SetString(Prefix + "ClearanceFit", preset.ClearanceFit.ToString());
             settings.SetDouble(Prefix + "BiteReduction", preset.BiteReduction);
+            settings.SetBool(
+                Prefix + "CounterboreBridgeEnabled",
+                preset.CounterboreBridgeEnabled);
+            settings.SetDouble(
+                Prefix + "CounterboreBridgeLayerHeight",
+                preset.CounterboreBridgeLayerHeight);
             settings.SetString(Prefix + "EngagementDepthMode", preset.EngagementDepthMode.ToString());
             settings.SetDouble(Prefix + "EngagementBlindDepth", preset.EngagementBlindDepth);
             settings.SetBool(Prefix + "ClearancePreviewVisible", preset.ClearancePreviewVisible);
             settings.SetBool(Prefix + "ClearanceBooleanEnabled", preset.ClearanceBooleanEnabled);
             settings.SetBool(Prefix + "EngagementPreviewVisible", preset.EngagementPreviewVisible);
             settings.SetBool(Prefix + "EngagementBooleanEnabled", preset.EngagementBooleanEnabled);
+            settings.SetBool(Prefix + "EngagementOnly", preset.EngagementOnly);
             message = "放置切割预设已保存。";
             return true;
         }

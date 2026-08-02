@@ -48,6 +48,11 @@ public sealed class FastenerGeometryParametersTests
             Placement = component.Placement with { OriginX = 2 }
         };
         var changedInsertDepth = component with { InsertDepthCompensation = 1 };
+        var changedBridge = component with
+        {
+            CounterboreBridgeEnabled = true,
+            CounterboreBridgeLayerHeight = 0.16
+        };
         var changedHostRecognition = component with
         {
             AutoRecognizeHosts = true,
@@ -66,6 +71,7 @@ public sealed class FastenerGeometryParametersTests
         Assert.False(FastenerGeometryParameters.Match(component, changedCorrection));
         Assert.False(FastenerGeometryParameters.Match(component, changedPlacement));
         Assert.False(FastenerGeometryParameters.Match(component, changedInsertDepth));
+        Assert.False(FastenerGeometryParameters.Match(component, changedBridge));
         Assert.False(FastenerGeometryParameters.Match(component, changedHostRecognition));
     }
 

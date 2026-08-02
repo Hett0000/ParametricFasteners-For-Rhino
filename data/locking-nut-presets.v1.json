@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "standardFamily": "GB/T 889.1-2015 with DIN 985 engineering extensions",
+  "disclaimer": "M3-M12 为 GB/T 889.1-2015 兼容尺寸。M2、M2.5 为 DIN 985 工程扩展预设，不宣称符合 GB/T 889.1；打印前必须核对实际采购件。",
+  "sizes": [
+    { "designation": "M2", "acrossFlats": 4.0, "totalHeight": 3.0, "standard": "DIN 985 工程扩展", "isEngineeringExtension": true },
+    { "designation": "M2.5", "acrossFlats": 5.0, "totalHeight": 3.8, "standard": "DIN 985 工程扩展", "isEngineeringExtension": true },
+    { "designation": "M3", "acrossFlats": 5.5, "totalHeight": 4.5, "standard": "GB/T 889.1-2015", "isEngineeringExtension": false },
+    { "designation": "M4", "acrossFlats": 7.0, "totalHeight": 6.0, "standard": "GB/T 889.1-2015", "isEngineeringExtension": false },
+    { "designation": "M5", "acrossFlats": 8.0, "totalHeight": 6.8, "standard": "GB/T 889.1-2015", "isEngineeringExtension": false },
+    { "designation": "M6", "acrossFlats": 10.0, "totalHeight": 8.0, "standard": "GB/T 889.1-2015", "isEngineeringExtension": false },
+    { "designation": "M8", "acrossFlats": 13.0, "totalHeight": 9.5, "standard": "GB/T 889.1-2015", "isEngineeringExtension": false },
+    { "designation": "M10", "acrossFlats": 16.0, "totalHeight": 11.9, "standard": "GB/T 889.1-2015", "isEngineeringExtension": false },
+    { "designation": "M12", "acrossFlats": 18.0, "totalHeight": 14.9, "standard": "GB/T 889.1-2015", "isEngineeringExtension": false }
+  ]
+}

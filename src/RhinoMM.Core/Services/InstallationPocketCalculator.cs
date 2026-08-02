@@ -8,9 +8,14 @@ public static class InstallationPocketCalculator
         FastenerComponentData component,
         FastenerSizeSpec spec,
         HoleTargetBinding binding) =>
-        spec.Head.NutAcrossFlats
+        HexNutDimensions.Resolve(component, spec).AcrossFlats
         + component.PrintProfile.HoleDiameterCorrection
         + binding.BindingOverride;
+
+    public static double HexNutHeight(
+        FastenerComponentData component,
+        FastenerSizeSpec spec) =>
+        HexNutDimensions.Resolve(component, spec).TotalHeight;
 
     public static double HeatSetFinalDiameter(FastenerComponentData component) =>
         component.InsertOuterDiameter + component.InsertDiameterCompensation;

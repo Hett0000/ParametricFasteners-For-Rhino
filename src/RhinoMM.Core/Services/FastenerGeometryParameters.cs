@@ -7,12 +7,17 @@ public static class FastenerGeometryParameters
     public static bool Match(FastenerComponentData left, FastenerComponentData right)
     {
         if (left.Kind != right.Kind
+            || left.HexNutStyle != right.HexNutStyle
             || !string.Equals(left.Size, right.Size, StringComparison.Ordinal)
             || left.Length != right.Length
             || left.HeadEmbedDepth != right.HeadEmbedDepth
+            || left.CounterboreBridgeEnabled != right.CounterboreBridgeEnabled
+            || left.CounterboreBridgeLayerHeight != right.CounterboreBridgeLayerHeight
             || left.InsertOuterDiameter != right.InsertOuterDiameter
             || left.InsertDiameterCompensation != right.InsertDiameterCompensation
             || left.InsertDepthCompensation != right.InsertDepthCompensation
+            || left.HoleDiameterFormula != right.HoleDiameterFormula
+            || left.EngagementOnly != right.EngagementOnly
             || left.AutoRecognizeHosts != right.AutoRecognizeHosts
             || left.SmartRecognitionMode != right.SmartRecognitionMode
             || left.SmartBindingProfile != right.SmartBindingProfile

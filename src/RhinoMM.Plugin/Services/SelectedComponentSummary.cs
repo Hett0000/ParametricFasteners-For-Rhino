@@ -93,6 +93,7 @@ internal sealed record SelectedComponentSummary(
             .GroupBy(component => new
             {
                 component.Kind,
+                component.HexNutStyle,
                 component.Size,
                 Length = FastenerKindTraits.UsesLengthInStatistics(component.Kind)
                     ? component.Length
@@ -106,7 +107,10 @@ internal sealed record SelectedComponentSummary(
                 var length = FastenerKindTraits.UsesLengthInStatistics(group.Key.Kind)
                     ? $" L{group.Key.Length:0.##}"
                     : string.Empty;
-                return $"{FastenerLabels.Kind(group.Key.Kind)} {group.Key.Size}{length} × {group.Count()}";
+                var type = group.Key.Kind == FastenerKind.HexNut
+                    ? FastenerLabels.NutStyle(group.Key.HexNutStyle)
+                    : FastenerLabels.Kind(group.Key.Kind);
+                return $"{type} {group.Key.Size}{length} × {group.Count()}";
             });
         var result = string.Join("；", groups);
         if (invalid > 0 || needsRepair > 0)

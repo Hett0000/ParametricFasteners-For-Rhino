@@ -67,6 +67,25 @@ public sealed class FastenerStatisticsBuilderTests
     }
 
     [Fact]
+    public void Build_SeparatesOrdinaryAndLockingHexNuts()
+    {
+        var ordinary = Component(FastenerKind.HexNut, "M4", 0);
+        var locking = ordinary with
+        {
+            ComponentId = Guid.NewGuid(),
+            HexNutStyle = HexNutStyle.NylonInsertLocking
+        };
+
+        var report = FastenerStatisticsBuilder.Build(
+            [ordinary, locking],
+            FastenerStatisticsScope.All);
+
+        Assert.Equal(2, report.MaterialCount);
+        Assert.Contains(report.SummaryRows, row => row.NutStyle == HexNutStyle.Standard);
+        Assert.Contains(report.SummaryRows, row => row.NutStyle == HexNutStyle.NylonInsertLocking);
+    }
+
+    [Fact]
     public void Build_DeduplicatesComponentIdsAndSortsNominalSizes()
     {
         var m10 = Component(FastenerKind.SocketCap, "M10", 12);

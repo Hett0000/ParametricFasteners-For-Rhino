@@ -9,7 +9,7 @@ public static class FastenerSelectionSummaryFormatter
         var installationCount = component.Bindings.Count(binding =>
             binding.Role == ShaftFitRole.InstallationPocket);
         if (component.Kind == FastenerKind.HexNut)
-            return $"六角螺母 {component.Size} 嵌入{Number(component.HeadEmbedDepth)} 安装{installationCount}";
+            return $"{FastenerLabels.NutStyle(component.HexNutStyle)} {component.Size} 嵌入{Number(component.HeadEmbedDepth)} 安装{installationCount}";
         if (component.Kind == FastenerKind.HeatSetInsert)
         {
             return $"热熔螺母 {component.Size}*{Number(component.Length)} "
@@ -22,7 +22,8 @@ public static class FastenerSelectionSummaryFormatter
             .Where(binding => binding.Role == ShaftFitRole.ThreadEngagement)
             .ToArray();
         var depth = CompactDepth(engagementBindings);
-        return $"{ShortKind(component.Kind)} {component.Size}*{Number(component.Length)}"
+        var mode = component.EngagementOnly ? " 只咬合" : string.Empty;
+        return $"{ShortKind(component.Kind)} {component.Size}*{Number(component.Length)}{mode}"
             + $"{depth} 通{clearanceCount}/咬{engagementBindings.Length}";
     }
 
@@ -38,7 +39,8 @@ public static class FastenerSelectionSummaryFormatter
 
         if (component.Kind == FastenerKind.HexNut)
         {
-            return $"{FastenerLabels.Kind(component.Kind)} {component.Size}；"
+            return $"{FastenerLabels.NutStyle(component.HexNutStyle)} {component.Size}；"
+                + $"尺寸标准：{FastenerLabels.NutStandard(component)}；"
                 + $"嵌入深度 {Number(component.HeadEmbedDepth)} mm；安装宿主 {installationCount}";
         }
         if (component.Kind == FastenerKind.HeatSetInsert)
@@ -47,7 +49,8 @@ public static class FastenerSelectionSummaryFormatter
                 + $"外径 Ø{Number(component.InsertOuterDiameter)} mm；安装宿主 {installationCount}";
         }
 
-        return $"{FastenerLabels.Kind(component.Kind)} {component.Size}×{Number(component.Length)} mm；"
+        var mode = component.EngagementOnly ? "；模式：只咬合" : string.Empty;
+        return $"{FastenerLabels.Kind(component.Kind)} {component.Size}×{Number(component.Length)} mm{mode}；"
             + $"{FullDepth(engagementBindings)}；通孔宿主 {clearanceCount}；"
             + $"咬合宿主 {engagementBindings.Length}";
     }

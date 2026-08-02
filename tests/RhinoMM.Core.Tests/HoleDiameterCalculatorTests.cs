@@ -17,37 +17,98 @@ public class HoleDiameterCalculatorTests
     }
 
     [Fact]
-    public void ClearanceUsesStandardPlusCorrections()
+    public void NominalIndependentClearanceUsesNominalPlusCorrections()
     {
+        var component = new FastenerComponentData
+        {
+            Size = "M3",
+            HoleDiameterFormula = HoleDiameterFormula.NominalIndependent,
+            PrintProfile = new PrintProfileSnapshot("PLA", 0.2)
+        };
         var binding = new HoleTargetBinding
         {
             TargetObjectId = Guid.NewGuid(),
             Role = ShaftFitRole.Clearance,
-            ClearanceFit = ClearanceFitClass.Normal,
-            BindingOverride = 0.05
+            ClearanceFit = ClearanceFitClass.Normal
         };
 
-        var result = HoleDiameterCalculator.Calculate(
-            Catalog.Get("M3"), binding, new PrintProfileSnapshot("PLA", 0.15));
+        var result = HoleDiameterCalculator.Calculate(component, Catalog.Get("M3"), binding);
 
-        Assert.Equal(3.6, result.FinalDiameter, 6);
+        Assert.Equal(3.2, result.FinalDiameter, 6);
     }
 
     [Fact]
-    public void EngagementUsesNominalMinusBitePlusCorrections()
+    public void NominalIndependentEngagementIgnoresClearanceCorrection()
     {
+        var component = new FastenerComponentData
+        {
+            Size = "M3",
+            HoleDiameterFormula = HoleDiameterFormula.NominalIndependent,
+            PrintProfile = new PrintProfileSnapshot("PETG", 0.2)
+        };
         var binding = new HoleTargetBinding
         {
             TargetObjectId = Guid.NewGuid(),
             Role = ShaftFitRole.ThreadEngagement,
-            BiteReduction = 0.35,
-            BindingOverride = -0.05
+            BiteReduction = 0.35
         };
 
-        var result = HoleDiameterCalculator.Calculate(
-            Catalog.Get("M3"), binding, new PrintProfileSnapshot("PETG", 0.1));
+        var result = HoleDiameterCalculator.Calculate(component, Catalog.Get("M3"), binding);
 
-        Assert.Equal(2.7, result.FinalDiameter, 6);
+        Assert.Equal(2.65, result.FinalDiameter, 6);
+    }
+
+    [Theory]
+    [InlineData(ShaftFitRole.Clearance, 0.1, 3.3)]
+    [InlineData(ShaftFitRole.ThreadEngagement, -0.1, 2.55)]
+    public void NominalIndependentFormulaAppliesTargetOverrideLast(
+        ShaftFitRole role,
+        double targetOverride,
+        double expected)
+    {
+        var component = new FastenerComponentData
+        {
+            Size = "M3",
+            HoleDiameterFormula = HoleDiameterFormula.NominalIndependent,
+            PrintProfile = new PrintProfileSnapshot("PLA", 0.2)
+        };
+        var binding = new HoleTargetBinding
+        {
+            TargetObjectId = Guid.NewGuid(),
+            Role = role,
+            BiteReduction = 0.35,
+            BindingOverride = targetOverride
+        };
+
+        Assert.Equal(
+            expected,
+            HoleDiameterCalculator.Calculate(component, Catalog.Get("M3"), binding).FinalDiameter,
+            6);
+    }
+
+    [Fact]
+    public void LegacyFormulaPreservesCatalogClearanceAndSharedCorrection()
+    {
+        var component = new FastenerComponentData
+        {
+            Size = "M3",
+            HoleDiameterFormula = HoleDiameterFormula.LegacyStandardWithSharedCorrection,
+            PrintProfile = new PrintProfileSnapshot("PLA", 0.2)
+        };
+        var clearance = new HoleTargetBinding
+        {
+            TargetObjectId = Guid.NewGuid(),
+            Role = ShaftFitRole.Clearance,
+            ClearanceFit = ClearanceFitClass.Normal
+        };
+        var engagement = clearance with
+        {
+            Role = ShaftFitRole.ThreadEngagement,
+            BiteReduction = 0.35
+        };
+
+        Assert.Equal(3.6, HoleDiameterCalculator.Calculate(component, Catalog.Get("M3"), clearance).FinalDiameter, 6);
+        Assert.Equal(2.85, HoleDiameterCalculator.Calculate(component, Catalog.Get("M3"), engagement).FinalDiameter, 6);
     }
 
     [Fact]
@@ -206,6 +267,21 @@ public class HoleDiameterCalculatorTests
         Assert.Equal(1.0, migrated.HeadEmbedDepth, 6);
     }
 
+    [Fact]
+    public void SchemaV13MigratesToLegacyDiameterFormula()
+    {
+        var migrated = ComponentJson.Migrate(new FastenerComponentData
+        {
+            SchemaVersion = 13,
+            HoleDiameterFormula = HoleDiameterFormula.NominalIndependent
+        });
+
+        Assert.Equal(FastenerComponentData.CurrentSchemaVersion, migrated.SchemaVersion);
+        Assert.Equal(
+            HoleDiameterFormula.LegacyStandardWithSharedCorrection,
+            migrated.HoleDiameterFormula);
+    }
+
     [Theory]
     [InlineData(DepthMode.ThroughTarget, "完全贯穿")]
     [InlineData(DepthMode.FastenerLengthPlusOneDiameter, "螺杆长度 + 1D")]
@@ -238,11 +314,15 @@ public class HoleDiameterCalculatorTests
             IsPreviewVisible = true
         };
         var hidden = visible with { IsPreviewVisible = false };
-        var profile = new PrintProfileSnapshot("PLA", 0.2);
+        var component = new FastenerComponentData
+        {
+            Size = "M3",
+            PrintProfile = new PrintProfileSnapshot("PLA", 0.2)
+        };
 
         Assert.Equal(
-            HoleDiameterCalculator.Calculate(Catalog.Get("M3"), visible, profile).FinalDiameter,
-            HoleDiameterCalculator.Calculate(Catalog.Get("M3"), hidden, profile).FinalDiameter);
+            HoleDiameterCalculator.Calculate(component, Catalog.Get("M3"), visible).FinalDiameter,
+            HoleDiameterCalculator.Calculate(component, Catalog.Get("M3"), hidden).FinalDiameter);
     }
 
     [Fact]

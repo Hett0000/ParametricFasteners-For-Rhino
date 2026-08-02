@@ -5,21 +5,27 @@ namespace RhinoMM.Core.Services;
 public static class HoleDiameterCalculator
 {
     public static HoleDiameterResult Calculate(
+        FastenerComponentData component,
         FastenerSizeSpec spec,
-        HoleTargetBinding binding,
-        PrintProfileSnapshot profile)
+        HoleTargetBinding binding)
     {
+        var legacy = component.HoleDiameterFormula ==
+            HoleDiameterFormula.LegacyStandardWithSharedCorrection;
         var baseDiameter = binding.Role switch
         {
-            ShaftFitRole.Clearance => spec.Clearance.For(binding.ClearanceFit),
+            ShaftFitRole.Clearance when legacy => spec.Clearance.For(binding.ClearanceFit),
+            ShaftFitRole.Clearance => spec.NominalDiameter,
             ShaftFitRole.ThreadEngagement => spec.NominalDiameter - binding.BiteReduction,
             _ => throw new ArgumentOutOfRangeException(nameof(binding.Role))
         };
 
-        var final = baseDiameter + profile.HoleDiameterCorrection + binding.BindingOverride;
+        var printerCorrection = binding.Role == ShaftFitRole.Clearance || legacy
+            ? component.PrintProfile.HoleDiameterCorrection
+            : 0;
+        var final = baseDiameter + printerCorrection + binding.BindingOverride;
         return new HoleDiameterResult(
             baseDiameter,
-            profile.HoleDiameterCorrection,
+            printerCorrection,
             binding.BindingOverride,
             final);
     }

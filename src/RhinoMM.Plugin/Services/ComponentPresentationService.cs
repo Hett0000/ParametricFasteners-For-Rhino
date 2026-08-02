@@ -62,7 +62,8 @@ public static class ComponentPresentationService
         RhinoDoc doc,
         IReadOnlyList<FastenerComponentData> components,
         out IReadOnlyList<FastenerComponentData> savedComponents,
-        out string message)
+        out string message,
+        bool manageUndoRecord = true)
     {
         savedComponents = [];
         var uniqueComponents = components
@@ -74,7 +75,9 @@ public static class ComponentPresentationService
             message = "当前文档没有可更新的参数化紧固件。";
             return true;
         }
-        var undo = doc.BeginUndoRecord("参数化紧固件：更新显示设置");
+        var undo = manageUndoRecord
+            ? doc.BeginUndoRecord("参数化紧固件：更新显示设置")
+            : 0;
         var ownsUndoRecord = undo != 0;
         try
         {

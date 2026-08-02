@@ -47,9 +47,12 @@ internal sealed record SmartPlacementPreview(
 
 internal readonly record struct SmartPlacementParameterSignature(
     FastenerKind Kind,
+    HexNutStyle HexNutStyle,
     string Size,
     double Length,
     double HeadEmbedDepth,
+    bool CounterboreBridgeEnabled,
+    double CounterboreBridgeLayerHeight,
     double InsertOuterDiameter,
     double InsertDiameterCompensation,
     double InsertDepthCompensation,
@@ -63,7 +66,8 @@ internal readonly record struct SmartPlacementParameterSignature(
     bool EngagementPreviewVisible,
     bool EngagementBooleanEnabled,
     bool HeatSetPreviewVisible,
-    bool HeatSetBooleanEnabled);
+    bool HeatSetBooleanEnabled,
+    bool EngagementOnly);
 
 internal sealed record SmartPlacementParameterSnapshot(
     SmartPlacementParameterSignature Signature,
@@ -79,9 +83,12 @@ internal sealed record SmartPlacementParameterSnapshot(
         var heatSetPreset = HeatSetInsertPresetService.Current;
         var signature = new SmartPlacementParameterSignature(
             state.Kind,
+            state.HexNutStyle,
             state.Size,
             state.Length,
             state.HeadEmbedDepth,
+            preset.CounterboreBridgeEnabled,
+            preset.CounterboreBridgeLayerHeight,
             state.InsertOuterDiameter,
             state.InsertDiameterCompensation,
             state.InsertDepthCompensation,
@@ -95,7 +102,8 @@ internal sealed record SmartPlacementParameterSnapshot(
             preset.EngagementPreviewVisible,
             preset.EngagementBooleanEnabled,
             heatSetPreset.PreviewVisible,
-            heatSetPreset.BooleanEnabled);
+            heatSetPreset.BooleanEnabled,
+            preset.EngagementOnly);
         return new SmartPlacementParameterSnapshot(
             signature,
             RhinoMMPlugIn.Catalog.Get(signature.Size),
@@ -112,11 +120,17 @@ internal sealed record SmartPlacementParameterSnapshot(
     {
         ComponentId = Guid.NewGuid(),
         Kind = Signature.Kind,
+        HexNutStyle = Signature.Kind == FastenerKind.HexNut
+            ? Signature.HexNutStyle
+            : HexNutStyle.Standard,
         Size = Signature.Size,
         Length = Signature.Length,
         HeadEmbedDepth = FastenerKindTraits.SupportsEmbedDepth(Signature.Kind)
             ? Signature.HeadEmbedDepth
             : 0,
+        CounterboreBridgeEnabled = Signature.Kind == FastenerKind.SocketCap
+            && Signature.CounterboreBridgeEnabled,
+        CounterboreBridgeLayerHeight = Signature.CounterboreBridgeLayerHeight,
         InsertOuterDiameter = Signature.Kind == FastenerKind.HeatSetInsert
             ? Signature.InsertOuterDiameter
             : 0,
@@ -132,6 +146,8 @@ internal sealed record SmartPlacementParameterSnapshot(
             Signature.PrinterCorrection),
         FastenerOpacityPercent = FastenerOpacityPercent,
         CutterOpacityPercent = CutterOpacityPercent,
+        EngagementOnly = !FastenerKindTraits.IsNut(Signature.Kind)
+            && Signature.EngagementOnly,
         AutoRecognizeHosts = recognitionMode.HasValue
             && !FastenerKindTraits.IsNut(Signature.Kind),
         SmartRecognitionMode = recognitionMode ?? SmartPlacementRecognitionMode.Automatic,
@@ -253,8 +269,52 @@ internal sealed class SmartPlacementService
         var reach = Math.Max(
             _tolerance,
             parameters.Signature.HeadEmbedDepth + parameters.Signature.Length);
-        var intervals = FindAxisHosts(plane, reach);
-        var classification = SmartHostClassifier.Classify(intervals, recognitionMode, _tolerance);
+        var intervals = FindAxisHosts(
+            plane,
+            reach,
+            parameters.Signature.EngagementOnly
+                || recognitionMode == SmartPlacementRecognitionMode.Automatic);
+        if (parameters.Signature.EngagementOnly)
+        {
+            var strict = EngagementOnlyHostValidator.Validate(
+                placementHost.ObjectId,
+                intervals,
+                parameters.Signature.HeadEmbedDepth,
+                parameters.Signature.Length,
+                _tolerance);
+            if (!strict.IsValid || strict.Assignment is null)
+            {
+                return SmartPlacementPreview.Invalid(
+                    plane.Origin,
+                    strict.Message,
+                    parameters.Signature,
+                    snapLabel);
+            }
+
+            var binding = parameters.Preset.CreateEngagementBinding(
+                placementHost.ObjectId,
+                includeHeadSeat: true);
+            var strictDraft = parameters.CreateDraft(
+                plane,
+                [binding],
+                recognitionMode) with
+            {
+                EngagementOnly = true
+            };
+            return BuildGeometryPreview(
+                parameters,
+                strictDraft,
+                $"{strictDraft.Size}×{strictDraft.Length:0.##} · 只咬合 · {DepthLabel(parameters.Preset.EngagementDepthMode, parameters.Preset.EngagementBlindDepth)}",
+                snapLabel);
+        }
+
+        var classification = SmartHostClassifier.Classify(
+            intervals,
+            recognitionMode,
+            _tolerance,
+            placementHost.ObjectId,
+            parameters.Signature.HeadEmbedDepth,
+            parameters.Signature.Length);
         if (!classification.IsValid)
             return SmartPlacementPreview.Invalid(
                 plane.Origin,
@@ -384,12 +444,16 @@ internal sealed class SmartPlacementService
         }
     }
 
-    private IReadOnlyList<SmartHostInterval> FindAxisHosts(Plane plane, double reach)
+    private IReadOnlyList<SmartHostInterval> FindAxisHosts(
+        Plane plane,
+        double reach,
+        bool preserveFullExit = false)
         => SmartHostBindingService.FindIntervals(
             _hosts,
             FastenerGeometryFactory.FromPlane(plane),
             reach,
-            _tolerance);
+            _tolerance,
+            preserveFullExit);
 
     private bool TryFindPlacementFace(
         Line ray,

@@ -45,10 +45,27 @@ public static class ComponentJson
         return data with
         {
             SchemaVersion = FastenerComponentData.CurrentSchemaVersion,
+            HexNutStyle = sourceVersion < 15
+                ? HexNutStyle.Standard
+                : data.HexNutStyle,
             FastenerOpacityPercent = sourceVersion < 2 ? 70 : data.FastenerOpacityPercent,
             CutterOpacityPercent = sourceVersion < 2 ? 35 : data.CutterOpacityPercent,
+            HoleDiameterFormula = sourceVersion < 14
+                ? HoleDiameterFormula.LegacyStandardWithSharedCorrection
+                : data.HoleDiameterFormula,
             HeadEmbedDepth = migratedHeadEmbedDepth,
+            CounterboreBridgeEnabled = sourceVersion >= 11
+                && data.Kind == FastenerKind.SocketCap
+                && data.CounterboreBridgeEnabled,
+            CounterboreBridgeLayerHeight = sourceVersion < 11
+                || !double.IsFinite(data.CounterboreBridgeLayerHeight)
+                || data.CounterboreBridgeLayerHeight <= 0
+                    ? 0.2
+                    : data.CounterboreBridgeLayerHeight,
             InsertDepthCompensation = sourceVersion < 7 ? 0 : data.InsertDepthCompensation,
+            EngagementOnly = sourceVersion >= 12
+                && !FastenerKindTraits.IsNut(data.Kind)
+                && data.EngagementOnly,
             AutoRecognizeHosts = sourceVersion >= 8 && data.AutoRecognizeHosts,
             SmartRecognitionMode = sourceVersion >= 8
                 ? data.SmartRecognitionMode
@@ -72,6 +89,23 @@ public static class ComponentJson
             IsPreviewVisible = sourceVersion < 2 || binding.IsPreviewVisible,
             IsBooleanEnabled = sourceVersion < 3 || binding.IsBooleanEnabled
         }).ToArray();
+        if (sourceVersion == 12
+            && data.EngagementOnly
+            && !FastenerKindTraits.IsNut(data.Kind)
+            && data.SmartBindingProfile is { } engagementProfile)
+        {
+            // Schema v12 could convert the head-seat clearance binding into the
+            // only engagement binding while retaining the clearance module's
+            // switches. The smart profile is the authoritative role template.
+            bindings = bindings.Select(binding =>
+                binding.Role == ShaftFitRole.ThreadEngagement
+                    ? binding with
+                    {
+                        IsPreviewVisible = engagementProfile.EngagementPreviewVisible,
+                        IsBooleanEnabled = engagementProfile.EngagementBooleanEnabled
+                    }
+                    : binding).ToArray();
+        }
         if (data.Kind == FastenerKind.HexNut
             && bindings.Length > 0
             && sourceVersion < 9)

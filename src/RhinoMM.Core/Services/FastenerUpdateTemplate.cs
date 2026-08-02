@@ -4,6 +4,7 @@ namespace RhinoMM.Core.Services;
 
 public sealed record FastenerUpdateTemplate(
     FastenerKind Kind,
+    HexNutStyle NutStyle,
     string Size,
     double Length,
     double HeadEmbedDepth,
@@ -17,6 +18,9 @@ public sealed record FastenerUpdateTemplate(
     double EngagementBlindDepth,
     double FastenerOpacityPercent,
     double CutterOpacityPercent,
+    bool CounterboreBridgeEnabled = false,
+    double CounterboreBridgeLayerHeight = 0.2,
+    bool EngagementOnly = false,
     bool? ClearancePreviewVisible = null,
     bool? ClearanceBooleanEnabled = null,
     bool? EngagementPreviewVisible = null,
@@ -31,13 +35,52 @@ public sealed record FastenerUpdateTemplate(
         var bindings = ApplyBindings(existing.Bindings);
         if (bindingOverrides is not null)
             bindings = ApplyPerBindingOverrides(bindings, bindingOverrides);
+        var engagementOnly = !FastenerKindTraits.IsNut(Kind) && EngagementOnly;
+        if (engagementOnly)
+        {
+            var priorEngagement = existing.Bindings.FirstOrDefault(binding =>
+                binding.Role == ShaftFitRole.ThreadEngagement);
+            var engagementPreview = EngagementPreviewVisible
+                ?? priorEngagement?.IsPreviewVisible
+                ?? existing.SmartBindingProfile?.EngagementPreviewVisible
+                ?? true;
+            var engagementBoolean = EngagementBooleanEnabled
+                ?? priorEngagement?.IsBooleanEnabled
+                ?? existing.SmartBindingProfile?.EngagementBooleanEnabled
+                ?? true;
+            var headSeat = bindings.FirstOrDefault(binding => binding.IncludeHeadSeat)
+                ?? bindings.FirstOrDefault(binding => binding.Role == ShaftFitRole.ThreadEngagement);
+            if (headSeat is not null)
+            {
+                bindings =
+                [
+                    headSeat with
+                    {
+                        Role = ShaftFitRole.ThreadEngagement,
+                        ClearanceFit = ClearanceFitClass.Normal,
+                        BiteReduction = BiteReduction,
+                        DepthMode = EngagementDepthMode,
+                        BlindDepth = EngagementBlindDepth,
+                        IncludeHeadSeat = true,
+                        IsPreviewVisible = engagementPreview,
+                        IsBooleanEnabled = engagementBoolean
+                    }
+                ];
+            }
+        }
 
         var updated = existing with
         {
             Kind = Kind,
+            HexNutStyle = Kind == FastenerKind.HexNut
+                ? NutStyle
+                : RhinoMM.Core.Domain.HexNutStyle.Standard,
             Size = Size,
             Length = Length,
             HeadEmbedDepth = FastenerKindTraits.SupportsEmbedDepth(Kind) ? HeadEmbedDepth : 0,
+            CounterboreBridgeEnabled = Kind == FastenerKind.SocketCap
+                && CounterboreBridgeEnabled,
+            CounterboreBridgeLayerHeight = CounterboreBridgeLayerHeight,
             InsertOuterDiameter = Kind == FastenerKind.HeatSetInsert ? InsertOuterDiameter : 0,
             InsertDiameterCompensation = Kind == FastenerKind.HeatSetInsert
                 ? InsertDiameterCompensation
@@ -51,6 +94,8 @@ public sealed record FastenerUpdateTemplate(
             },
             FastenerOpacityPercent = FastenerOpacityPercent,
             CutterOpacityPercent = CutterOpacityPercent,
+            HoleDiameterFormula = HoleDiameterFormula.NominalIndependent,
+            EngagementOnly = engagementOnly,
             Bindings = bindings,
             UpdatedAt = DateTimeOffset.UtcNow
         };

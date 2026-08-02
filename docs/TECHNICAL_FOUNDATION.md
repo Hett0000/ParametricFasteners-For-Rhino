@@ -22,6 +22,7 @@ tests/
   RhinoMM.Integration/   Rhino 环境中的几何、持久化和导出测试
 data/
   fastener-presets.v1.json
+  locking-nut-presets.v1.json
 docs/
 ```
 
@@ -101,6 +102,8 @@ rotationRadians
 targetBindings[]
 state              valid | brokenLink | invalidGeometry
 ```
+
+schema v15 在六角螺母组件中增加 `HexNutStyle`。`Standard`继续读取普通规格表；`NylonInsertLocking`读取独立的防松螺母外包络表。M2、M2.5 数据带工程扩展标记，M3–M12 标记为 GB/T 889.1-2015 兼容尺寸。切割、代理、统计和导出不得各自复制尺寸常量。
 
 必须实现复制、变换、读写和版本迁移。未知的更高版本数据只能只读显示，不能以旧代码覆盖。参考 Rhino 官方 [User Data 示例](https://developer.rhino3d.com/en/samples/rhinocommon/user-data/)。
 
@@ -280,3 +283,29 @@ RhinoCommon 提供官方的 [STEP 写出接口](https://developer.rhino3d.com/ap
 采标全文或尺寸表没有合法来源时，只能录入可追溯的 ISO 等效数据并设置 `dataStatus: iso-equivalent`。取得授权资料、双人复核并通过尺寸回归测试后，才允许切换为 `gb-verified`。
 
 ISO 273 的一般用途通孔范围包含从 1 mm 起的细、中、粗系列；螺纹基础尺寸和公差分别由普通公制螺纹标准管理。咬合预孔属于 FDM 工艺参数，不应伪装成 GB/ISO 标准尺寸。
+
+# 0.25.0 杯头沉孔双层架桥几何
+
+- `FastenerComponentData.CounterboreBridgeEnabled`与`CounterboreBridgeLayerHeight`属于组件级几何参数，schema v11 缺省为关闭和 0.20 mm。
+- 杯头沉孔主体截止于`HeadEmbedDepth`。第一层切割中央切线槽，第二层切割边长等于最终杆孔直径的方孔，之后由轴孔切割体恢复圆孔。
+- 切线位置使用`HoleDiameterCalculator`得到的宿主最终孔径；v14 新公式中通孔包含孔径修正，咬合孔包含咬合缩减，两者均最后叠加目标覆盖值。
+- 架桥开启时一个头部承座绑定包含三个`HeadCutter`：沉孔主体、第一层切线槽和第二层方孔。
+- `CutterGeometryService`负责宿主厚度、文档公差和架桥有效空间校验；预览对象只是显示缓存，导出继续实时重建切割几何。
+
+# 0.26.0 单宿主只咬合与显示预览事务
+
+- `FastenerComponentData.EngagementOnly`属于组件级宿主策略，schema v12 对旧组件缺省为关闭。
+- `EngagementOnlyHostValidator`使用放置面宿主的精确轴向离开深度计算最大螺杆长度，并拒绝螺杆物理范围内的第二宿主。
+- `SmartHostBindingService`在创建、更新和导出前统一执行严格校验；智能组件关闭模式后恢复既有自动重识别流程。
+- `GlobalDisplaySettingsDialog`在一个 Rhino Undo 记录中更新共享显示材质和组件元数据；取消时撤销预览事务并恢复会话设置。
+- 0.26.1 起，`FastenerUpdateTemplate`在通孔角色转换为只咬合角色时，显式从原咬合绑定或`SmartBindingProfile`继承模块开关，禁止继承通孔布尔状态。
+- `BooleanExportService`在筛选启用绑定前调用`SmartHostBindingService.TryReconcile`，以控制点参数和当前宿主几何构造只咬合的规范化绑定。
+- schema v13 修复 v12 只咬合组件的角色开关错配：咬合绑定以持久化`SmartBindingProfile`中的咬合开关为准；之后面板即时修改会同时更新绑定和智能模板。
+
+# 0.27.0 孔径公式版本与贯穿覆盖范围
+
+- `HoleDiameterFormula.NominalIndependent`采用 `Clearance=D+correction+override`、`Engagement=D-bite+override`。
+- `LegacyStandardWithSharedCorrection`只用于保持 schema v13 及更早组件的既有尺寸；`FastenerUpdateTemplate.ApplyTo`会把显式更新转换为新公式。
+- `CutterFootprintEnvelopeService`以最终孔径探测圆柱和宿主做布尔交集，再在组件局部轴向提取完整最小/最大覆盖范围；通孔和完全贯穿咬合孔统一使用该范围。
+- 0.27.1 将同一最小覆盖位置用于盲咬合孔入口，避免倾斜进入面残留楔形材料；盲孔终点仍使用公式深度，只有达到完整最大覆盖位置时才按贯穿处理。
+- 正常自动识别使用未裁剪的第一宿主离开深度校验螺杆是否完整穿出，并要求轴向范围内存在后方宿主。

@@ -4,6 +4,11 @@ namespace RhinoMM.Core.Services;
 
 public static class FastenerLabels
 {
+    public static string Kind(FastenerComponentData component) =>
+        component.Kind == FastenerKind.HexNut
+            ? NutStyle(component.HexNutStyle)
+            : Kind(component.Kind);
+
     public static string Kind(FastenerKind kind) => kind switch
     {
         FastenerKind.SocketCap => "内六角杯头螺丝",
@@ -13,6 +18,22 @@ public static class FastenerLabels
         FastenerKind.HeatSetInsert => "热熔螺母",
         _ => kind.ToString()
     };
+
+    public static string NutStyle(HexNutStyle style) => style switch
+    {
+        HexNutStyle.Standard => "普通六角螺母",
+        HexNutStyle.NylonInsertLocking => "尼龙防松螺母",
+        _ => style.ToString()
+    };
+
+    public static string NutStandard(FastenerComponentData component) =>
+        component.Kind != FastenerKind.HexNut
+            ? string.Empty
+            : component.HexNutStyle == HexNutStyle.NylonInsertLocking
+                ? component.Size is "M2" or "M2.5"
+                    ? "DIN 985 工程扩展"
+                    : "GB/T 889.1-2015"
+                : "普通六角螺母预设";
 
     public static string ClearanceFit(ClearanceFitClass fit) => fit switch
     {

@@ -6,23 +6,29 @@ internal sealed record PlacementCutterPreset(
     double PrinterCorrection,
     ClearanceFitClass ClearanceFit,
     double BiteReduction,
+    bool CounterboreBridgeEnabled,
+    double CounterboreBridgeLayerHeight,
     DepthMode EngagementDepthMode,
     double EngagementBlindDepth,
     bool ClearancePreviewVisible,
     bool ClearanceBooleanEnabled,
     bool EngagementPreviewVisible,
-    bool EngagementBooleanEnabled)
+    bool EngagementBooleanEnabled,
+    bool EngagementOnly)
 {
     public static PlacementCutterPreset Default { get; } = new(
         0.2,
         ClearanceFitClass.Normal,
         0.35,
+        false,
+        0.2,
         DepthMode.FastenerLengthPlusOneDiameter,
         3,
         true,
         true,
         true,
-        true);
+        true,
+        false);
 
     public HoleTargetBinding CreateClearanceBinding(Guid targetId, bool includeHeadSeat) => new()
     {

@@ -324,6 +324,9 @@ public static class ComponentRefreshService
         if (component.HeadEmbedDepth <= 0
             || !FastenerKindTraits.SupportsHeadEmbed(component.Kind))
             return 0;
+        if (component.Kind == FastenerKind.SocketCap
+            && component.CounterboreBridgeEnabled)
+            return 3;
         if (component.Kind != FastenerKind.Countersunk)
             return 1;
 
@@ -368,8 +371,13 @@ public static class ComponentRefreshService
 
         var actualStart = bounds.Min(box => box.Min.Z);
         var actualEnd = bounds.Max(box => box.Max.Z);
+        var expectedEnd = component.Kind == FastenerKind.SocketCap
+            && component.CounterboreBridgeEnabled
+                ? component.HeadEmbedDepth
+                    + component.CounterboreBridgeLayerHeight * 2
+                : envelope.End;
         return actualStart <= envelope.CombinedStart + documentTolerance
-            && actualEnd >= envelope.End - documentTolerance;
+            && actualEnd >= expectedEnd - documentTolerance;
     }
 
     private static bool IsOrdinaryHost(RhinoObject obj) =>

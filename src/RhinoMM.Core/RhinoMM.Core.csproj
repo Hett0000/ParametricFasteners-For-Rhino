@@ -6,5 +6,6 @@
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="..\..\data\fastener-presets.v1.json" Link="Data\fastener-presets.v1.json" />
+    <EmbeddedResource Include="..\..\data\locking-nut-presets.v1.json" Link="Data\locking-nut-presets.v1.json" />
   </ItemGroup>
 </Project>
