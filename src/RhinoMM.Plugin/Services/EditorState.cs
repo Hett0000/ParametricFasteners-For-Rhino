@@ -27,6 +27,10 @@ public sealed class EditorState
     public double EngagementBlindDepth { get; set; } = 3;
     public double FastenerOpacityPercent { get; set; } = 70;
     public double CutterOpacityPercent { get; set; } = 35;
+    public ScrewAssemblyMode AssemblyMode { get; set; } = ScrewAssemblyMode.ThreadEngagement;
+    public HexNutStyle PairedNutStyle { get; set; } = HexNutStyle.Standard;
+    public double NutTipProtrusion { get; set; } = 2;
+    public double NutPocketCompensation { get; set; } = 0.2;
     public bool EngagementOnly { get; set; }
     public Guid LoadedComponentId { get; set; }
 
@@ -50,7 +54,16 @@ public sealed class EditorState
         PrintProfile = new PrintProfileSnapshot("当前 FDM 配置", PrinterCorrection),
         FastenerOpacityPercent = FastenerOpacityPercent,
         CutterOpacityPercent = CutterOpacityPercent,
-        EngagementOnly = !FastenerKindTraits.IsNut(Kind) && EngagementOnly,
+        AssemblyMode = FastenerKindTraits.IsScrew(Kind)
+            ? AssemblyMode
+            : ScrewAssemblyMode.ThreadEngagement,
+        PairedNutStyle = AssemblyMode == ScrewAssemblyMode.NutFastened
+            ? PairedNutStyle
+            : HexNutStyle.Standard,
+        NutTipProtrusion = NutTipProtrusion,
+        NutPocketCompensation = NutPocketCompensation,
+        EngagementOnly = FastenerKindTraits.IsScrew(Kind)
+            && AssemblyMode == ScrewAssemblyMode.EngagementOnly,
         Bindings = bindings,
         UpdatedAt = DateTimeOffset.UtcNow
     };
@@ -78,7 +91,11 @@ public sealed class EditorState
         CutterOpacityPercent,
         CounterboreBridgeEnabled,
         CounterboreBridgeLayerHeight,
-        EngagementOnly);
+        EngagementOnly,
+        AssemblyMode: AssemblyMode,
+        PairedNutStyle: PairedNutStyle,
+        NutTipProtrusion: NutTipProtrusion,
+        NutPocketCompensation: NutPocketCompensation);
 
     public void Load(FastenerComponentData component)
     {
@@ -92,7 +109,11 @@ public sealed class EditorState
         InsertOuterDiameter = component.InsertOuterDiameter;
         InsertDiameterCompensation = component.InsertDiameterCompensation;
         InsertDepthCompensation = component.InsertDepthCompensation;
-        EngagementOnly = component.EngagementOnly;
+        AssemblyMode = component.AssemblyMode;
+        PairedNutStyle = component.PairedNutStyle;
+        NutTipProtrusion = component.NutTipProtrusion;
+        NutPocketCompensation = component.NutPocketCompensation;
+        EngagementOnly = component.AssemblyMode == ScrewAssemblyMode.EngagementOnly;
         PrinterCorrection = component.PrintProfile.HoleDiameterCorrection;
         LoadedComponentId = component.ComponentId;
         if (component.Bindings.Count > 0)

@@ -17,6 +17,10 @@ public static class FastenerGeometryParameters
             || left.InsertDiameterCompensation != right.InsertDiameterCompensation
             || left.InsertDepthCompensation != right.InsertDepthCompensation
             || left.HoleDiameterFormula != right.HoleDiameterFormula
+            || left.AssemblyMode != right.AssemblyMode
+            || left.PairedNutStyle != right.PairedNutStyle
+            || left.NutTipProtrusion != right.NutTipProtrusion
+            || left.NutPocketCompensation != right.NutPocketCompensation
             || left.EngagementOnly != right.EngagementOnly
             || left.AutoRecognizeHosts != right.AutoRecognizeHosts
             || left.SmartRecognitionMode != right.SmartRecognitionMode

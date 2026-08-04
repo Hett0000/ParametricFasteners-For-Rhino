@@ -27,13 +27,17 @@ public sealed class RhinoMMPlaceHoleCommand : Command
         if (FastenerKindTraits.UsesSingleHostPlacement(state.Kind))
             return ExecuteSingleHostPlacement(doc, state);
 
-        var engagementOnly = PlacementPresetService.Current.EngagementOnly;
+        var assemblyMode = PlacementPresetService.Current.AssemblyMode;
+        var engagementOnly = assemblyMode == ScrewAssemblyMode.EngagementOnly;
+        var nutFastened = assemblyMode == ScrewAssemblyMode.NutFastened;
         var clearanceTargets = engagementOnly
             ? []
             : SelectTargets("选择螺丝穿过的物体（正补偿通孔）");
         var engagementTargets = engagementOnly
             ? SelectSingleTarget("选择唯一的只咬合宿主")
-            : SelectTargets("选择需要与螺丝咬合的物体（负补偿孔）");
+            : nutFastened
+                ? []
+                : SelectTargets("选择需要与螺丝咬合的物体（负补偿孔）");
         if (clearanceTargets.Count + engagementTargets.Count == 0)
         {
             RhinoApp.WriteLine("至少需要选择一个被切割体。");
@@ -210,7 +214,15 @@ public sealed class RhinoMMPlaceHoleCommand : Command
         var draft = state.CreateDraft(FastenerGeometryFactory.FromPlane(plane), bindings) with
         {
             PrintProfile = new PrintProfileSnapshot("当前 FDM 配置", preset.PrinterCorrection),
-            EngagementOnly = preset.EngagementOnly
+            AssemblyMode = preset.AssemblyMode,
+            PairedNutStyle = preset.PairedNutStyle,
+            NutTipProtrusion = preset.NutTipProtrusion,
+            NutPocketCompensation = preset.NutPocketCompensation,
+            EngagementOnly = preset.AssemblyMode == ScrewAssemblyMode.EngagementOnly,
+            AutoRecognizeHosts = false,
+            SmartBindingProfile = preset.AssemblyMode == ScrewAssemblyMode.NutFastened
+                ? preset.ToSmartBindingProfile()
+                : null
         };
         return FastenerComponentService.CreateOrReplace(doc, draft, out saved, out message);
     }

@@ -89,7 +89,9 @@ public static class ComponentRefreshService
                         selectedHosts,
                         repairedPlacement,
                         cutter,
-                        assignedTargetIds);
+                        binding.Role == ShaftFitRole.NutPocket
+                            ? new HashSet<Guid>()
+                            : assignedTargetIds);
                     if (match is null)
                     {
                         componentNeedsRelink = true;

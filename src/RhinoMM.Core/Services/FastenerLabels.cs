@@ -29,11 +29,22 @@ public static class FastenerLabels
     public static string NutStandard(FastenerComponentData component) =>
         component.Kind != FastenerKind.HexNut
             ? string.Empty
-            : component.HexNutStyle == HexNutStyle.NylonInsertLocking
-                ? component.Size is "M2" or "M2.5"
-                    ? "DIN 985 工程扩展"
-                    : "GB/T 889.1-2015"
-                : "普通六角螺母预设";
+            : NutStandard(component.HexNutStyle, component.Size);
+
+    public static string NutStandard(HexNutStyle style, string size) =>
+        style == HexNutStyle.NylonInsertLocking
+            ? size is "M2" or "M2.5"
+                ? "DIN 985 工程扩展"
+                : "GB/T 889.1-2015"
+            : "普通六角螺母预设";
+
+    public static string AssemblyMode(ScrewAssemblyMode mode) => mode switch
+    {
+        ScrewAssemblyMode.ThreadEngagement => "螺纹咬合",
+        ScrewAssemblyMode.EngagementOnly => "只咬合",
+        ScrewAssemblyMode.NutFastened => "螺母固定",
+        _ => mode.ToString()
+    };
 
     public static string ClearanceFit(ClearanceFitClass fit) => fit switch
     {
@@ -48,6 +59,7 @@ public static class FastenerLabels
         ShaftFitRole.Clearance => "穿过通孔",
         ShaftFitRole.ThreadEngagement => "螺纹咬合孔",
         ShaftFitRole.InstallationPocket => "安装槽/孔",
+        ShaftFitRole.NutPocket => "配套螺母槽",
         _ => role.ToString()
     };
 

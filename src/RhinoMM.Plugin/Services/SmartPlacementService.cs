@@ -67,6 +67,12 @@ internal readonly record struct SmartPlacementParameterSignature(
     bool EngagementBooleanEnabled,
     bool HeatSetPreviewVisible,
     bool HeatSetBooleanEnabled,
+    ScrewAssemblyMode AssemblyMode,
+    HexNutStyle PairedNutStyle,
+    double NutTipProtrusion,
+    double NutPocketCompensation,
+    bool NutPocketPreviewVisible,
+    bool NutPocketBooleanEnabled,
     bool EngagementOnly);
 
 internal sealed record SmartPlacementParameterSnapshot(
@@ -103,7 +109,13 @@ internal sealed record SmartPlacementParameterSnapshot(
             preset.EngagementBooleanEnabled,
             heatSetPreset.PreviewVisible,
             heatSetPreset.BooleanEnabled,
-            preset.EngagementOnly);
+            preset.AssemblyMode,
+            preset.PairedNutStyle,
+            preset.NutTipProtrusion,
+            preset.NutPocketCompensation,
+            preset.NutPocketPreviewVisible,
+            preset.NutPocketBooleanEnabled,
+            preset.AssemblyMode == ScrewAssemblyMode.EngagementOnly);
         return new SmartPlacementParameterSnapshot(
             signature,
             RhinoMMPlugIn.Catalog.Get(signature.Size),
@@ -146,8 +158,14 @@ internal sealed record SmartPlacementParameterSnapshot(
             Signature.PrinterCorrection),
         FastenerOpacityPercent = FastenerOpacityPercent,
         CutterOpacityPercent = CutterOpacityPercent,
-        EngagementOnly = !FastenerKindTraits.IsNut(Signature.Kind)
-            && Signature.EngagementOnly,
+        AssemblyMode = FastenerKindTraits.IsScrew(Signature.Kind)
+            ? Signature.AssemblyMode
+            : ScrewAssemblyMode.ThreadEngagement,
+        PairedNutStyle = Signature.PairedNutStyle,
+        NutTipProtrusion = Signature.NutTipProtrusion,
+        NutPocketCompensation = Signature.NutPocketCompensation,
+        EngagementOnly = FastenerKindTraits.IsScrew(Signature.Kind)
+            && Signature.AssemblyMode == ScrewAssemblyMode.EngagementOnly,
         AutoRecognizeHosts = recognitionMode.HasValue
             && !FastenerKindTraits.IsNut(Signature.Kind),
         SmartRecognitionMode = recognitionMode ?? SmartPlacementRecognitionMode.Automatic,
@@ -272,9 +290,47 @@ internal sealed class SmartPlacementService
         var intervals = FindAxisHosts(
             plane,
             reach,
-            parameters.Signature.EngagementOnly
+            parameters.Signature.AssemblyMode is ScrewAssemblyMode.EngagementOnly
+                or ScrewAssemblyMode.NutFastened
                 || recognitionMode == SmartPlacementRecognitionMode.Automatic);
-        if (parameters.Signature.EngagementOnly)
+        if (parameters.Signature.AssemblyMode == ScrewAssemblyMode.NutFastened)
+        {
+            var provisional = parameters.CreateDraft(plane, [], recognitionMode) with
+            {
+                AssemblyMode = ScrewAssemblyMode.NutFastened,
+                EngagementOnly = false
+            };
+            var nutResolution = NutFastenedHostResolver.Resolve(
+                intervals,
+                placementHost.ObjectId,
+                provisional,
+                parameters.Spec,
+                _tolerance);
+            if (!nutResolution.IsValid)
+                return SmartPlacementPreview.Invalid(
+                    plane.Origin,
+                    nutResolution.Message,
+                    parameters.Signature,
+                    snapLabel);
+            var nutBindings = nutResolution.ClearanceAssignments
+                .Select(item => parameters.Preset.CreateClearanceBinding(
+                    item.ObjectId,
+                    item.ObjectId == placementHost.ObjectId))
+                .Append(parameters.Preset.CreateNutPocketBinding(
+                    nutResolution.NutPocketTargetId))
+                .ToArray();
+            var nutDraft = parameters.CreateDraft(plane, nutBindings, recognitionMode) with
+            {
+                AssemblyMode = ScrewAssemblyMode.NutFastened,
+                EngagementOnly = false
+            };
+            return BuildGeometryPreview(
+                parameters,
+                nutDraft,
+                $"{nutDraft.Size}×{nutDraft.Length:0.##} · 螺母固定 · 通{nutResolution.ClearanceAssignments.Count} / 槽1 · 露出{nutDraft.NutTipProtrusion:0.##}",
+                snapLabel);
+        }
+        if (parameters.Signature.AssemblyMode == ScrewAssemblyMode.EngagementOnly)
         {
             var strict = EngagementOnlyHostValidator.Validate(
                 placementHost.ObjectId,

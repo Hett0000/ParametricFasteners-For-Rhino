@@ -351,6 +351,7 @@ internal sealed class SmartPlacementGetter : GetPoint
         ShaftFitRole.Clearance => ClearanceColor,
         ShaftFitRole.ThreadEngagement => EngagementColor,
         ShaftFitRole.InstallationPocket => InstallationColor,
+        ShaftFitRole.NutPocket => InstallationColor,
         _ => FastenerColor
     };
 

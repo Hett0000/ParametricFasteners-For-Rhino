@@ -68,7 +68,7 @@ public sealed class FastenerStatisticsWorkbookWriterTests
             Assert.Contains("M3&lt;&amp;&gt;", summary, StringComparison.Ordinal);
             Assert.Contains("外径 mm", summary, StringComparison.Ordinal);
             var detail = ReadEntry(archive, "xl/worksheets/sheet2.xml");
-            Assert.Contains("r=\"F2\" t=\"n\"><v>12</v>", detail, StringComparison.Ordinal);
+            Assert.Contains("r=\"G2\" t=\"n\"><v>12</v>", detail, StringComparison.Ordinal);
             Assert.Contains("孔径补偿 mm", detail, StringComparison.Ordinal);
             Assert.Contains("深度补偿 mm", detail, StringComparison.Ordinal);
             Assert.Contains("通孔最终直径 mm", detail, StringComparison.Ordinal);
@@ -130,7 +130,7 @@ public sealed class FastenerStatisticsWorkbookWriterTests
 
             using var archive = ZipFile.OpenRead(path);
             var detail = ReadEntry(archive, "xl/worksheets/sheet2.xml");
-            Assert.Contains("r=\"I2\" t=\"n\"><v>1</v>", detail, StringComparison.Ordinal);
+            Assert.Contains("r=\"J2\" t=\"n\"><v>1</v>", detail, StringComparison.Ordinal);
         }
         finally
         {
@@ -167,8 +167,46 @@ public sealed class FastenerStatisticsWorkbookWriterTests
 
             using var archive = ZipFile.OpenRead(path);
             var detail = ReadEntry(archive, "xl/worksheets/sheet2.xml");
-            Assert.Contains("r=\"L2\" t=\"n\"><v>3.2</v>", detail, StringComparison.Ordinal);
-            Assert.Contains("r=\"N2\" t=\"n\"><v>2.65</v>", detail, StringComparison.Ordinal);
+            Assert.Contains("r=\"M2\" t=\"n\"><v>3.2</v>", detail, StringComparison.Ordinal);
+            Assert.Contains("r=\"O2\" t=\"n\"><v>2.65</v>", detail, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public void Write_ExpandsPairedNutIntoSecondDetailRow()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "nut-fastened.xlsx");
+            var component = new FastenerComponentData
+            {
+                Kind = FastenerKind.SocketCap,
+                Size = "M3",
+                Length = 20,
+                AssemblyMode = ScrewAssemblyMode.NutFastened,
+                PairedNutStyle = HexNutStyle.NylonInsertLocking,
+                NutTipProtrusion = 2,
+                NutPocketCompensation = 0.2
+            };
+            var report = FastenerStatisticsBuilder.Build([component], FastenerStatisticsScope.All);
+
+            FastenerStatisticsWorkbookWriter.Write(path, "Assembly.3dm", DateTimeOffset.UtcNow, report);
+
+            using var archive = ZipFile.OpenRead(path);
+            var detail = ReadEntry(archive, "xl/worksheets/sheet2.xml");
+            Assert.Contains("装配角色", detail, StringComparison.Ordinal);
+            Assert.Contains("配套螺母", detail, StringComparison.Ordinal);
+            Assert.Contains("螺母固定", detail, StringComparison.Ordinal);
+            Assert.Contains("末端露出量 mm", detail, StringComparison.Ordinal);
+            Assert.Contains("螺母槽补偿 mm", detail, StringComparison.Ordinal);
+            Assert.Contains("r=\"T2\" t=\"n\"><v>2</v>", detail, StringComparison.Ordinal);
+            Assert.Contains("r=\"U2\" t=\"n\"><v>0.2</v>", detail, StringComparison.Ordinal);
+            Assert.Contains("r=\"B3\"", detail, StringComparison.Ordinal);
         }
         finally
         {

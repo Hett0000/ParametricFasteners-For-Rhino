@@ -75,7 +75,11 @@ internal sealed record SelectedComponentSummary(
             .ToList();
         if (groups.Length > 2)
             shown.Add($"另 {groups.Length - 2} 种");
-        var hosts = components.Sum(component => component.Bindings.Count);
+        var hosts = components.Sum(component => component.Bindings
+            .Select(binding => binding.TargetObjectId)
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .Count());
         return $"已选 {components.Count} 个 · {string.Join(" / ", shown)} · 共{hosts}个宿主";
     }
 

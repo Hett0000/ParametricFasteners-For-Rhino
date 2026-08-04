@@ -99,6 +99,49 @@ public sealed class FastenerStatisticsBuilderTests
     }
 
     [Fact]
+    public void Build_ExpandsNutFastenedAssemblyIntoScrewAndPairedNut()
+    {
+        var assembly = Component(FastenerKind.SocketCap, "M3", 20) with
+        {
+            AssemblyMode = ScrewAssemblyMode.NutFastened,
+            PairedNutStyle = HexNutStyle.NylonInsertLocking
+        };
+
+        var report = FastenerStatisticsBuilder.Build([assembly], FastenerStatisticsScope.All);
+
+        Assert.Equal(2, report.TotalCount);
+        Assert.Equal(1, report.ScrewCount);
+        Assert.Equal(1, report.NutCount);
+        Assert.Contains(report.SummaryRows, row =>
+            row.Kind == FastenerKind.SocketCap && row.Size == "M3" && row.Quantity == 1);
+        Assert.Contains(report.SummaryRows, row =>
+            row.Kind == FastenerKind.HexNut
+            && row.NutStyle == HexNutStyle.NylonInsertLocking
+            && row.Size == "M3"
+            && row.Quantity == 1);
+    }
+
+    [Fact]
+    public void Build_MergesPairedNutWithMatchingStandaloneNut()
+    {
+        var assembly = Component(FastenerKind.SocketCap, "M4", 20) with
+        {
+            AssemblyMode = ScrewAssemblyMode.NutFastened,
+            PairedNutStyle = HexNutStyle.Standard
+        };
+        var standalone = Component(FastenerKind.HexNut, "M4", 0);
+
+        var report = FastenerStatisticsBuilder.Build([assembly, standalone], FastenerStatisticsScope.All);
+
+        Assert.Equal(3, report.TotalCount);
+        Assert.Equal(2, report.NutCount);
+        Assert.Equal(2, report.SummaryRows.Single(row =>
+            row.Kind == FastenerKind.HexNut
+            && row.NutStyle == HexNutStyle.Standard
+            && row.Size == "M4").Quantity);
+    }
+
+    [Fact]
     public void Build_HandlesEmptyInput()
     {
         var report = FastenerStatisticsBuilder.Build([], FastenerStatisticsScope.All);

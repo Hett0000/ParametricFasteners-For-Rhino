@@ -18,6 +18,12 @@ internal static class PlacementPresetService
             var depth = ParseDepthMode(
                 settings.GetString(Prefix + "EngagementDepthMode", defaults.EngagementDepthMode.ToString()),
                 defaults.EngagementDepthMode);
+            var legacyEngagementOnly = settings.GetBool(
+                Prefix + "EngagementOnly",
+                defaults.EngagementOnly);
+            var defaultAssemblyMode = legacyEngagementOnly
+                ? ScrewAssemblyMode.EngagementOnly
+                : defaults.AssemblyMode;
             Current = new PlacementCutterPreset(
                 FiniteOrDefault(settings.GetDouble(Prefix + "PrinterCorrection", defaults.PrinterCorrection), defaults.PrinterCorrection, -2, 2),
                 fit,
@@ -36,7 +42,25 @@ internal static class PlacementPresetService
                 settings.GetBool(Prefix + "ClearanceBooleanEnabled", defaults.ClearanceBooleanEnabled),
                 settings.GetBool(Prefix + "EngagementPreviewVisible", defaults.EngagementPreviewVisible),
                 settings.GetBool(Prefix + "EngagementBooleanEnabled", defaults.EngagementBooleanEnabled),
-                settings.GetBool(Prefix + "EngagementOnly", defaults.EngagementOnly));
+                legacyEngagementOnly,
+                ParseEnum(
+                    settings.GetString(Prefix + "AssemblyMode", defaultAssemblyMode.ToString()),
+                    defaultAssemblyMode),
+                ParseEnum(
+                    settings.GetString(Prefix + "PairedNutStyle", defaults.PairedNutStyle.ToString()),
+                    defaults.PairedNutStyle),
+                FiniteOrDefault(
+                    settings.GetDouble(Prefix + "NutTipProtrusion", defaults.NutTipProtrusion),
+                    defaults.NutTipProtrusion,
+                    0,
+                    1000),
+                FiniteOrDefault(
+                    settings.GetDouble(Prefix + "NutPocketCompensation", defaults.NutPocketCompensation),
+                    defaults.NutPocketCompensation,
+                    -20,
+                    20),
+                settings.GetBool(Prefix + "NutPocketPreviewVisible", defaults.NutPocketPreviewVisible),
+                settings.GetBool(Prefix + "NutPocketBooleanEnabled", defaults.NutPocketBooleanEnabled));
         }
         catch
         {
@@ -65,6 +89,12 @@ internal static class PlacementPresetService
             settings.SetBool(Prefix + "EngagementPreviewVisible", preset.EngagementPreviewVisible);
             settings.SetBool(Prefix + "EngagementBooleanEnabled", preset.EngagementBooleanEnabled);
             settings.SetBool(Prefix + "EngagementOnly", preset.EngagementOnly);
+            settings.SetString(Prefix + "AssemblyMode", preset.AssemblyMode.ToString());
+            settings.SetString(Prefix + "PairedNutStyle", preset.PairedNutStyle.ToString());
+            settings.SetDouble(Prefix + "NutTipProtrusion", preset.NutTipProtrusion);
+            settings.SetDouble(Prefix + "NutPocketCompensation", preset.NutPocketCompensation);
+            settings.SetBool(Prefix + "NutPocketPreviewVisible", preset.NutPocketPreviewVisible);
+            settings.SetBool(Prefix + "NutPocketBooleanEnabled", preset.NutPocketBooleanEnabled);
             message = "放置切割预设已保存。";
             return true;
         }

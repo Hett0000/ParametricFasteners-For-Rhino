@@ -22,7 +22,13 @@ public static class FastenerSelectionSummaryFormatter
             .Where(binding => binding.Role == ShaftFitRole.ThreadEngagement)
             .ToArray();
         var depth = CompactDepth(engagementBindings);
-        var mode = component.EngagementOnly ? " 只咬合" : string.Empty;
+        if (component.AssemblyMode == ScrewAssemblyMode.NutFastened)
+        {
+            var pocketCount = component.Bindings.Count(binding => binding.Role == ShaftFitRole.NutPocket);
+            return $"{ShortKind(component.Kind)} {component.Size}*{Number(component.Length)} 螺母固定"
+                + $" 通{clearanceCount}/槽{pocketCount} · 露出{Number(component.NutTipProtrusion)}";
+        }
+        var mode = component.AssemblyMode == ScrewAssemblyMode.EngagementOnly ? " 只咬合" : string.Empty;
         return $"{ShortKind(component.Kind)} {component.Size}*{Number(component.Length)}{mode}"
             + $"{depth} 通{clearanceCount}/咬{engagementBindings.Length}";
     }
@@ -49,7 +55,14 @@ public static class FastenerSelectionSummaryFormatter
                 + $"外径 Ø{Number(component.InsertOuterDiameter)} mm；安装宿主 {installationCount}";
         }
 
-        var mode = component.EngagementOnly ? "；模式：只咬合" : string.Empty;
+        if (component.AssemblyMode == ScrewAssemblyMode.NutFastened)
+        {
+            var pocketCount = component.Bindings.Count(binding => binding.Role == ShaftFitRole.NutPocket);
+            return $"{FastenerLabels.Kind(component.Kind)} {component.Size}×{Number(component.Length)} mm；"
+                + $"模式：螺母固定；配套{FastenerLabels.NutStyle(component.PairedNutStyle)}；"
+                + $"末端露出 {Number(component.NutTipProtrusion)} mm；通孔宿主 {clearanceCount}；螺母槽 {pocketCount}";
+        }
+        var mode = component.AssemblyMode == ScrewAssemblyMode.EngagementOnly ? "；模式：只咬合" : string.Empty;
         return $"{FastenerLabels.Kind(component.Kind)} {component.Size}×{Number(component.Length)} mm{mode}；"
             + $"{FullDepth(engagementBindings)}；通孔宿主 {clearanceCount}；"
             + $"咬合宿主 {engagementBindings.Length}";

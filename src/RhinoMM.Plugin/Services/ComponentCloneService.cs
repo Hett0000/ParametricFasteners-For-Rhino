@@ -171,6 +171,7 @@ internal static class ComponentCloneService
                 UpdatedAt = DateTimeOffset.UtcNow
             };
             var usedTargets = new HashSet<Guid>();
+            var resolvedTargetsBySource = new Dictionary<Guid, Guid>();
             var relinked = 0;
             var unresolved = false;
             var bindings = new List<HoleTargetBinding>();
@@ -182,17 +183,22 @@ internal static class ComponentCloneService
                         obj.Attributes.GetUserString(ComponentRepository.BindingIdKey),
                         out var rawBindingId)
                     && rawBindingId == sourceBinding.BindingId);
-                var targetId = ResolveTarget(
-                    doc,
-                    plan,
-                    initial,
-                    sourceBinding,
-                    rawCutter?.Geometry,
-                    usedTargets);
+                var targetId = resolvedTargetsBySource.TryGetValue(
+                        sourceBinding.TargetObjectId,
+                        out var sharedTarget)
+                    ? sharedTarget
+                    : ResolveTarget(
+                        doc,
+                        plan,
+                        initial,
+                        sourceBinding,
+                        rawCutter?.Geometry,
+                        usedTargets);
                 if (targetId == Guid.Empty)
                     unresolved = true;
                 else
                 {
+                    resolvedTargetsBySource[sourceBinding.TargetObjectId] = targetId;
                     usedTargets.Add(targetId);
                     if (targetId != sourceBinding.TargetObjectId)
                         relinked++;

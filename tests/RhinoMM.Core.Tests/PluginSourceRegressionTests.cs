@@ -489,7 +489,8 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("NumericFieldWidth", profile, StringComparison.Ordinal);
         Assert.Contains("DepthFieldWidth", profile, StringComparison.Ordinal);
         Assert.DoesNotContain("DepthPresetRow()", panel, StringComparison.Ordinal);
-        Assert.Contains("var isEngagementOnly = _engagementOnly.Checked == true", panel, StringComparison.Ordinal);
+        Assert.Contains("var assemblyMode = SelectedAssemblyMode()", panel, StringComparison.Ordinal);
+        Assert.Contains("FieldStack(\"装配方式\", _assemblyMode)", panel, StringComparison.Ordinal);
         Assert.Contains("FieldStack(\"追加深度 mm\", _presetBlindDepth)", panel, StringComparison.Ordinal);
     }
 
@@ -668,7 +669,19 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("locking-nut-presets.v1.json", dimensions, StringComparison.Ordinal);
         Assert.Contains("AddNylonLockingNutProxy", geometry, StringComparison.Ordinal);
         Assert.Contains("CreateHexNutPocketCutter", geometry, StringComparison.Ordinal);
-        Assert.Contains("尼龙防松", panel, StringComparison.Ordinal);
+        Assert.Contains("CreateCylinder(", geometry, StringComparison.Ordinal);
+        Assert.Contains("dimensions.AcrossFlats / 2", geometry, StringComparison.Ordinal);
+        Assert.Contains("CreateSteppedHollowProxy", geometry, StringComparison.Ordinal);
+        Assert.Contains("Brep.CreateBooleanUnion([body, collar]", geometry, StringComparison.Ordinal);
+        Assert.Contains("无法合并尼龙防松螺母的六角本体与圆柱上盖", geometry, StringComparison.Ordinal);
+        Assert.Contains("private readonly CheckBox _nylonLockingNut", panel, StringComparison.Ordinal);
+        Assert.Contains("Text = \"尼龙防松螺母\"", panel, StringComparison.Ordinal);
+        Assert.Contains("_parameterLayout.AddRow(CompactRow(_nylonLockingNut))", panel, StringComparison.Ordinal);
+        Assert.Contains("_nylonLockingNut.CheckedChanged", panel, StringComparison.Ordinal);
+        Assert.Contains("_nylonLockingNut.Checked = state.Kind == FastenerKind.HexNut", panel, StringComparison.Ordinal);
+        Assert.Contains("_nylonLockingNut.Checked == true", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("LockingNutKindKey", panel, StringComparison.Ordinal);
+        Assert.Contains("$\"{standardLine}\\n\"", panel, StringComparison.Ordinal);
         Assert.Contains("UpdateHexNutSizeAvailability", panel, StringComparison.Ordinal);
     }
 
@@ -776,7 +789,7 @@ public sealed class PluginSourceRegressionTests
             "src", "RhinoMM.Plugin", "Services", "SmartHostBindingService.cs");
         var editor = ReadSource("src", "RhinoMM.Plugin", "Services", "EditorState.cs");
 
-        Assert.Contains("CurrentSchemaVersion = 15", models, StringComparison.Ordinal);
+        Assert.Contains("CurrentSchemaVersion = 16", models, StringComparison.Ordinal);
         Assert.Contains("AutoRecognizeHosts", models, StringComparison.Ordinal);
         Assert.Contains("SmartRecognitionMode", models, StringComparison.Ordinal);
         Assert.Contains("SmartBindingProfile", models, StringComparison.Ordinal);
@@ -815,6 +828,27 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("只咬合", panel, StringComparison.Ordinal);
         Assert.Contains("SmartHostBindingService.TryReconcile", booleanExport, StringComparison.Ordinal);
         Assert.Contains("UpdateSmartModuleSwitch", panel, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NutFastenedModeUsesSharedHostRecognitionGeometryAndUiPipeline()
+    {
+        var models = ReadSource("src", "RhinoMM.Core", "Domain", "FastenerModels.cs");
+        var resolver = ReadSource("src", "RhinoMM.Core", "Services", "NutFastenedHostResolver.cs");
+        var placement = ReadSource("src", "RhinoMM.Plugin", "Services", "SmartPlacementService.cs");
+        var binding = ReadSource("src", "RhinoMM.Plugin", "Services", "SmartHostBindingService.cs");
+        var cutter = ReadSource("src", "RhinoMM.Plugin", "Services", "CutterGeometryService.cs");
+        var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
+
+        Assert.Contains("NutFastened", models, StringComparison.Ordinal);
+        Assert.Contains("NutPocket", models, StringComparison.Ordinal);
+        Assert.Contains("NutFastenedHostResolver.Resolve", placement, StringComparison.Ordinal);
+        Assert.Contains("TryReconcileNutFastened", binding, StringComparison.Ordinal);
+        Assert.Contains("CreatePairedNutPocketCutter", cutter, StringComparison.Ordinal);
+        Assert.Contains("FieldStack(\"装配方式\", _assemblyMode)", panel, StringComparison.Ordinal);
+        Assert.Contains("螺母槽补偿 mm", panel, StringComparison.Ordinal);
+        Assert.Contains("末端露出 mm", panel, StringComparison.Ordinal);
+        Assert.Contains("ClearanceAssignments", resolver, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -873,6 +907,7 @@ public sealed class PluginSourceRegressionTests
         Assert.True(loadIndex > guardIndex);
         Assert.True(contextIndex > loadIndex);
         Assert.Contains("_kind.Select(state.Kind.ToString(), false)", panel, StringComparison.Ordinal);
+        Assert.Contains("_nylonLockingNut.Checked = state.Kind == FastenerKind.HexNut", panel, StringComparison.Ordinal);
     }
 
     [Fact]

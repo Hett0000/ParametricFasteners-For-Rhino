@@ -73,7 +73,7 @@ public static class FastenerComponentService
                 .Distinct()
                 .ToArray();
             message = drafts.Count == 1
-                ? $"已生成 {saved[0].Size}，绑定 {saved[0].Bindings.Count} 个被切割体。"
+                ? $"已生成 {saved[0].Size}，绑定 {saved[0].Bindings.Select(binding => binding.TargetObjectId).Distinct().Count()} 个被切割体。"
                 : $"已批量更新 {saved.Count} 个参数化紧固件。";
             if (warningText.Length > 0)
                 message += $" {string.Join(" ", warningText)}";

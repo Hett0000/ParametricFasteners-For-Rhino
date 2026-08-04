@@ -9,8 +9,25 @@ $root = Split-Path -Parent $PSScriptRoot
 $localDotnet = Join-Path $root ".dotnet\dotnet.exe"
 $dotnet = if (Test-Path -LiteralPath $localDotnet) { $localDotnet } else { "dotnet" }
 $artifactsRoot = Join-Path $root "artifacts"
+$deploymentRoot = $root
+try {
+    $gitCommonDir = (& git -C $root rev-parse --git-common-dir 2>$null | Select-Object -First 1)
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($gitCommonDir)) {
+        $gitCommonPath = if ([System.IO.Path]::IsPathRooted($gitCommonDir)) {
+            [System.IO.Path]::GetFullPath($gitCommonDir)
+        } else {
+            [System.IO.Path]::GetFullPath((Join-Path $root $gitCommonDir))
+        }
+        if ([System.IO.Path]::GetFileName($gitCommonPath) -eq ".git") {
+            $deploymentRoot = Split-Path -Parent $gitCommonPath
+        }
+    }
+} catch {
+    # Non-Git source archives keep deploying beside the build script.
+}
+$deploymentArtifactsRoot = Join-Path $deploymentRoot "artifacts"
 $canonical = if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
-    Join-Path $artifactsRoot "plugin"
+    Join-Path $deploymentArtifactsRoot "plugin"
 } elseif ([System.IO.Path]::IsPathRooted($OutputDirectory)) {
     $OutputDirectory
 } else {
@@ -24,8 +41,8 @@ $env:DOTNET_CLI_HOME = Join-Path $root ".tools\dotnet-home"
 $env:NUGET_PACKAGES = Join-Path $root ".tools\nuget"
 $env:DOTNET_CLI_TELEMETRY_OPTOUT = "1"
 
-function Assert-InArtifacts([string]$path) {
-    $rootPath = [System.IO.Path]::GetFullPath($artifactsRoot).TrimEnd('\') + '\'
+function Assert-InArtifacts([string]$path, [string]$allowedArtifactsRoot = $artifactsRoot) {
+    $rootPath = [System.IO.Path]::GetFullPath($allowedArtifactsRoot).TrimEnd('\') + '\'
     $candidate = [System.IO.Path]::GetFullPath($path).TrimEnd('\') + '\'
     if (-not $candidate.StartsWith($rootPath, [StringComparison]::OrdinalIgnoreCase)) {
         throw "Refusing to modify a path outside the workspace artifacts directory: $path"
@@ -78,7 +95,7 @@ try {
     }
 
     if ($isCanonicalDeploy) {
-        Assert-InArtifacts $canonical
+        Assert-InArtifacts $canonical $deploymentArtifactsRoot
         Assert-NotLocked $canonical
         $backup = $null
         if (Test-Path -LiteralPath $canonical) {
@@ -88,11 +105,11 @@ try {
                 $match = Select-String -LiteralPath $oldManifest -Pattern '^version:\s*(.+)$' | Select-Object -First 1
                 if ($match) { $version = $match.Matches[0].Groups[1].Value.Trim() }
             }
-            $backupRoot = Join-Path $artifactsRoot "backups"
+            $backupRoot = Join-Path $deploymentArtifactsRoot "backups"
             New-Item -ItemType Directory -Force -Path $backupRoot | Out-Null
             $backup = Join-Path $backupRoot ((Get-Date -Format "yyyyMMdd-HHmmss") + "-v" + $version)
             if (Test-Path -LiteralPath $backup) { $backup += "-" + [Guid]::NewGuid().ToString("N").Substring(0, 6) }
-            Assert-InArtifacts $backup
+            Assert-InArtifacts $backup $deploymentArtifactsRoot
             Move-Item -LiteralPath $canonical -Destination $backup
         }
         try {

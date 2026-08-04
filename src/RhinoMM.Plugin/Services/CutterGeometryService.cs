@@ -122,6 +122,44 @@ internal static class CutterGeometryService
                 return true;
             }
 
+            if (binding.Role == ShaftFitRole.NutPocket)
+            {
+                if (component.AssemblyMode != ScrewAssemblyMode.NutFastened)
+                    throw new InvalidOperationException("配套螺母槽只能用于螺母固定模式。");
+                var nutRange = PairedNutAssemblyCalculator.AxialRange(component, spec);
+                var acrossFlats = PairedNutAssemblyCalculator.PocketAcrossFlats(
+                    component,
+                    spec,
+                    binding);
+                var cornerDiameter = 2 * acrossFlats / Math.Sqrt(3);
+                if (!CutterFootprintEnvelopeService.TryGet(
+                        target.Geometry,
+                        component.Placement,
+                        cornerDiameter,
+                        doc.ModelAbsoluteTolerance,
+                        out var nutFootprint,
+                        out var nutFootprintError))
+                    throw new InvalidOperationException(nutFootprintError);
+                if (nutRange.OuterFace < nutFootprint.Min - doc.ModelAbsoluteTolerance
+                    || nutRange.InnerFace > nutFootprint.Max + doc.ModelAbsoluteTolerance)
+                    throw new InvalidOperationException(
+                        $"配套螺母位置未与宿主“{TargetName(target)}”相交；请调整螺杆长度或末端露出量。");
+                var pocketStart = nutRange.InnerFace
+                    - Math.Max(doc.ModelAbsoluteTolerance * 2, 0.01);
+                var pocketEnd = nutFootprint.Max + padding;
+                result = new CutterGeometryBuild(
+                    binding,
+                    [FastenerGeometryFactory.CreatePairedNutPocketCutter(
+                        component,
+                        spec,
+                        binding,
+                        pocketStart,
+                        pocketEnd)],
+                    [],
+                    warnings);
+                return true;
+            }
+
             var finalDiameter = HoleDiameterCalculator
                 .Calculate(component, spec, binding)
                 .FinalDiameter;

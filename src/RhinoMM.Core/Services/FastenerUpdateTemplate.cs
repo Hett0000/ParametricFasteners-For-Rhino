@@ -26,7 +26,13 @@ public sealed record FastenerUpdateTemplate(
     bool? EngagementPreviewVisible = null,
     bool? EngagementBooleanEnabled = null,
     bool? InstallationPreviewVisible = null,
-    bool? InstallationBooleanEnabled = null)
+    bool? InstallationBooleanEnabled = null,
+    ScrewAssemblyMode AssemblyMode = ScrewAssemblyMode.ThreadEngagement,
+    HexNutStyle PairedNutStyle = HexNutStyle.Standard,
+    double NutTipProtrusion = 2,
+    double NutPocketCompensation = 0.2,
+    bool? NutPocketPreviewVisible = null,
+    bool? NutPocketBooleanEnabled = null)
 {
     public FastenerComponentData ApplyTo(
         FastenerComponentData existing,
@@ -35,7 +41,12 @@ public sealed record FastenerUpdateTemplate(
         var bindings = ApplyBindings(existing.Bindings);
         if (bindingOverrides is not null)
             bindings = ApplyPerBindingOverrides(bindings, bindingOverrides);
-        var engagementOnly = !FastenerKindTraits.IsNut(Kind) && EngagementOnly;
+        var assemblyMode = FastenerKindTraits.IsScrew(Kind)
+            ? AssemblyMode == ScrewAssemblyMode.ThreadEngagement && EngagementOnly
+                ? ScrewAssemblyMode.EngagementOnly
+                : AssemblyMode
+            : ScrewAssemblyMode.ThreadEngagement;
+        var engagementOnly = assemblyMode == ScrewAssemblyMode.EngagementOnly;
         if (engagementOnly)
         {
             var priorEngagement = existing.Bindings.FirstOrDefault(binding =>
@@ -95,7 +106,21 @@ public sealed record FastenerUpdateTemplate(
             FastenerOpacityPercent = FastenerOpacityPercent,
             CutterOpacityPercent = CutterOpacityPercent,
             HoleDiameterFormula = HoleDiameterFormula.NominalIndependent,
+            AssemblyMode = assemblyMode,
+            PairedNutStyle = assemblyMode == ScrewAssemblyMode.NutFastened
+                ? PairedNutStyle
+                : RhinoMM.Core.Domain.HexNutStyle.Standard,
+            NutTipProtrusion = assemblyMode == ScrewAssemblyMode.NutFastened
+                ? NutTipProtrusion
+                : 2,
+            NutPocketCompensation = assemblyMode == ScrewAssemblyMode.NutFastened
+                ? NutPocketCompensation
+                : 0.2,
             EngagementOnly = engagementOnly,
+            AutoRecognizeHosts = existing.AutoRecognizeHosts
+                || existing.AssemblyMode != assemblyMode
+                && (existing.AssemblyMode == ScrewAssemblyMode.NutFastened
+                    || assemblyMode == ScrewAssemblyMode.NutFastened),
             Bindings = bindings,
             UpdatedAt = DateTimeOffset.UtcNow
         };
@@ -134,6 +159,11 @@ public sealed record FastenerUpdateTemplate(
                     BlindDepth = HeadEmbedDepth,
                     IncludeHeadSeat = false
                 }, InstallationPreviewVisible, InstallationBooleanEnabled),
+            ShaftFitRole.NutPocket => ApplyVisibility(binding with
+            {
+                DepthMode = DepthMode.ThroughTarget,
+                IncludeHeadSeat = false
+            }, NutPocketPreviewVisible, NutPocketBooleanEnabled),
             _ => binding
         }).ToArray();
     }
@@ -157,6 +187,11 @@ public sealed record FastenerUpdateTemplate(
                     IsBooleanEnabled = local.IsBooleanEnabled
                 },
                 ShaftFitRole.Clearance or ShaftFitRole.InstallationPocket => binding with
+                {
+                    IsPreviewVisible = local.IsPreviewVisible,
+                    IsBooleanEnabled = local.IsBooleanEnabled
+                },
+                ShaftFitRole.NutPocket => binding with
                 {
                     IsPreviewVisible = local.IsPreviewVisible,
                     IsBooleanEnabled = local.IsBooleanEnabled
@@ -202,7 +237,11 @@ public sealed record FastenerUpdateTemplate(
             EngagementPreviewVisible =
                 EngagementPreviewVisible ?? profile.EngagementPreviewVisible,
             EngagementBooleanEnabled =
-                EngagementBooleanEnabled ?? profile.EngagementBooleanEnabled
+                EngagementBooleanEnabled ?? profile.EngagementBooleanEnabled,
+            NutPocketPreviewVisible =
+                NutPocketPreviewVisible ?? profile.NutPocketPreviewVisible,
+            NutPocketBooleanEnabled =
+                NutPocketBooleanEnabled ?? profile.NutPocketBooleanEnabled
         };
     }
 }

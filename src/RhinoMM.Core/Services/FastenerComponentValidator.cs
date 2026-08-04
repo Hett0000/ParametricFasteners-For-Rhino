@@ -17,15 +17,47 @@ public static class FastenerComponentValidator
         if (!FastenerKindTraits.SupportsEmbedDepth(component.Kind) && component.HeadEmbedDepth != 0)
             result.Issues.Add(new("nut-head-embed", "螺母不支持螺丝头嵌入深度。"));
 
-        if (component.EngagementOnly)
+        var assemblyMode = FastenerKindTraits.IsScrew(component.Kind)
+            ? component.AssemblyMode
+            : ScrewAssemblyMode.ThreadEngagement;
+        if (assemblyMode == ScrewAssemblyMode.EngagementOnly)
         {
-            if (FastenerKindTraits.IsNut(component.Kind))
-                result.Issues.Add(new("engagement-only-kind", "“只咬合”模式仅支持螺丝。"));
             if (component.Bindings.Count != 1
                 || component.Bindings[0].Role != ShaftFitRole.ThreadEngagement)
                 result.Issues.Add(new(
                     "engagement-only-binding",
                     "“只咬合”模式必须且只能绑定一个咬合宿主。"));
+        }
+
+        if (assemblyMode == ScrewAssemblyMode.NutFastened)
+        {
+            if (!double.IsFinite(component.NutTipProtrusion)
+                || component.NutTipProtrusion < 0)
+                result.Issues.Add(new("nut-tip-protrusion", "螺杆末端露出量必须是非负数。"));
+            if (!double.IsFinite(component.NutPocketCompensation))
+                result.Issues.Add(new("nut-pocket-compensation", "螺母槽补偿必须是有效数值。"));
+            if (!HexNutDimensions.Supports(component.PairedNutStyle, component.Size))
+                result.Issues.Add(new(
+                    "paired-locking-nut-size",
+                    $"尼龙防松配套螺母不支持规格 {component.Size}；请选择 M2–M12。"));
+            try
+            {
+                var range = PairedNutAssemblyCalculator.AxialRange(component, spec);
+                if (range.InnerFace < component.HeadEmbedDepth - 1e-6)
+                    result.Issues.Add(new(
+                        "paired-nut-outside-shaft",
+                        "当前螺杆长度无法同时容纳配套螺母和末端露出量。"));
+            }
+            catch (InvalidOperationException ex)
+            {
+                result.Issues.Add(new("paired-nut-size", ex.Message));
+            }
+            if (component.Bindings.Count(binding => binding.Role == ShaftFitRole.Clearance) == 0)
+                result.Issues.Add(new("nut-fastened-clearance", "螺母固定模式至少需要一个正补偿通孔宿主。"));
+            if (component.Bindings.Count(binding => binding.Role == ShaftFitRole.NutPocket) != 1)
+                result.Issues.Add(new("nut-pocket-count", "螺母固定模式必须且只能包含一个配套螺母槽。"));
+            if (component.Bindings.Any(binding => binding.Role == ShaftFitRole.ThreadEngagement))
+                result.Issues.Add(new("nut-fastened-engagement", "螺母固定模式不能包含螺纹咬合孔。"));
         }
 
         if (component.CounterboreBridgeEnabled)
@@ -141,6 +173,24 @@ public static class FastenerComponentValidator
             if (binding.Role == ShaftFitRole.InstallationPocket)
             {
                 result.Issues.Add(new("screw-installation-pocket", "螺丝组件不能使用螺母安装槽绑定。"));
+                continue;
+            }
+
+            if (binding.Role == ShaftFitRole.NutPocket)
+            {
+                if (assemblyMode != ScrewAssemblyMode.NutFastened)
+                    result.Issues.Add(new("nut-pocket-mode", "配套螺母槽只能用于螺母固定模式。"));
+                if (binding.DepthMode != DepthMode.ThroughTarget)
+                    result.Issues.Add(new("nut-pocket-depth", "配套螺母槽必须向宿主背面贯穿。"));
+                try
+                {
+                    if (PairedNutAssemblyCalculator.PocketAcrossFlats(component, spec, binding) <= 0)
+                        result.Issues.Add(new("nut-pocket-size", "配套螺母槽最终对边必须大于 0。"));
+                }
+                catch (InvalidOperationException ex)
+                {
+                    result.Issues.Add(new("nut-pocket-size", ex.Message));
+                }
                 continue;
             }
 

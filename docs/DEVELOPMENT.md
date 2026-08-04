@@ -17,7 +17,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./build/build.ps1 -Confi
 
 脚本依次执行 restore、核心测试、Release 构建、RUI 图标生成和 Rhino `Compat.exe` 检查。所有步骤先在 `artifacts/.staging/` 完成。
 
-默认部署目标为 `artifacts/plugin/`。目标存在时，脚本先检查全部文件能否独占打开；被 Rhino 占用时立即停止，原目录不变。验证通过后，旧目录移动到 `artifacts/backups/<时间>-v<版本>/`，再原子替换为 staging。备份不会自动删除。若该插件 GUID 已在 Rhino 8 注册，脚本同时把 `FileName` 更新到固定的 canonical RHP 路径，避免重启后继续加载旧版本目录。
+默认部署目标为主 Git 工作区的 `artifacts/plugin/`；即使从 Codex 或其他 Git worktree 构建，也会通过 Git common directory 找到 Rhino 实际使用的主仓库位置。目标存在时，脚本先检查全部文件能否独占打开；被 Rhino 占用时立即停止，原目录不变。验证通过后，旧目录移动到同一主工作区的 `artifacts/backups/<时间>-v<版本>/`，再原子替换为 staging。备份不会自动删除。若该插件 GUID 已在 Rhino 8 注册，脚本同时把 `FileName` 更新到固定的 canonical RHP 路径，避免重启后继续加载旧版本目录。
 
 可通过 `-OutputDirectory artifacts/build-test` 生成独立验证目录，不替换当前安装位置。
 

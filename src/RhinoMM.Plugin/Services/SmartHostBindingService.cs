@@ -21,7 +21,9 @@ internal static class SmartHostBindingService
         reconciled = draft;
         changes = new SmartBindingChangeSummary(0, 0, 0);
         message = string.Empty;
-        if (draft.EngagementOnly)
+        if (draft.AssemblyMode == ScrewAssemblyMode.NutFastened)
+            return TryReconcileNutFastened(doc, draft, out reconciled, out changes, out message);
+        if (draft.AssemblyMode == ScrewAssemblyMode.EngagementOnly || draft.EngagementOnly)
             return TryReconcileEngagementOnly(doc, draft, out reconciled, out changes, out message);
         if (!draft.AutoRecognizeHosts)
             return true;
@@ -81,6 +83,130 @@ internal static class SmartHostBindingService
                 profile);
             reconciled = draft with { Bindings = result.Bindings };
             changes = result.Changes;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+            return false;
+        }
+    }
+
+    private static bool TryReconcileNutFastened(
+        RhinoDoc doc,
+        FastenerComponentData draft,
+        out FastenerComponentData reconciled,
+        out SmartBindingChangeSummary changes,
+        out string message)
+    {
+        reconciled = draft;
+        changes = new SmartBindingChangeSummary(0, 0, 0);
+        message = string.Empty;
+        if (!FastenerKindTraits.IsScrew(draft.Kind))
+        {
+            message = "“螺母固定”模式仅支持螺丝。";
+            return false;
+        }
+        var placementHostId = draft.Bindings
+            .FirstOrDefault(item => item.IncludeHeadSeat)?.TargetObjectId
+            ?? draft.Bindings.FirstOrDefault(item => item.Role == ShaftFitRole.Clearance)?.TargetObjectId
+            ?? Guid.Empty;
+        if (placementHostId == Guid.Empty)
+        {
+            message = "螺母固定组件缺少放置面宿主。";
+            return false;
+        }
+
+        try
+        {
+            var tolerance = Math.Max(doc.ModelAbsoluteTolerance, 1e-6);
+            var spec = RhinoMMPlugIn.Catalog.Get(draft.Size);
+            var reach = Math.Max(tolerance, draft.HeadEmbedDepth + draft.Length);
+            var existingTargetIds = draft.Bindings
+                .Select(item => item.TargetObjectId)
+                .Where(id => id != Guid.Empty)
+                .ToHashSet();
+            var candidates = CaptureHosts(doc, existingTargetIds);
+            if (!draft.AutoRecognizeHosts)
+                candidates = candidates.Where(host => existingTargetIds.Contains(host.ObjectId)).ToArray();
+            var intervals = FindIntervals(
+                candidates,
+                draft.Placement,
+                reach,
+                tolerance,
+                preserveFullExit: true);
+            var resolution = NutFastenedHostResolver.Resolve(
+                intervals,
+                placementHostId,
+                draft,
+                spec,
+                tolerance);
+            if (!resolution.IsValid)
+            {
+                message = resolution.Message;
+                return false;
+            }
+
+            var profile = draft.SmartBindingProfile ?? ProfileFromBindings(draft.Bindings);
+            var rebuilt = new List<HoleTargetBinding>();
+            foreach (var assignment in resolution.ClearanceAssignments)
+            {
+                var existing = draft.Bindings.FirstOrDefault(item =>
+                    item.TargetObjectId == assignment.ObjectId
+                    && item.Role == ShaftFitRole.Clearance);
+                rebuilt.Add(existing is not null
+                    ? existing with
+                    {
+                        IncludeHeadSeat = assignment.ObjectId == placementHostId,
+                        DepthMode = DepthMode.ThroughTarget,
+                        CutterObjectId = Guid.Empty
+                    }
+                    : new HoleTargetBinding
+                    {
+                        TargetObjectId = assignment.ObjectId,
+                        Role = ShaftFitRole.Clearance,
+                        ClearanceFit = profile.ClearanceFit,
+                        DepthMode = DepthMode.ThroughTarget,
+                        IncludeHeadSeat = assignment.ObjectId == placementHostId,
+                        IsPreviewVisible = profile.ClearancePreviewVisible,
+                        IsBooleanEnabled = profile.ClearanceBooleanEnabled
+                    });
+            }
+            var existingPocket = draft.Bindings.FirstOrDefault(item =>
+                item.Role == ShaftFitRole.NutPocket);
+            rebuilt.Add(existingPocket is not null
+                ? existingPocket with
+                {
+                    TargetObjectId = resolution.NutPocketTargetId,
+                    DepthMode = DepthMode.ThroughTarget,
+                    IncludeHeadSeat = false,
+                    CutterObjectId = Guid.Empty
+                }
+                : new HoleTargetBinding
+                {
+                    TargetObjectId = resolution.NutPocketTargetId,
+                    Role = ShaftFitRole.NutPocket,
+                    DepthMode = DepthMode.ThroughTarget,
+                    IsPreviewVisible = profile.NutPocketPreviewVisible,
+                    IsBooleanEnabled = profile.NutPocketBooleanEnabled
+                });
+
+            var oldKeys = draft.Bindings
+                .Select(item => (item.TargetObjectId, item.Role))
+                .ToHashSet();
+            var newKeys = rebuilt
+                .Select(item => (item.TargetObjectId, item.Role))
+                .ToHashSet();
+            changes = new SmartBindingChangeSummary(
+                newKeys.Count(key => !oldKeys.Contains(key)),
+                oldKeys.Count(key => !newKeys.Contains(key)),
+                0);
+            reconciled = draft with
+            {
+                AssemblyMode = ScrewAssemblyMode.NutFastened,
+                EngagementOnly = false,
+                Bindings = rebuilt
+            };
             return true;
         }
         catch (Exception ex)
@@ -169,7 +295,9 @@ internal static class SmartHostBindingService
             true,
             true,
             engagement?.IsPreviewVisible ?? true,
-            engagement?.IsBooleanEnabled ?? true);
+            engagement?.IsBooleanEnabled ?? true,
+            bindings.FirstOrDefault(item => item.Role == ShaftFitRole.NutPocket)?.IsPreviewVisible ?? true,
+            bindings.FirstOrDefault(item => item.Role == ShaftFitRole.NutPocket)?.IsBooleanEnabled ?? true);
     }
 
     public static IReadOnlyList<SmartPlacementHost> CaptureHosts(

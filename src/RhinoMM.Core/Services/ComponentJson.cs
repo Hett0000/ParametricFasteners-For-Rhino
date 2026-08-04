@@ -42,6 +42,11 @@ public static class ComponentJson
 
         var sourceVersion = data.SchemaVersion;
         var migratedHeadEmbedDepth = MigrateHeadEmbedDepth(data, sourceVersion);
+        var assemblyMode = sourceVersion < 16
+            ? sourceVersion >= 12 && data.EngagementOnly
+                ? ScrewAssemblyMode.EngagementOnly
+                : ScrewAssemblyMode.ThreadEngagement
+            : data.AssemblyMode;
         return data with
         {
             SchemaVersion = FastenerComponentData.CurrentSchemaVersion,
@@ -63,9 +68,20 @@ public static class ComponentJson
                     ? 0.2
                     : data.CounterboreBridgeLayerHeight,
             InsertDepthCompensation = sourceVersion < 7 ? 0 : data.InsertDepthCompensation,
-            EngagementOnly = sourceVersion >= 12
-                && !FastenerKindTraits.IsNut(data.Kind)
-                && data.EngagementOnly,
+            AssemblyMode = FastenerKindTraits.IsScrew(data.Kind)
+                ? assemblyMode
+                : ScrewAssemblyMode.ThreadEngagement,
+            PairedNutStyle = sourceVersion < 16
+                ? HexNutStyle.Standard
+                : data.PairedNutStyle,
+            NutTipProtrusion = sourceVersion < 16
+                ? 2
+                : data.NutTipProtrusion,
+            NutPocketCompensation = sourceVersion < 16
+                ? 0.2
+                : data.NutPocketCompensation,
+            EngagementOnly = FastenerKindTraits.IsScrew(data.Kind)
+                && assemblyMode == ScrewAssemblyMode.EngagementOnly,
             AutoRecognizeHosts = sourceVersion >= 8 && data.AutoRecognizeHosts,
             SmartRecognitionMode = sourceVersion >= 8
                 ? data.SmartRecognitionMode

@@ -14,7 +14,13 @@ internal sealed record PlacementCutterPreset(
     bool ClearanceBooleanEnabled,
     bool EngagementPreviewVisible,
     bool EngagementBooleanEnabled,
-    bool EngagementOnly)
+    bool EngagementOnly,
+    ScrewAssemblyMode AssemblyMode = ScrewAssemblyMode.ThreadEngagement,
+    HexNutStyle PairedNutStyle = HexNutStyle.Standard,
+    double NutTipProtrusion = 2,
+    double NutPocketCompensation = 0.2,
+    bool NutPocketPreviewVisible = true,
+    bool NutPocketBooleanEnabled = true)
 {
     public static PlacementCutterPreset Default { get; } = new(
         0.2,
@@ -53,6 +59,16 @@ internal sealed record PlacementCutterPreset(
         IsBooleanEnabled = EngagementBooleanEnabled
     };
 
+    public HoleTargetBinding CreateNutPocketBinding(Guid targetId) => new()
+    {
+        TargetObjectId = targetId,
+        Role = ShaftFitRole.NutPocket,
+        DepthMode = DepthMode.ThroughTarget,
+        IncludeHeadSeat = false,
+        IsPreviewVisible = NutPocketPreviewVisible,
+        IsBooleanEnabled = NutPocketBooleanEnabled
+    };
+
     public SmartBindingProfile ToSmartBindingProfile() => new(
         ClearanceFit,
         BiteReduction,
@@ -61,5 +77,7 @@ internal sealed record PlacementCutterPreset(
         ClearancePreviewVisible,
         ClearanceBooleanEnabled,
         EngagementPreviewVisible,
-        EngagementBooleanEnabled);
+        EngagementBooleanEnabled,
+        NutPocketPreviewVisible,
+        NutPocketBooleanEnabled);
 }

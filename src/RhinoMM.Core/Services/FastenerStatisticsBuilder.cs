@@ -19,17 +19,16 @@ public static class FastenerStatisticsBuilder
             .ThenBy(component => component.Kind == FastenerKind.HeatSetInsert ? component.InsertOuterDiameter : 0)
             .ThenBy(component => component.ComponentId)
             .ToArray();
-        var summary = components
-            .GroupBy(component => new StatisticsKey(
-                component.Kind,
-                component.Kind == FastenerKind.HexNut ? component.HexNutStyle : null,
-                component.Size,
-                FastenerKindTraits.UsesLengthInStatistics(component.Kind)
-                    ? Math.Round(component.Length, 3)
-                    : null,
-                component.Kind == FastenerKind.HeatSetInsert
-                    ? Math.Round(component.InsertOuterDiameter, 3)
-                    : null))
+        var items = components
+            .SelectMany(component => ExpandPhysicalItems(component))
+            .ToArray();
+        var summary = items
+            .GroupBy(item => new StatisticsKey(
+                item.Kind,
+                item.NutStyle,
+                item.Size,
+                item.Length,
+                item.OuterDiameter))
             .Select(group => new FastenerStatisticsRow(
                 group.Key.Kind,
                 group.Key.NutStyle,
@@ -42,15 +41,39 @@ public static class FastenerStatisticsBuilder
             .ThenBy(row => row.Length ?? 0)
             .ThenBy(row => row.OuterDiameter ?? 0)
             .ToArray();
-        var nutCount = components.Count(component => FastenerKindTraits.IsNut(component.Kind));
+        var nutCount = items.Count(item => FastenerKindTraits.IsNut(item.Kind));
         return new FastenerStatisticsReport(
             scope,
-            components.Length,
-            components.Length - nutCount,
+            items.Length,
+            items.Length - nutCount,
             nutCount,
             summary.Length,
             summary,
             components);
+    }
+
+    private static IEnumerable<StatisticsItem> ExpandPhysicalItems(FastenerComponentData component)
+    {
+        yield return new StatisticsItem(
+            component.Kind,
+            component.Kind == FastenerKind.HexNut ? component.HexNutStyle : null,
+            component.Size,
+            FastenerKindTraits.UsesLengthInStatistics(component.Kind)
+                ? Math.Round(component.Length, 3)
+                : null,
+            component.Kind == FastenerKind.HeatSetInsert
+                ? Math.Round(component.InsertOuterDiameter, 3)
+                : null);
+        if (FastenerKindTraits.IsScrew(component.Kind)
+            && component.AssemblyMode == ScrewAssemblyMode.NutFastened)
+        {
+            yield return new StatisticsItem(
+                FastenerKind.HexNut,
+                component.PairedNutStyle,
+                component.Size,
+                null,
+                null);
+        }
     }
 
     private static double NominalSize(string size) =>
@@ -63,6 +86,13 @@ public static class FastenerStatisticsBuilder
             : double.MaxValue;
 
     private sealed record StatisticsKey(
+        FastenerKind Kind,
+        HexNutStyle? NutStyle,
+        string Size,
+        double? Length,
+        double? OuterDiameter);
+
+    private sealed record StatisticsItem(
         FastenerKind Kind,
         HexNutStyle? NutStyle,
         string Size,

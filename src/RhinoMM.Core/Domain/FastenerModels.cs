@@ -20,7 +20,8 @@ public enum ShaftFitRole
 {
     Clearance,
     ThreadEngagement,
-    InstallationPocket
+    InstallationPocket,
+    NutPocket
 }
 
 public enum DepthMode
@@ -44,6 +45,13 @@ public enum SmartPlacementRecognitionMode
     Automatic,
     AllClearance,
     AllEngagement
+}
+
+public enum ScrewAssemblyMode
+{
+    ThreadEngagement,
+    EngagementOnly,
+    NutFastened
 }
 
 public enum HoleDiameterFormula
@@ -150,11 +158,13 @@ public sealed record SmartBindingProfile(
     bool ClearancePreviewVisible,
     bool ClearanceBooleanEnabled,
     bool EngagementPreviewVisible,
-    bool EngagementBooleanEnabled);
+    bool EngagementBooleanEnabled,
+    bool NutPocketPreviewVisible = true,
+    bool NutPocketBooleanEnabled = true);
 
 public sealed record FastenerComponentData
 {
-    public const int CurrentSchemaVersion = 15;
+    public const int CurrentSchemaVersion = 16;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
     public Guid ComponentId { get; init; } = Guid.NewGuid();
@@ -174,6 +184,11 @@ public sealed record FastenerComponentData
     public double CutterOpacityPercent { get; init; } = 35;
     public HoleDiameterFormula HoleDiameterFormula { get; init; } =
         HoleDiameterFormula.NominalIndependent;
+    public ScrewAssemblyMode AssemblyMode { get; init; } =
+        ScrewAssemblyMode.ThreadEngagement;
+    public HexNutStyle PairedNutStyle { get; init; } = HexNutStyle.Standard;
+    public double NutTipProtrusion { get; init; } = 2;
+    public double NutPocketCompensation { get; init; } = 0.2;
     public bool EngagementOnly { get; init; }
     public bool AutoRecognizeHosts { get; init; }
     public SmartPlacementRecognitionMode SmartRecognitionMode { get; init; } =

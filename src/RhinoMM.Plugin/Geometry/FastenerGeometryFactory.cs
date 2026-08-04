@@ -92,10 +92,48 @@ public static class FastenerGeometryFactory
             // Their Rhino group remains the stable component selection boundary.
         }
 
+        if (FastenerKindTraits.IsScrew(data.Kind)
+            && data.AssemblyMode == ScrewAssemblyMode.NutFastened)
+        {
+            var assembly = result.ToList();
+            AddPairedNutProxy(assembly, data, spec, tolerance);
+            result = assembly;
+        }
+
         var transform = Transform.PlaneToPlane(Plane.WorldXY, ToPlane(data.Placement));
         foreach (var brep in result)
             brep.Transform(transform);
         return result;
+    }
+
+    private static void AddPairedNutProxy(
+        ICollection<Brep> target,
+        FastenerComponentData data,
+        FastenerSizeSpec spec,
+        double tolerance)
+    {
+        var range = PairedNutAssemblyCalculator.AxialRange(data, spec);
+        var dimensions = HexNutDimensions.Resolve(data.PairedNutStyle, spec);
+        if (data.PairedNutStyle == HexNutStyle.NylonInsertLocking)
+        {
+            AddNylonLockingNutProxy(
+                target,
+                spec,
+                dimensions,
+                range.InnerFace,
+                tolerance);
+            return;
+        }
+
+        target.Add(CreateHollowProxy(
+            CreateHexPrism(
+                dimensions.AcrossFlats,
+                dimensions.TotalHeight,
+                range.InnerFace),
+            spec.NominalDiameter / 2,
+            dimensions.TotalHeight,
+            range.InnerFace,
+            tolerance));
     }
 
     private static void AddNylonLockingNutProxy(
@@ -105,35 +143,90 @@ public static class FastenerGeometryFactory
         double start,
         double tolerance)
     {
-        // Keep the standardized full-height hexagonal envelope. A stepped inner
-        // bore near the top is a deliberately simplified visual cue for the
-        // non-metallic locking insert; it does not claim a manufacturer-specific
-        // outer collar or crimp profile.
+        // Approximate the real locking-nut silhouette with one joined solid:
+        // a lower hexagonal wrench body and a round upper retaining collar.
+        // The small overlap avoids a coplanar-only contact that Rhino may leave
+        // as two independent proxy bodies during rendering export.
         var collarHeight = Math.Clamp(
             dimensions.TotalHeight * 0.25,
             Math.Max(tolerance * 4, 0.25),
             dimensions.TotalHeight * 0.4);
         var bodyHeight = dimensions.TotalHeight - collarHeight;
-        if (bodyHeight > tolerance)
+        var overlap = Math.Min(
+            collarHeight * 0.2,
+            Math.Max(tolerance * 4, dimensions.TotalHeight * 0.01));
+        var body = CreateHexPrism(
+            dimensions.AcrossFlats,
+            bodyHeight + overlap,
+            start);
+        var collar = CreateCylinder(
+            dimensions.AcrossFlats / 2,
+            collarHeight + overlap,
+            start + bodyHeight - overlap);
+        var union = Brep.CreateBooleanUnion([body, collar], tolerance);
+        if (union is not { Length: 1 } || !union[0].IsSolid)
         {
-            target.Add(CreateHollowProxy(
-                CreateHexPrism(dimensions.AcrossFlats, bodyHeight, start),
-                spec.NominalDiameter / 2,
-                bodyHeight,
-                start,
-                tolerance));
+            union = Brep.CreateBooleanUnion(
+                [body, collar],
+                Math.Max(tolerance * 10, 0.0001));
         }
+        if (union is not { Length: 1 } || !union[0].IsSolid)
+            throw new InvalidOperationException("无法合并尼龙防松螺母的六角本体与圆柱上盖。");
 
         var collarStart = start + bodyHeight;
         var collarBoreRadius = Math.Max(
             tolerance * 2,
             spec.NominalDiameter * 0.42);
-        target.Add(CreateHollowProxy(
-            CreateHexPrism(dimensions.AcrossFlats, collarHeight, collarStart),
+        target.Add(CreateSteppedHollowProxy(
+            EnsureOutward(union[0]),
+            spec.NominalDiameter / 2,
             collarBoreRadius,
+            bodyHeight,
             collarHeight,
+            start,
             collarStart,
             tolerance));
+    }
+
+    private static Brep CreateSteppedHollowProxy(
+        Brep outer,
+        double bodyBoreRadius,
+        double collarBoreRadius,
+        double bodyHeight,
+        double collarHeight,
+        double start,
+        double collarStart,
+        double tolerance)
+    {
+        try
+        {
+            var padding = Math.Max(tolerance * 2, 0.01);
+            var bodyBore = CreateCylinder(
+                bodyBoreRadius,
+                bodyHeight + padding * 2,
+                start - padding);
+            var collarBore = CreateCylinder(
+                collarBoreRadius,
+                collarHeight + padding * 2,
+                collarStart - padding);
+            var difference = Brep.CreateBooleanDifference(
+                [outer],
+                [bodyBore, collarBore],
+                tolerance);
+            if (difference is { Length: 1 } && difference[0].IsSolid)
+                return EnsureOutward(difference[0]);
+        }
+        catch
+        {
+            // The proxy is display-only; use a single through-bore fallback.
+        }
+
+        return CreateHollowProxy(
+            outer,
+            collarBoreRadius,
+            bodyHeight + collarHeight,
+            start,
+            tolerance);
     }
 
     internal static bool CoversExpectedAxialSpan(
@@ -183,6 +276,26 @@ public static class FastenerGeometryFactory
             acrossFlats,
             depth + padding,
             -padding);
+        cutter.Transform(Transform.PlaneToPlane(Plane.WorldXY, ToPlane(data.Placement)));
+        return cutter;
+    }
+
+    public static Brep CreatePairedNutPocketCutter(
+        FastenerComponentData data,
+        FastenerSizeSpec spec,
+        HoleTargetBinding binding,
+        double start,
+        double end)
+    {
+        var acrossFlats = PairedNutAssemblyCalculator.PocketAcrossFlats(
+            data,
+            spec,
+            binding);
+        if (acrossFlats <= 0)
+            throw new InvalidOperationException("配套螺母槽最终对边尺寸必须大于 0。");
+        if (end <= start)
+            throw new InvalidOperationException("配套螺母槽没有与宿主形成有效重叠。");
+        var cutter = CreateHexPrism(acrossFlats, end - start, start);
         cutter.Transform(Transform.PlaneToPlane(Plane.WorldXY, ToPlane(data.Placement)));
         return cutter;
     }

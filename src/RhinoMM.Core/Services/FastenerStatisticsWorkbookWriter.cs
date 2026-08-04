@@ -171,64 +171,95 @@ public static class FastenerStatisticsWorkbookWriter
     private static void WriteDetailSheet(XmlWriter writer, FastenerStatisticsReport report)
     {
         StartWorksheet(writer, 1, 2);
-        WriteColumns(writer, [8, 24, 18, 22, 10, 12, 12, 14, 14, 14, 14, 14, 14, 14, 12, 12, 24, 14, 14, 14, 38]);
+        WriteColumns(writer, [8, 24, 14, 18, 22, 10, 12, 12, 14, 14, 14, 14, 14, 14, 14, 12, 12, 24, 16, 14, 14, 14, 14, 14, 38]);
         writer.WriteStartElement("sheetData", SpreadsheetNamespace);
         var headers = new[]
         {
-            "序号", "类型", "螺母样式", "尺寸标准", "规格", "长度 mm", "外径 mm", "孔径补偿 mm", "深度补偿 mm", "嵌入深度 mm", "孔径修正 mm", "通孔最终直径 mm", "咬合缩减 mm", "咬合最终直径 mm",
-            "通孔宿主数", "咬合宿主数", "咬合深度模式", "控制点 X", "控制点 Y", "控制点 Z", "组件 ID"
+            "序号", "类型", "装配角色", "螺母样式", "尺寸标准", "规格", "长度 mm", "外径 mm", "孔径补偿 mm", "深度补偿 mm", "嵌入深度 mm", "孔径修正 mm", "通孔最终直径 mm", "咬合缩减 mm", "咬合最终直径 mm",
+            "通孔宿主数", "咬合宿主数", "咬合深度模式", "装配方式", "末端露出量 mm", "螺母槽补偿 mm", "控制点 X", "控制点 Y", "控制点 Z", "组件 ID"
         };
         WriteRow(writer, 1, headers.Select(value => Text(value, true)).ToArray());
         var rowIndex = 2;
         foreach (var component in report.Components)
         {
-            var clearance = component.Bindings.FirstOrDefault(binding => binding.Role == ShaftFitRole.Clearance);
-            var engagement = component.Bindings.FirstOrDefault(binding => binding.Role == ShaftFitRole.ThreadEngagement);
-            var depthModes = string.Join(", ", component.Bindings
-                .Where(binding => binding.Role == ShaftFitRole.ThreadEngagement)
-                .Select(binding => FastenerLabels.Depth(binding.DepthMode))
-                .Distinct());
-            var spec = Catalog.Value.Sizes.FirstOrDefault(item =>
-                string.Equals(item.Designation, component.Size, StringComparison.OrdinalIgnoreCase));
-            var clearanceDiameter = spec is not null && clearance is not null
-                ? HoleDiameterCalculator.Calculate(component, spec, clearance).FinalDiameter
-                : (double?)null;
-            var engagementDiameter = spec is not null && engagement is not null
-                ? HoleDiameterCalculator.Calculate(component, spec, engagement).FinalDiameter
-                : (double?)null;
-            WriteRow(writer, rowIndex,
-            [
-                Number(rowIndex - 1),
-                Text(FastenerLabels.Kind(component.Kind)),
-                component.Kind == FastenerKind.HexNut
-                    ? Text(HexNutDimensions.StyleLabel(component.HexNutStyle))
-                    : Blank(),
-                component.Kind == FastenerKind.HexNut
-                    ? Text(FastenerLabels.NutStandard(component))
-                    : Blank(),
-                Text(component.Size),
-                FastenerKindTraits.UsesLengthInStatistics(component.Kind) ? Number(component.Length) : Blank(),
-                component.Kind == FastenerKind.HeatSetInsert ? Number(component.InsertOuterDiameter) : Blank(),
-                component.Kind == FastenerKind.HeatSetInsert ? Number(component.InsertDiameterCompensation) : Blank(),
-                component.Kind == FastenerKind.HeatSetInsert ? Number(component.InsertDepthCompensation) : Blank(),
-                Number(component.HeadEmbedDepth),
-                Number(component.PrintProfile.HoleDiameterCorrection),
-                clearanceDiameter.HasValue ? Number(clearanceDiameter.Value) : Blank(),
-                engagement is null ? Blank() : Number(engagement.BiteReduction),
-                engagementDiameter.HasValue ? Number(engagementDiameter.Value) : Blank(),
-                Number(component.Bindings.Count(binding => binding.Role == ShaftFitRole.Clearance)),
-                Number(component.Bindings.Count(binding => binding.Role == ShaftFitRole.ThreadEngagement)),
-                Text(depthModes),
-                Number(component.Placement.OriginX),
-                Number(component.Placement.OriginY),
-                Number(component.Placement.OriginZ),
-                Text(component.ComponentId.ToString("D"))
-            ]);
+            WriteRow(writer, rowIndex, BuildDetailCells(component, false, rowIndex - 1));
             rowIndex++;
+            if (FastenerKindTraits.IsScrew(component.Kind)
+                && component.AssemblyMode == ScrewAssemblyMode.NutFastened)
+            {
+                WriteRow(writer, rowIndex, BuildDetailCells(component, true, rowIndex - 1));
+                rowIndex++;
+            }
         }
         writer.WriteEndElement();
-        WriteAutoFilter(writer, $"A1:U{Math.Max(1, rowIndex - 1)}");
+        WriteAutoFilter(writer, $"A1:Y{Math.Max(1, rowIndex - 1)}");
         writer.WriteEndElement();
+    }
+
+    private static CellValue[] BuildDetailCells(
+        FastenerComponentData component,
+        bool pairedNut,
+        int sequence)
+    {
+        var clearance = component.Bindings.FirstOrDefault(binding => binding.Role == ShaftFitRole.Clearance);
+        var engagement = component.Bindings.FirstOrDefault(binding => binding.Role == ShaftFitRole.ThreadEngagement);
+        var depthModes = string.Join(", ", component.Bindings
+            .Where(binding => binding.Role == ShaftFitRole.ThreadEngagement)
+            .Select(binding => FastenerLabels.Depth(binding.DepthMode))
+            .Distinct());
+        var spec = Catalog.Value.Sizes.FirstOrDefault(item =>
+            string.Equals(item.Designation, component.Size, StringComparison.OrdinalIgnoreCase));
+        var clearanceDiameter = spec is not null && clearance is not null
+            ? HoleDiameterCalculator.Calculate(component, spec, clearance).FinalDiameter
+            : (double?)null;
+        var engagementDiameter = spec is not null && engagement is not null
+            ? HoleDiameterCalculator.Calculate(component, spec, engagement).FinalDiameter
+            : (double?)null;
+        var role = pairedNut ? "配套螺母" : FastenerKindTraits.IsScrew(component.Kind) ? "螺丝" : "独立螺母";
+        var type = pairedNut
+            ? FastenerLabels.NutStyle(component.PairedNutStyle)
+            : FastenerLabels.Kind(component.Kind);
+        var nutStyle = pairedNut
+            ? component.PairedNutStyle
+            : component.Kind == FastenerKind.HexNut ? component.HexNutStyle : (HexNutStyle?)null;
+        var position = (X: component.Placement.OriginX, Y: component.Placement.OriginY, Z: component.Placement.OriginZ);
+        if (pairedNut && spec is not null)
+        {
+            var range = PairedNutAssemblyCalculator.AxialRange(component, spec);
+            var distance = (range.InnerFace + range.OuterFace) / 2;
+            position = (
+                component.Placement.OriginX + component.Placement.ZAxisX * distance,
+                component.Placement.OriginY + component.Placement.ZAxisY * distance,
+                component.Placement.OriginZ + component.Placement.ZAxisZ * distance);
+        }
+        return
+        [
+            Number(sequence),
+            Text(type),
+            Text(role),
+            nutStyle.HasValue ? Text(HexNutDimensions.StyleLabel(nutStyle.Value)) : Blank(),
+            nutStyle.HasValue ? Text(FastenerLabels.NutStandard(nutStyle.Value, component.Size)) : Blank(),
+            Text(component.Size),
+            !pairedNut && FastenerKindTraits.UsesLengthInStatistics(component.Kind) ? Number(component.Length) : Blank(),
+            !pairedNut && component.Kind == FastenerKind.HeatSetInsert ? Number(component.InsertOuterDiameter) : Blank(),
+            !pairedNut && component.Kind == FastenerKind.HeatSetInsert ? Number(component.InsertDiameterCompensation) : Blank(),
+            !pairedNut && component.Kind == FastenerKind.HeatSetInsert ? Number(component.InsertDepthCompensation) : Blank(),
+            !pairedNut ? Number(component.HeadEmbedDepth) : Blank(),
+            !pairedNut ? Number(component.PrintProfile.HoleDiameterCorrection) : Blank(),
+            !pairedNut && clearanceDiameter.HasValue ? Number(clearanceDiameter.Value) : Blank(),
+            !pairedNut && engagement is not null ? Number(engagement.BiteReduction) : Blank(),
+            !pairedNut && engagementDiameter.HasValue ? Number(engagementDiameter.Value) : Blank(),
+            !pairedNut ? Number(component.Bindings.Count(binding => binding.Role == ShaftFitRole.Clearance)) : Blank(),
+            !pairedNut ? Number(component.Bindings.Count(binding => binding.Role == ShaftFitRole.ThreadEngagement)) : Blank(),
+            !pairedNut ? Text(depthModes) : Blank(),
+            Text(FastenerLabels.AssemblyMode(component.AssemblyMode)),
+            component.AssemblyMode == ScrewAssemblyMode.NutFastened ? Number(component.NutTipProtrusion) : Blank(),
+            component.AssemblyMode == ScrewAssemblyMode.NutFastened ? Number(component.NutPocketCompensation) : Blank(),
+            Number(position.X),
+            Number(position.Y),
+            Number(position.Z),
+            Text(component.ComponentId.ToString("D"))
+        ];
     }
 
     private static void StartWorksheet(XmlWriter writer, int frozenRows, int topRow)
