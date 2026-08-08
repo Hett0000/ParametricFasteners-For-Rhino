@@ -125,6 +125,81 @@ internal sealed record SmartPlacementParameterSnapshot(
             GlobalDisplaySettingsService.Current.CutterOpacityPercent);
     }
 
+    public static SmartPlacementParameterSnapshot Capture(FastenerTemplateData source)
+    {
+        var data = source.Normalize();
+        var clearancePreview = data.ClearancePreviewVisible ?? true;
+        var clearanceBoolean = data.ClearanceBooleanEnabled ?? true;
+        var engagementPreview = data.EngagementPreviewVisible ?? true;
+        var engagementBoolean = data.EngagementBooleanEnabled ?? true;
+        var installationPreview = data.InstallationPreviewVisible ?? true;
+        var installationBoolean = data.InstallationBooleanEnabled ?? true;
+        var nutPreview = data.NutPocketPreviewVisible ?? true;
+        var nutBoolean = data.NutPocketBooleanEnabled ?? true;
+        var preset = new PlacementCutterPreset(
+            data.PrinterCorrection,
+            ClearanceFitClass.Normal,
+            data.BiteReduction,
+            data.CounterboreBridgeEnabled,
+            data.CounterboreBridgeLayerHeight,
+            data.EngagementDepthMode,
+            data.EngagementBlindDepth,
+            clearancePreview,
+            clearanceBoolean,
+            engagementPreview,
+            engagementBoolean,
+            data.AssemblyMode == ScrewAssemblyMode.EngagementOnly,
+            data.AssemblyMode,
+            data.PairedNutStyle,
+            data.NutTipProtrusion,
+            data.NutPocketCompensation,
+            nutPreview,
+            nutBoolean);
+        var heatSet = new HeatSetInsertPreset(
+            data.Length,
+            data.InsertOuterDiameter,
+            data.InsertDiameterCompensation,
+            data.InsertDepthCompensation,
+            installationPreview,
+            installationBoolean);
+        var signature = new SmartPlacementParameterSignature(
+            data.Kind,
+            data.NutStyle,
+            data.Size,
+            data.Length,
+            data.HeadEmbedDepth,
+            data.CounterboreBridgeEnabled,
+            data.CounterboreBridgeLayerHeight,
+            data.InsertOuterDiameter,
+            data.InsertDiameterCompensation,
+            data.InsertDepthCompensation,
+            data.PrinterCorrection,
+            ClearanceFitClass.Normal,
+            data.BiteReduction,
+            data.EngagementDepthMode,
+            data.EngagementBlindDepth,
+            clearancePreview,
+            clearanceBoolean,
+            engagementPreview,
+            engagementBoolean,
+            installationPreview,
+            installationBoolean,
+            data.AssemblyMode,
+            data.PairedNutStyle,
+            data.NutTipProtrusion,
+            data.NutPocketCompensation,
+            nutPreview,
+            nutBoolean,
+            data.AssemblyMode == ScrewAssemblyMode.EngagementOnly);
+        return new SmartPlacementParameterSnapshot(
+            signature,
+            RhinoMMPlugIn.Catalog.Get(data.Size),
+            preset,
+            heatSet,
+            GlobalDisplaySettingsService.Current.FastenerOpacityPercent,
+            GlobalDisplaySettingsService.Current.CutterOpacityPercent);
+    }
+
     public FastenerComponentData CreateDraft(
         Plane plane,
         IReadOnlyList<HoleTargetBinding> bindings,
@@ -191,22 +266,34 @@ internal static class SmartPlacementDraftChangeService
 internal sealed class SmartPlacementService
 {
     private readonly RhinoDoc _doc;
-    private readonly EditorState _state;
+    private readonly Func<SmartPlacementParameterSnapshot> _snapshotProvider;
     private readonly IReadOnlyList<SmartPlacementHost> _hosts;
     private readonly double _tolerance;
     private readonly double _snapTolerance;
 
     public SmartPlacementService(RhinoDoc doc, EditorState state)
+        : this(doc, () => SmartPlacementParameterSnapshot.Capture(state))
+    {
+    }
+
+    public SmartPlacementService(RhinoDoc doc, FastenerTemplateData template)
+        : this(doc, () => SmartPlacementParameterSnapshot.Capture(template))
+    {
+    }
+
+    private SmartPlacementService(
+        RhinoDoc doc,
+        Func<SmartPlacementParameterSnapshot> snapshotProvider)
     {
         _doc = doc;
-        _state = state;
+        _snapshotProvider = snapshotProvider;
         _tolerance = Math.Max(doc.ModelAbsoluteTolerance, 1e-6);
         _snapTolerance = Math.Max(0.2, _tolerance * 10);
         _hosts = SmartHostBindingService.CaptureHosts(doc);
     }
 
     public SmartPlacementParameterSignature CurrentParameterSignature() =>
-        SmartPlacementParameterSnapshot.Capture(_state).Signature;
+        _snapshotProvider().Signature;
 
     public SmartPlacementPreview Evaluate(
         RhinoViewport viewport,
@@ -220,7 +307,7 @@ internal sealed class SmartPlacementService
         SmartPlacementParameterSnapshot parameters;
         try
         {
-            parameters = SmartPlacementParameterSnapshot.Capture(_state);
+            parameters = _snapshotProvider();
         }
         catch (Exception ex)
         {

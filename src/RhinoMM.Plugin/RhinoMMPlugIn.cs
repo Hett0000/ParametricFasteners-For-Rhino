@@ -20,8 +20,16 @@ public sealed class RhinoMMPlugIn : PlugIn
             PlacementPresetService.Load(Settings);
             HeatSetInsertPresetService.Load(Settings);
             GlobalDisplaySettingsService.Load(Settings);
-            Panels.RegisterPanel(this, typeof(RhinoMMPanel), "参数化紧固件", null);
+            FastenerTemplateLibraryService.Load(Settings);
+            Panels.RegisterPanel(
+                this,
+                typeof(RhinoMMPanel),
+                "参数化紧固件",
+                typeof(RhinoMMPlugIn).Assembly,
+                PanelIconProvider.PanelResourceName,
+                PanelType.System);
             ComponentLifecycleService.Initialize();
+            ViewportQuickEditorService.Initialize(Settings);
             LoadToolbar();
             return LoadReturnCode.Success;
         }
@@ -36,6 +44,7 @@ public sealed class RhinoMMPlugIn : PlugIn
     protected override void OnShutdown()
     {
         ComponentLifecycleService.Shutdown();
+        ViewportQuickEditorService.Shutdown();
         base.OnShutdown();
     }
 
@@ -45,8 +54,16 @@ public sealed class RhinoMMPlugIn : PlugIn
         {
             var rhpPath = GetType().Assembly.Location;
             var toolbarPath = Path.ChangeExtension(rhpPath, ".rui");
-            if (File.Exists(toolbarPath) && Rhino.RhinoApp.ToolbarFiles.FindByPath(toolbarPath) is null)
-                Rhino.RhinoApp.ToolbarFiles.Open(toolbarPath);
+            if (!File.Exists(toolbarPath))
+                return;
+
+            var loadedToolbar = Rhino.RhinoApp.ToolbarFiles.FindByPath(toolbarPath);
+            if (loadedToolbar is not null && !loadedToolbar.Close(false))
+            {
+                Rhino.RhinoApp.WriteLine("参数化紧固件工具栏正在使用，无法刷新；请重新启动 Rhino。");
+                return;
+            }
+            Rhino.RhinoApp.ToolbarFiles.Open(toolbarPath);
         }
         catch (Exception ex)
         {

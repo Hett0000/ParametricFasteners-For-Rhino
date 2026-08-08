@@ -80,7 +80,8 @@ internal static class CutterGeometryService
                 if (interval.Min > doc.ModelAbsoluteTolerance)
                     throw new InvalidOperationException($"宿主“{TargetName(target)}”不包含螺母放置点。");
                 var requiredHostDepth = InstallationPocketCalculator.RequiredHostDepth(component, spec);
-                if (interval.Max < requiredHostDepth - doc.ModelAbsoluteTolerance)
+                if (component.Kind == FastenerKind.HexNut
+                    && interval.Max < requiredHostDepth - doc.ModelAbsoluteTolerance)
                     throw new InvalidOperationException(
                         $"宿主“{TargetName(target)}”有效厚度 {interval.Max:0.###} mm 小于紧固件本体所需深度 {requiredHostDepth:0.###} mm。");
 
@@ -101,13 +102,24 @@ internal static class CutterGeometryService
                     return true;
                 }
 
-                var cuttingDepth = InstallationPocketCalculator.CuttingDepth(component, spec);
-                if (cuttingDepth >= interval.Max - doc.ModelAbsoluteTolerance)
+                var requestedCuttingDepth = InstallationPocketCalculator.CuttingDepth(component, spec);
+                var mouthDiameter = InstallationPocketCalculator.HeatSetMouthDiameter(component);
+                if (!CutterFootprintEnvelopeService.TryGet(
+                        target.Geometry,
+                        component.Placement,
+                        mouthDiameter,
+                        doc.ModelAbsoluteTolerance,
+                        out var heatSetFootprint,
+                        out var heatSetFootprintError))
+                    throw new InvalidOperationException(heatSetFootprintError);
+
+                var cuttingDepth = requestedCuttingDepth;
+                if (requestedCuttingDepth >= heatSetFootprint.Max - doc.ModelAbsoluteTolerance)
                 {
-                    warnings.Add(component.InsertDepthCompensation > doc.ModelAbsoluteTolerance
-                        ? $"{TargetName(target)}：补偿深度超过宿主厚度，将贯穿。"
-                        : $"{TargetName(target)}：安装孔深度到达宿主背面，将贯穿。");
-                    cuttingDepth = Math.Max(cuttingDepth, interval.Max + padding);
+                    warnings.Add(component.Length >= heatSetFootprint.Max - doc.ModelAbsoluteTolerance
+                        ? $"{TargetName(target)}：热熔螺母长度超过宿主厚度，安装孔将贯穿。"
+                        : $"{TargetName(target)}：深度补偿超过宿主厚度，安装孔将贯穿。");
+                    cuttingDepth = Math.Max(requestedCuttingDepth, heatSetFootprint.Max + padding);
                 }
                 var heatSet = FastenerGeometryFactory.CreateHeatSetPocketCutters(
                     component,

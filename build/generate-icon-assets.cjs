@@ -11,6 +11,35 @@ const variants = [
   { suffix: '-dark', color: '#D7DEE8', sizes: [24, 36, 48] },
   { suffix: '-inverse', color: '#FFFFFF', sizes: [24, 36, 48] }
 ];
+const panelSizes = [16, 24, 32, 48];
+
+function writePngIco(outputPath, frames) {
+  const headerSize = 6;
+  const entrySize = 16;
+  const header = Buffer.alloc(headerSize + entrySize * frames.length);
+  header.writeUInt16LE(0, 0);
+  header.writeUInt16LE(1, 2);
+  header.writeUInt16LE(frames.length, 4);
+  let offset = header.length;
+  frames.forEach((frame, index) => {
+    const signature = frame.png.subarray(0, 8).toString('hex');
+    if (signature !== '89504e470d0a1a0a'
+        || frame.png.readUInt32BE(16) !== frame.size
+        || frame.png.readUInt32BE(20) !== frame.size)
+      throw new Error(`Invalid ${frame.size}px panel PNG frame.`);
+    const entry = headerSize + entrySize * index;
+    header.writeUInt8(frame.size === 256 ? 0 : frame.size, entry);
+    header.writeUInt8(frame.size === 256 ? 0 : frame.size, entry + 1);
+    header.writeUInt8(0, entry + 2);
+    header.writeUInt8(0, entry + 3);
+    header.writeUInt16LE(1, entry + 4);
+    header.writeUInt16LE(32, entry + 6);
+    header.writeUInt32LE(frame.png.length, entry + 8);
+    header.writeUInt32LE(offset, entry + 12);
+    offset += frame.png.length;
+  });
+  fs.writeFileSync(outputPath, Buffer.concat([header, ...frames.map(frame => frame.png)]));
+}
 
 async function main() {
   fs.mkdirSync(outputDirectory, { recursive: true });
@@ -41,6 +70,17 @@ async function main() {
         }
       }
     }
+
+    const panelSource = fs.readFileSync(path.join(sourceDirectory, 'panel.svg'), 'utf8');
+    const panelFrames = [];
+    for (const size of panelSizes) {
+      await page.setViewportSize({ width: size, height: size });
+      await page.setContent(`<style>html,body{margin:0;background:transparent;width:100%;height:100%}svg{display:block;width:100%;height:100%}</style>${panelSource}`);
+      const outputPath = path.join(outputDirectory, `panel-${size}.png`);
+      await page.screenshot({ path: outputPath, omitBackground: true });
+      panelFrames.push({ size, png: fs.readFileSync(outputPath) });
+    }
+    writePngIco(path.join(outputDirectory, 'panel.ico'), panelFrames);
   } finally {
     await browser.close();
   }

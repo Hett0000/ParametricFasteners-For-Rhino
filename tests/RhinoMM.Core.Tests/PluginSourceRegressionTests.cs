@@ -5,6 +5,54 @@ namespace RhinoMM.Core.Tests;
 public sealed class PluginSourceRegressionTests
 {
     [Fact]
+    public void PhaseOneQuickEditing_UsesSharedPreparationAndPersistentTemplates()
+    {
+        var quickService = ReadSource("src", "RhinoMM.Plugin", "Services", "ViewportQuickEditorService.cs");
+        var quickWindow = ReadSource("src", "RhinoMM.Plugin", "UI", "ViewportQuickEditorWindow.cs");
+        var handles = ReadSource("src", "RhinoMM.Plugin", "Commands", "ParameterHandleCommand.cs");
+        var templates = ReadSource("src", "RhinoMM.Plugin", "Services", "FastenerTemplateLibraryService.cs");
+        var repeat = ReadSource("src", "RhinoMM.Plugin", "Commands", "RepeatCommands.cs");
+        var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
+
+        Assert.Contains("Interval = 0.25", quickService, StringComparison.Ordinal);
+        Assert.Contains("ReadSelectedControlPoints", quickService, StringComparison.Ordinal);
+        Assert.Contains("Command.BeginCommand", quickService.Replace("RhinoCommand", "Command"), StringComparison.Ordinal);
+        Assert.Contains("TryReposition", quickService, StringComparison.Ordinal);
+        Assert.Contains("QuickEditor.AutoShow", quickService, StringComparison.Ordinal);
+        Assert.Contains("SuppressForComponent", quickService, StringComparison.Ordinal);
+        Assert.DoesNotContain("EditorState.Current", quickWindow, StringComparison.Ordinal);
+        Assert.Contains("FastenerGeometryPreparationService.TryPrepare", quickWindow, StringComparison.Ordinal);
+        Assert.Contains("ComponentUpdateCoordinator.TryApplyDrafts", quickWindow, StringComparison.Ordinal);
+        Assert.Contains("CompactWidth = 252", quickWindow, StringComparison.Ordinal);
+        Assert.Contains("Text = \"确定\"", quickWindow, StringComparison.Ordinal);
+        Assert.Contains("Text = \"取消\"", quickWindow, StringComparison.Ordinal);
+        Assert.Contains("$\"{shortKind} {size}X{CompactNumber(value)}\"", quickWindow, StringComparison.Ordinal);
+        Assert.Contains("e.Key == Keys.Enter", quickWindow, StringComparison.Ordinal);
+        Assert.Contains("e.Key == Keys.Escape", quickWindow, StringComparison.Ordinal);
+        Assert.Contains("_prepared = null;", quickWindow, StringComparison.Ordinal);
+        Assert.Contains("ViewportQuickEditorService.SuppressForComponent", quickWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("private readonly Button _read", quickWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("private readonly Button _handles", quickWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("private readonly Button _delete", quickWindow, StringComparison.Ordinal);
+        Assert.Contains("class ParameterHandlePicker : GetPoint", handles, StringComparison.Ordinal);
+        Assert.Contains("OnDynamicDraw", handles, StringComparison.Ordinal);
+        Assert.Contains("SnapLength", handles, StringComparison.Ordinal);
+        Assert.Contains("SnapEmbed", handles, StringComparison.Ordinal);
+        Assert.Contains("SnapProtrusion", handles, StringComparison.Ordinal);
+        Assert.Contains("SnapAngle", handles, StringComparison.Ordinal);
+        Assert.Contains("RecentLimit = 5", templates, StringComparison.Ordinal);
+        Assert.Contains("FavoriteLimit = 50", templates, StringComparison.Ordinal);
+        Assert.Contains("CorruptBackup", templates, StringComparison.Ordinal);
+        Assert.Contains("ParametricFastenersRepeatPlace", repeat, StringComparison.Ordinal);
+        Assert.Contains("ParametricFastenersRepeatUpdate", repeat, StringComparison.Ordinal);
+        Assert.Contains("_favoriteTemplateButton", panel, StringComparison.Ordinal);
+        Assert.Contains("模板管理", panel, StringComparison.Ordinal);
+        Assert.Contains("Text = \"快速小窗\"", panel, StringComparison.Ordinal);
+        Assert.Contains("ViewportQuickEditorService.SetAutoShowEnabled", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text = \"自动快速编辑器\"", panel, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void PublicCommands_CallSharedHandlersWithoutNestedRunScript()
     {
         var source = ReadSource("src", "RhinoMM.Plugin", "Commands", "AliasCommands.cs");
@@ -605,6 +653,7 @@ public sealed class PluginSourceRegressionTests
         var export = ReadSource("src", "RhinoMM.Plugin", "Services", "BooleanExportService.cs");
         var cutter = ReadSource("src", "RhinoMM.Plugin", "Services", "CutterGeometryService.cs");
         var component = ReadSource("src", "RhinoMM.Plugin", "Services", "FastenerComponentService.cs");
+        var preparation = ReadSource("src", "RhinoMM.Plugin", "Services", "FastenerGeometryPreparationService.cs");
         var geometry = ReadSource("src", "RhinoMM.Plugin", "Geometry", "FastenerGeometryFactory.cs");
         var smartPlacement = ReadSource("src", "RhinoMM.Plugin", "Commands", "SmartPlaceCommand.cs");
         var refresh = ReadSource("src", "RhinoMM.Plugin", "Services", "ComponentRefreshService.cs");
@@ -613,7 +662,7 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("binding.IsBooleanEnabled", export, StringComparison.Ordinal);
         Assert.Contains("CutterGeometryService.TryBuild", export, StringComparison.Ordinal);
         Assert.DoesNotContain("ToBreps(obj.Geometry)", export, StringComparison.Ordinal);
-        Assert.Contains("CutterGeometryService.TryBuild", component, StringComparison.Ordinal);
+        Assert.Contains("CutterGeometryService.TryBuild", preparation, StringComparison.Ordinal);
         Assert.Contains("FastenerGeometryFactory.DepthLimit", cutter, StringComparison.Ordinal);
         Assert.Contains("CreateShaftCutter", cutter, StringComparison.Ordinal);
         Assert.Contains("CreateHeadSeatCutters", cutter, StringComparison.Ordinal);
@@ -635,7 +684,7 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("CreateHeatSetPocketCutters", cutter, StringComparison.Ordinal);
         Assert.Contains("InstallationPocketCalculator.RequiredHostDepth", cutter, StringComparison.Ordinal);
         Assert.Contains("InstallationPocketCalculator.CuttingDepth", cutter, StringComparison.Ordinal);
-        Assert.Contains("补偿深度超过宿主厚度，将贯穿", cutter, StringComparison.Ordinal);
+        Assert.Contains("深度补偿超过宿主厚度，安装孔将贯穿", cutter, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -767,6 +816,7 @@ public sealed class PluginSourceRegressionTests
     public void BatchUpdate_PreparesAllComponentsBeforeStartingUndoRecord()
     {
         var service = ReadSource("src", "RhinoMM.Plugin", "Services", "FastenerComponentService.cs");
+        var preparation = ReadSource("src", "RhinoMM.Plugin", "Services", "FastenerGeometryPreparationService.cs");
         var prepareIndex = service.IndexOf("foreach (var draft in drafts)", StringComparison.Ordinal);
         var failureIndex = service.IndexOf("preparationErrors.Count > 0", StringComparison.Ordinal);
         var undoIndex = service.IndexOf("doc.BeginUndoRecord", StringComparison.Ordinal);
@@ -775,7 +825,7 @@ public sealed class PluginSourceRegressionTests
         Assert.True(failureIndex > prepareIndex);
         Assert.True(undoIndex > failureIndex);
         Assert.Contains("CreateOrReplaceMany", service, StringComparison.Ordinal);
-        Assert.Contains("SmartHostBindingService.TryReconcile", service, StringComparison.Ordinal);
+        Assert.Contains("SmartHostBindingService.TryReconcile", preparation, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -816,6 +866,7 @@ public sealed class PluginSourceRegressionTests
         var classic = ReadSource(
             "src", "RhinoMM.Plugin", "Commands", "PlaceCommand.cs");
         var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
+        var coordinator = ReadSource("src", "RhinoMM.Plugin", "Services", "ComponentUpdateCoordinator.cs");
         var booleanExport = ReadSource(
             "src", "RhinoMM.Plugin", "Services", "BooleanExportService.cs");
 
@@ -886,13 +937,14 @@ public sealed class PluginSourceRegressionTests
     {
         var repository = ReadSource("src", "RhinoMM.Plugin", "Persistence", "ComponentRepository.cs");
         var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
+        var coordinator = ReadSource("src", "RhinoMM.Plugin", "Services", "ComponentUpdateCoordinator.cs");
         var edit = ReadSource("src", "RhinoMM.Plugin", "Commands", "EditCommand.cs");
 
         Assert.Contains("ReadSelectedControlPoints", repository, StringComparison.Ordinal);
         Assert.Contains("RoleKey) != \"ControlPoint\"", repository, StringComparison.Ordinal);
         Assert.Contains("ActivateMany", panel, StringComparison.Ordinal);
-        Assert.Contains("CreateOrReplaceMany", panel, StringComparison.Ordinal);
-        Assert.Contains("批量更新", panel, StringComparison.Ordinal);
+        Assert.Contains("ComponentUpdateCoordinator.TryApplyTemplate", panel, StringComparison.Ordinal);
+        Assert.Contains("CreateOrReplaceMany", coordinator, StringComparison.Ordinal);
         Assert.Contains("ActivateMany(doc, components, false)", edit, StringComparison.Ordinal);
         var activateIndex = panel.IndexOf(
             "private void ActivateComponents",
@@ -920,7 +972,7 @@ public sealed class PluginSourceRegressionTests
         Assert.DoesNotContain("TryGetActiveSet", command, StringComparison.Ordinal);
         var applyIndex = panel.IndexOf("private bool ApplyLoaded()", StringComparison.Ordinal);
         var selectionIndex = panel.IndexOf("RefreshSelectedTargets()", applyIndex, StringComparison.Ordinal);
-        var draftIndex = panel.IndexOf("var drafts = selectedComponents", applyIndex, StringComparison.Ordinal);
+        var draftIndex = panel.IndexOf("ComponentUpdateCoordinator.TryApplyTemplate", applyIndex, StringComparison.Ordinal);
         Assert.True(selectionIndex > applyIndex);
         Assert.True(draftIndex > selectionIndex);
         Assert.Contains("_selectedSummary.Components", panel, StringComparison.Ordinal);
@@ -979,6 +1031,100 @@ public sealed class PluginSourceRegressionTests
         Assert.DoesNotContain("ParametricFastenersExportExcel", toolbar, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void HeatSetInsert_CanCutThroughTheFullHostFootprint()
+    {
+        var cutter = ReadSource("src", "RhinoMM.Plugin", "Services", "CutterGeometryService.cs");
+
+        Assert.Contains(
+            "component.Kind == FastenerKind.HexNut\n                    && interval.Max < requiredHostDepth",
+            cutter.Replace("\r\n", "\n"),
+            StringComparison.Ordinal);
+        Assert.Contains("HeatSetMouthDiameter(component)", cutter, StringComparison.Ordinal);
+        Assert.Contains("CutterFootprintEnvelopeService.TryGet", cutter, StringComparison.Ordinal);
+        Assert.Contains("heatSetFootprint.Max + padding", cutter, StringComparison.Ordinal);
+        Assert.Contains("热熔螺母长度超过宿主厚度，安装孔将贯穿", cutter, StringComparison.Ordinal);
+        Assert.Contains("深度补偿超过宿主厚度，安装孔将贯穿", cutter, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void QuickEditor_UsesTheLargerControlPointOffset()
+    {
+        var editor = ReadSource("src", "RhinoMM.Plugin", "UI", "ViewportQuickEditorWindow.cs");
+
+        Assert.Contains("ControlOffsetX = 36", editor, StringComparison.Ordinal);
+        Assert.Contains("ControlOffsetY = 40", editor, StringComparison.Ordinal);
+        Assert.Contains("Math.Clamp(x, screen.Left + 6, maxX)", editor, StringComparison.Ordinal);
+        Assert.Contains("Math.Clamp(y, screen.Top + 6, maxY)", editor, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Toolbar_MatchesTheEightPanelActionsAndSupportsAlternateRhinoExport()
+    {
+        var toolbar = ReadSource("build", "generate-toolbar.ps1");
+        var aliases = ReadSource("src", "RhinoMM.Plugin", "Commands", "AliasCommands.cs");
+
+        var expectedCommands = new[]
+        {
+            "ParametricFastenersEdit",
+            "ParametricFastenersPlace",
+            "ParametricFastenersApplyUpdate",
+            "ParametricFastenersRefresh",
+            "ParametricFastenersExportToRhino",
+            "ParametricFastenersExportStep",
+            "ParametricFastenersStatistics",
+            "ParametricFastenersMore"
+        };
+        var previous = -1;
+        foreach (var command in expectedCommands)
+        {
+            var index = toolbar.IndexOf($"\"{command}\"", StringComparison.Ordinal);
+            Assert.True(index > previous, $"Toolbar command order is wrong at {command}.");
+            previous = index;
+        }
+
+        Assert.Contains("<right_macro_id>$rightRhinoMacroId</right_macro_id>", toolbar, StringComparison.Ordinal);
+        Assert.Contains("ParametricFastenersExportToRhinoWithFasteners", toolbar, StringComparison.Ordinal);
+        Assert.Contains("class ParametricFastenersApplyUpdateCommand", aliases, StringComparison.Ordinal);
+        Assert.Contains("class ParametricFastenersRefreshCommand", aliases, StringComparison.Ordinal);
+        Assert.Contains("class ParametricFastenersMoreCommand", aliases, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"ParametricFastenersAdopt\",", toolbar, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"ParametricFastenersValidate\",", toolbar, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void QuickEditor_ShowsFastenerTypeAndPanelRegistersAnEmbeddedIcon()
+    {
+        var labels = ReadSource("src", "RhinoMM.Core", "Services", "FastenerLabels.cs");
+        var editor = ReadSource("src", "RhinoMM.Plugin", "UI", "ViewportQuickEditorWindow.cs");
+        var plugin = ReadSource("src", "RhinoMM.Plugin", "RhinoMMPlugIn.cs");
+        var project = ReadSource("src", "RhinoMM.Plugin", "RhinoMM.Plugin.csproj");
+        var iconProvider = ReadSource("src", "RhinoMM.Plugin", "UI", "PanelIconProvider.cs");
+        var generator = ReadSource("build", "generate-icon-assets.cjs");
+
+        Assert.Contains("ShortKind(FastenerComponentData component)", labels, StringComparison.Ordinal);
+        Assert.Contains("FastenerKind.SocketCap => \"杯头\"", labels, StringComparison.Ordinal);
+        Assert.Contains("? \"防松螺母\" : \"六角螺母\"", editor, StringComparison.Ordinal);
+        Assert.Contains("FastenerLabels.ShortKind(_component.Kind)", editor, StringComparison.Ordinal);
+        Assert.Contains("$\"{shortKind} {size}X{CompactNumber(value)}\"", editor, StringComparison.Ordinal);
+        Assert.Contains("PanelIconProvider.PanelResourceName", plugin, StringComparison.Ordinal);
+        Assert.Contains("PanelType.System", plugin, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"参数化紧固件\", null", plugin, StringComparison.Ordinal);
+        Assert.Contains("panel.ico", project, StringComparison.Ordinal);
+        Assert.Contains("PanelResourceName", iconProvider, StringComparison.Ordinal);
+        Assert.Contains("panelSizes = [16, 24, 32, 48]", generator, StringComparison.Ordinal);
+        Assert.Contains("writePngIco", generator, StringComparison.Ordinal);
+
+        var ico = ReadBytes("src", "RhinoMM.Plugin", "UI", "Icons", "Generated", "panel.ico");
+        Assert.True(ico.Length > 6 + 4 * 16);
+        Assert.Equal(0, BitConverter.ToUInt16(ico, 0));
+        Assert.Equal(1, BitConverter.ToUInt16(ico, 2));
+        Assert.Equal(4, BitConverter.ToUInt16(ico, 4));
+        Assert.Equal(new byte[] { 16, 24, 32, 48 }, Enumerable.Range(0, 4)
+            .Select(index => ico[6 + index * 16])
+            .ToArray());
+    }
+
     private static string ReadSource(params string[] relativePath)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
@@ -987,6 +1133,16 @@ public sealed class PluginSourceRegressionTests
 
         Assert.NotNull(directory);
         return File.ReadAllText(Path.Combine([directory!.FullName, .. relativePath]));
+    }
+
+    private static byte[] ReadBytes(params string[] relativePath)
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "RhinoMM.sln")))
+            directory = directory.Parent;
+
+        Assert.NotNull(directory);
+        return File.ReadAllBytes(Path.Combine([directory!.FullName, .. relativePath]));
     }
 
     private static int CountOccurrences(string source, string value)

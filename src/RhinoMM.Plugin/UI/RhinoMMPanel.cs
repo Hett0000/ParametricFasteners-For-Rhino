@@ -13,6 +13,7 @@ namespace RhinoMM.Plugin.UI;
 [System.Runtime.InteropServices.Guid("7310FEC5-7DCA-4637-B778-AB3C0FBA9DA7")]
 public sealed class RhinoMMPanel : Panel, IPanel
 {
+    private static WeakReference<RhinoMMPanel>? _currentPanel;
     private static readonly double[] CommonLengths = [8, 10, 12, 15, 20, 25, 30, 35, 40, 45, 50, 60];
     private static readonly DepthMode[] EngagementDepthModes =
     [
@@ -139,6 +140,32 @@ public sealed class RhinoMMPanel : Panel, IPanel
         Height = 18,
         TextColor = FastenerUiTheme.SecondaryText
     };
+    private readonly Label _activeTemplate = new()
+    {
+        Text = "当前模板",
+        Wrap = WrapMode.None,
+        VerticalAlignment = VerticalAlignment.Center
+    };
+    private readonly Button _favoriteTemplateButton = new()
+    {
+        Text = "☆",
+        Width = 34,
+        Height = FastenerUiTheme.ControlHeight,
+        ToolTip = "收藏当前面板模板"
+    };
+    private readonly Button _templateMenuButton = new()
+    {
+        Text = "模板 ▾",
+        Width = 70,
+        Height = FastenerUiTheme.ControlHeight,
+        ToolTip = "最近使用与收藏模板"
+    };
+    private readonly CheckBox _quickEditorToggle = new()
+    {
+        Text = "快速小窗",
+        Width = 74,
+        ToolTip = "单选控制点后自动显示紧凑快速编辑器"
+    };
     private readonly DynamicLayout _parameterLayout = new() { Spacing = new Size(6, 6) };
     private readonly DynamicLayout _holeHeaderLayout = new() { Spacing = new Size(4, 4) };
     private readonly DynamicLayout _holeParameterLayout = new() { Spacing = new Size(6, 6) };
@@ -147,6 +174,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
     private readonly Scrollable _scrollable;
     private readonly Button _applyButton = new() { Height = FastenerUiTheme.ActionButtonHeight, Enabled = true };
     private readonly Button _placeButton = new() { Height = FastenerUiTheme.ActionButtonHeight };
+    private readonly Button _moreButton = new() { Height = FastenerUiTheme.ActionButtonHeight };
     private readonly Panel _actionsHost = new();
     private readonly List<Button> _actionButtons = [];
     private readonly Dictionary<Button, PanelActionIcon> _actionButtonIcons = [];
@@ -171,6 +199,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
 
     public RhinoMMPanel()
     {
+        _currentPanel = new WeakReference<RhinoMMPanel>(this);
         Style = Panels.EtoPanelStyleName;
         FastenerUiTheme.RefreshPalette();
         FastenerUiTheme.SetRole(this, FastenerThemeRole.Canvas);
@@ -182,10 +211,15 @@ public sealed class RhinoMMPanel : Panel, IPanel
         FastenerUiTheme.SetRole(_holeDiameterSummary, FastenerThemeRole.SecondaryText);
         FastenerUiTheme.SetRole(_summary, FastenerThemeRole.PrimaryText);
         FastenerUiTheme.SetRole(_status, FastenerThemeRole.SecondaryText);
+        FastenerUiTheme.SetRole(_activeTemplate, FastenerThemeRole.SecondaryText);
+        FastenerUiTheme.SetRole(_quickEditorToggle, FastenerThemeRole.PrimaryText);
         FastenerUiTheme.ApplySecondary(_zeroHeadButton);
         FastenerUiTheme.ApplySecondary(_flushHeadButton);
+        FastenerUiTheme.ApplySecondary(_favoriteTemplateButton);
+        FastenerUiTheme.ApplySecondary(_templateMenuButton);
         _insertSummaryHost.Content = _insertFinalDiameter;
         _insertNoteHost.Content = _insertChamferNote;
+        _quickEditorToggle.Checked = ViewportQuickEditorService.AutoShowEnabled;
         _headEmbedControl = new StackLayout
         {
             Orientation = Orientation.Horizontal,
@@ -248,11 +282,23 @@ public sealed class RhinoMMPanel : Panel, IPanel
         FastenerUiTheme.SetRole(_scrollable, FastenerThemeRole.Canvas);
 
         var actions = BuildActions();
+        var templateStrip = new TableLayout
+        {
+            Spacing = new Size(FastenerUiTheme.SpaceSmall, 0),
+            Rows =
+            {
+                new TableRow(
+                    new TableCell(_activeTemplate, true),
+                    _favoriteTemplateButton,
+                    _templateMenuButton,
+                    _quickEditorToggle)
+            }
+        };
         var summaryCard = FastenerUiTheme.CreateCard(new StackLayout
         {
             Orientation = Orientation.Vertical,
             Spacing = 3,
-            Items = { _summary, _status }
+            Items = { _summary, _status, templateStrip }
         }, 6);
         var rootLayout = new TableLayout
         {
@@ -273,6 +319,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
         RhinoApp.AppSettingsChanged += RhinoAppSettingsChanged;
         RhinoDoc.SelectObjects += DocumentSelectionChanged;
         ComponentEditorSession.ActiveSelectionChanged += SessionSelectionChanged;
+        FastenerTemplateLibraryService.Changed += TemplateLibraryChanged;
         WireEvents();
         LoadControls();
         RebuildResponsiveLayout(force: true);
@@ -285,6 +332,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
     public void PanelShown(uint documentSerialNumber, ShowPanelReason reason)
     {
         ApplyTheme();
+        _quickEditorToggle.Checked = ViewportQuickEditorService.AutoShowEnabled;
         var doc = RhinoDoc.ActiveDoc;
         if (doc is null)
             return;
@@ -304,6 +352,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
         RhinoApp.AppSettingsChanged -= RhinoAppSettingsChanged;
         RhinoDoc.SelectObjects -= DocumentSelectionChanged;
         ComponentEditorSession.ActiveSelectionChanged -= SessionSelectionChanged;
+        FastenerTemplateLibraryService.Changed -= TemplateLibraryChanged;
     }
 
     private void RhinoAppSettingsChanged(object? sender, EventArgs e) =>
@@ -418,7 +467,14 @@ public sealed class RhinoMMPanel : Panel, IPanel
         _nutPocketCompensation.ValueChanged += (_, _) => PairedNutParameterChanged(rebuildLayout: false);
         _zeroHeadButton.Click += (_, _) => _headEmbed.Value = 0;
         _flushHeadButton.Click += (_, _) => SetFlushHeadDepth();
+        _favoriteTemplateButton.Click += (_, _) => FavoriteCurrentTemplate();
+        _templateMenuButton.Click += (_, _) => ShowTemplateMenu(_templateMenuButton);
+        _quickEditorToggle.CheckedChanged += (_, _) =>
+            ViewportQuickEditorService.SetAutoShowEnabled(_quickEditorToggle.Checked == true);
     }
+
+    private void TemplateLibraryChanged(object? sender, EventArgs e) =>
+        Application.Instance.AsyncInvoke(() => UpdateTemplateStrip());
 
     private Control BuildActions()
     {
@@ -460,15 +516,14 @@ public sealed class RhinoMMPanel : Panel, IPanel
             PanelActionIcon.Statistics,
             "紧固件统计：统计数量并可保存 Excel",
             (_, _) => Run("_-ParametricFastenersStatistics"));
-        var more = new Button();
         ConfigureActionButton(
-            more,
+            _moreButton,
             PanelActionIcon.More,
             "更多：全局显示、导出 STL、转换模型和校验文档",
-            (_, _) => ShowMoreMenu(more));
+            (_, _) => ShowMoreMenu(_moreButton));
         _actionButtons.AddRange([
             load, _placeButton, _applyButton, refresh,
-            toRhino, step, statistics, more
+            toRhino, step, statistics, _moreButton
         ]);
         RebuildActionLayout();
         UpdatePrimaryActionStyle();
@@ -503,47 +558,47 @@ public sealed class RhinoMMPanel : Panel, IPanel
             return;
         }
 
-        var succeeded = ComponentRefreshService.CleanMissingControlPoints(doc, out var result, out var message);
+        var loadedIds = _loadedComponents
+            .Select(component => component.ComponentId)
+            .ToArray();
+        var succeeded = ComponentRefreshCoordinator.TryExecute(
+            doc,
+            loadedIds,
+            out var result,
+            out var message);
         if (!succeeded)
         {
             SetStatus(message, StatusKind.Error);
             return;
         }
 
-        var repairedSelection = ComponentRepository.ReadSelectedControlPoints(doc);
-        if (repairedSelection.Count > 0)
-        {
-            ComponentEditorSession.ActivateMany(
-                doc,
-                repairedSelection,
-                false,
-                ComponentActivationIntent.SynchronizeOnly);
-        }
-        else
-        {
-            var remaining = _loadedComponents
-                .Select(component => ComponentRepository.TryReadComponent(doc, component.ComponentId, out var current)
-                    ? current
-                    : null)
-                .Where(component => component is not null)
-                .Cast<FastenerComponentData>()
-                .ToArray();
-            if (remaining.Length > 0)
-                ComponentEditorSession.ActivateMany(
-                    doc,
-                    remaining,
-                    false,
-                    ComponentActivationIntent.SynchronizeOnly);
-            else
-                ComponentEditorSession.Forget(doc);
-        }
-
         RefreshSelectedTargets();
         SetStatus(message, result.FailedComponents > 0 ? StatusKind.Warning : StatusKind.Success);
     }
 
+    internal static void OpenMoreMenu()
+    {
+        Panels.OpenPanel(typeof(RhinoMMPanel).GUID);
+        Application.Instance.AsyncInvoke(() =>
+        {
+            if (_currentPanel is not null
+                && _currentPanel.TryGetTarget(out var panel))
+                panel.ShowMoreMenu(panel._moreButton);
+            else
+                RhinoApp.WriteLine("无法打开参数化紧固件的“更多”菜单。");
+        });
+    }
+
     private void ShowMoreMenu(Control owner)
     {
+        var handles = new ButtonMenuItem { Text = "参数手柄…" };
+        handles.Click += (_, _) => Run("_-ParametricFastenersEditHandles");
+        var repeatPlace = new ButtonMenuItem { Text = "重复上一放置" };
+        repeatPlace.Click += (_, _) => Run("_-ParametricFastenersRepeatPlace");
+        var repeatUpdate = new ButtonMenuItem { Text = "重复上一更新" };
+        repeatUpdate.Click += (_, _) => Run("_-ParametricFastenersRepeatUpdate");
+        var templates = new ButtonMenuItem { Text = "模板管理…" };
+        templates.Click += (_, _) => FastenerTemplateManagerDialog.Show();
         var display = new ButtonMenuItem { Text = "全局显示…" };
         display.Click += (_, _) => GlobalDisplaySettingsDialog.Show(RhinoDoc.ActiveDoc);
         var stl = new ButtonMenuItem { Text = "导出 STL…" };
@@ -556,6 +611,11 @@ public sealed class RhinoMMPanel : Panel, IPanel
         {
             Items =
             {
+                handles,
+                repeatPlace,
+                repeatUpdate,
+                templates,
+                new SeparatorMenuItem(),
                 display,
                 new SeparatorMenuItem(),
                 stl,
@@ -565,6 +625,140 @@ public sealed class RhinoMMPanel : Panel, IPanel
             }
         };
         menu.Show(owner);
+    }
+
+    private void ShowTemplateMenu(Control owner)
+    {
+        var menu = new ContextMenu();
+        if (FastenerTemplateLibraryService.Current.Recent.Count > 0)
+        {
+            menu.Items.Add(new ButtonMenuItem { Text = "最近使用", Enabled = false });
+            foreach (var entry in FastenerTemplateLibraryService.Current.Recent)
+            {
+                var item = new ButtonMenuItem { Text = entry.Name };
+                item.Click += (_, _) => ApplyTemplateData(entry.Data, entry.Name);
+                menu.Items.Add(item);
+            }
+        }
+        if (FastenerTemplateLibraryService.Current.Favorites.Count > 0)
+        {
+            if (menu.Items.Count > 0)
+                menu.Items.Add(new SeparatorMenuItem());
+            menu.Items.Add(new ButtonMenuItem { Text = "收藏", Enabled = false });
+            foreach (var entry in FastenerTemplateLibraryService.Current.Favorites)
+            {
+                var item = new ButtonMenuItem { Text = $"★ {entry.Name}" };
+                item.Click += (_, _) => ApplyTemplateData(entry.Data, entry.Name);
+                menu.Items.Add(item);
+            }
+        }
+        if (menu.Items.Count > 0)
+            menu.Items.Add(new SeparatorMenuItem());
+        var manage = new ButtonMenuItem { Text = "管理模板…" };
+        manage.Click += (_, _) => FastenerTemplateManagerDialog.Show();
+        menu.Items.Add(manage);
+        menu.Show(owner);
+    }
+
+    private void FavoriteCurrentTemplate()
+    {
+        SaveControls();
+        var data = FastenerTemplateData.FromUpdateTemplate(CaptureUpdateTemplate());
+        if (!FastenerTemplateLibraryService.AddFavorite(null, data, out var entry, out var message))
+        {
+            SetStatus(message, StatusKind.Warning);
+            return;
+        }
+        SetStatus($"已收藏模板“{entry.Name}”。", StatusKind.Success);
+        UpdateTemplateStrip();
+    }
+
+    private void ApplyTemplateData(FastenerTemplateData data, string? name = null)
+    {
+        data = data.Normalize();
+        if (!FastenerTemplateLibraryService.TryValidate(data, out var validationMessage))
+        {
+            SetStatus(validationMessage, StatusKind.Error);
+            return;
+        }
+        var clearancePreview = data.ClearancePreviewVisible ?? true;
+        var clearanceBoolean = data.ClearanceBooleanEnabled ?? true;
+        var engagementPreview = data.EngagementPreviewVisible ?? true;
+        var engagementBoolean = data.EngagementBooleanEnabled ?? true;
+        var nutPreview = data.NutPocketPreviewVisible ?? true;
+        var nutBoolean = data.NutPocketBooleanEnabled ?? true;
+        var preset = new PlacementCutterPreset(
+            data.PrinterCorrection,
+            ClearanceFitClass.Normal,
+            data.BiteReduction,
+            data.CounterboreBridgeEnabled,
+            data.CounterboreBridgeLayerHeight,
+            data.EngagementDepthMode,
+            data.EngagementBlindDepth,
+            clearancePreview,
+            clearanceBoolean,
+            engagementPreview,
+            engagementBoolean,
+            data.AssemblyMode == ScrewAssemblyMode.EngagementOnly,
+            data.AssemblyMode,
+            data.PairedNutStyle,
+            data.NutTipProtrusion,
+            data.NutPocketCompensation,
+            nutPreview,
+            nutBoolean);
+        if (RhinoMMPlugIn.Instance is { } plugin)
+        {
+            PlacementPresetService.Save(plugin.Settings, preset, out _);
+            if (data.Kind == FastenerKind.HeatSetInsert)
+            {
+                HeatSetInsertPresetService.Save(
+                    plugin.Settings,
+                    new HeatSetInsertPreset(
+                        data.Length,
+                        data.InsertOuterDiameter,
+                        data.InsertDiameterCompensation,
+                        data.InsertDepthCompensation,
+                        data.InstallationPreviewVisible ?? true,
+                        data.InstallationBooleanEnabled ?? true),
+                    out _);
+            }
+        }
+        EditorState.Current.LoadTemplate(data);
+        _clearancePreviewOverride = data.ClearancePreviewVisible;
+        _clearanceBooleanOverride = data.ClearanceBooleanEnabled;
+        _engagementPreviewOverride = data.EngagementPreviewVisible;
+        _engagementBooleanOverride = data.EngagementBooleanEnabled;
+        _installationPreviewOverride = data.InstallationPreviewVisible;
+        _installationBooleanOverride = data.InstallationBooleanEnabled;
+        _nutPocketPreviewOverride = data.NutPocketPreviewVisible;
+        _nutPocketBooleanOverride = data.NutPocketBooleanEnabled;
+        _holeEditingContext = HoleEditingContext.PlacementPreset;
+        _holeContext.Select(HoleEditingContext.PlacementPreset.ToString(), false);
+        LoadControls();
+        UpdateSummary();
+        UpdateTemplateStrip(name);
+        NotifySmartPlacementDraftChanged();
+        SetStatus($"已载入模板“{name ?? FastenerTemplateFormatter.Compact(data)}”；场景选择未改变。", StatusKind.Success);
+    }
+
+    private void UpdateTemplateStrip(string? preferredName = null)
+    {
+        try
+        {
+            var data = FastenerTemplateData.FromUpdateTemplate(CaptureUpdateTemplate());
+            var favorite = FastenerTemplateLibraryService.Current.Favorites.FirstOrDefault(item =>
+                item.Data.Signature() == data.Signature());
+            _activeTemplate.Text = preferredName ?? favorite?.Name ?? FastenerTemplateFormatter.Compact(data);
+            _activeTemplate.ToolTip = $"当前面板模板：{FastenerTemplateFormatter.Compact(data)}";
+            _favoriteTemplateButton.Text = favorite is null ? "☆" : "★";
+            _favoriteTemplateButton.ToolTip = favorite is null
+                ? "收藏当前面板模板"
+                : $"已收藏为“{favorite.Name}”";
+        }
+        catch
+        {
+            _activeTemplate.Text = "当前模板";
+        }
     }
 
     private void RebuildResponsiveLayout(bool force = false)
@@ -1704,51 +1898,27 @@ public sealed class RhinoMMPanel : Panel, IPanel
 
         SaveControls();
         var selectedComponents = _selectedSummary.Components;
-        if (selectedComponents.Count > 1)
-        {
-            var targetIsNut = FastenerKindTraits.IsNut(EditorState.Current.Kind);
-            if (selectedComponents.Any(component => FastenerKindTraits.IsNut(component.Kind) != targetIsNut))
-            {
-                SetStatus("批量更新不能在螺丝与螺母类别之间转换；请重新放置对应类型。", StatusKind.Warning);
-                return false;
-            }
-            if (targetIsNut && selectedComponents.Any(component =>
-                    component.Bindings.Count != 1
-                    || component.Bindings[0].Role != ShaftFitRole.InstallationPocket))
-            {
-                SetStatus("批量更新螺母要求每个组件都具有一个有效的安装宿主。", StatusKind.Warning);
-                return false;
-            }
-        }
-
         var keepLoadedComponentDetails = selectedComponents.Count == 1
             && _loadedComponents.Count == 1
             && selectedComponents[0].ComponentId == _loadedComponents[0].ComponentId;
         var template = CaptureUpdateTemplate();
-        var drafts = selectedComponents
-            .Select(component => template.ApplyTo(component))
-            .ToArray();
-        if (FastenerComponentService.CreateOrReplaceMany(doc, drafts, out var saved, out var message))
-        {
-            doc.Objects.UnselectAll(false);
-            foreach (var component in saved)
-            {
-                var controlPoint = ComponentRepository.FindControlPoint(doc, component.ComponentId);
-                if (controlPoint is not null)
-                    doc.Objects.Select(controlPoint.Id, false);
-            }
-            ComponentEditorSession.ActivateMany(
+        if (ComponentUpdateCoordinator.TryApplyTemplate(
                 doc,
-                saved,
-                false,
-                ComponentActivationIntent.SynchronizeOnly);
+                selectedComponents,
+                template,
+                out var saved,
+                out var message))
+        {
             if (keepLoadedComponentDetails)
             {
                 _loadedComponents = saved;
                 _loadedComponent = saved[0];
             }
             _geometryDirty = false;
-            doc.Views.Redraw();
+            FastenerTemplateLibraryService.RecordSuccessfulOperation(
+                FastenerTemplateData.FromUpdateTemplate(template),
+                FastenerOperationKind.Update,
+                out _);
             RefreshSelectedTargets();
             SetStatus(message, message.Contains("警告") || message.Contains("贯穿") ? StatusKind.Warning : StatusKind.Success);
             return true;
@@ -1830,6 +2000,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
                 })
         };
         _summary.ToolTip = _summary.Text;
+        UpdateTemplateStrip();
         ShowSelectionSummary();
     }
 

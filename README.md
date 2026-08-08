@@ -2,7 +2,7 @@
 
 参数化紧固件是面向 Rhino 8 Windows 与 FDM 3D 打印的 RhinoCommon 插件。它把螺丝、螺母、通孔、沉孔和咬合预孔保存为可编辑组件，并在“放入 Rhino”、STEP 或 STL 导出时才对宿主副本执行布尔，避免破坏原始 3DM 模型。
 
-当前版本：`0.29.0`
+当前版本：`0.30.3`
 
 ## 主要功能
 
@@ -11,8 +11,15 @@
 - 六角螺母页面通过“尼龙防松螺母”复选框在普通与防松样式之间切换。尼龙防松螺母 M3–M12 使用 GB/T 889.1-2015 兼容外包络，M2、M2.5 为明确标注的 DIN 985 工程扩展预设；M1.6 在防松模式下禁用。
 - 六角螺母使用带打印补偿的六角盲槽，并支持 `0`、全埋和任意非负自定义嵌入深度；热熔螺母使用可设置长度、外径、孔径补偿和深度补偿的 45° 导角安装孔，新建时默认增加 1 mm 切割深度。
 - 六角螺母和热熔螺母单击封闭宿主面即可完成位置、方向、宿主绑定和创建。
+- 热熔螺母安装孔允许穿透宿主；本体长度或深度补偿超过宿主时会提示贯穿，但仍可放置、更新并导出。贯穿范围按完整入口圆截面计算，适配倾斜和曲面背面。
 - 通过控制点读取、更新、批量更新和删除紧固件组件。
 - 面板采用“参数模板 + 选择目标”：框选控制点只更新顶部选择摘要，不覆盖面板参数；点击“读取组件”才载入已有组件数据。
+- 单选有效控制点约 250 ms 后自动显示紧凑视口快速编辑器，标题显示 `杯头 M3X20`、`防松螺母 M5` 等短类型与核心规格；Enter 或“确定”提交，Esc 或“取消”放弃。主面板“快速小窗”开关可随时关闭自动弹出。
+- Rhino右侧停靠栏使用独立的多分辨率参数化紧固件图标，在浅色和深色界面中均保持清晰。
+- 快速编辑小窗默认位于控制点右下方 36×40 DIP，并在视口边缘自动回退，避免遮挡控制点和 Gumball。
+- 参数手柄提供长度、嵌入深度、螺母末端露出量和方向旋转的显式点击编辑；手柄修改复用组件事务预检，并支持常用长度、0/齐平、0/2 mm 和 15° 吸附。
+- 主面板摘要下方提供紧凑模板栏，保存最近 5 个成功操作和最多 50 个收藏模板；收藏可重命名、复制、排序以及导入/导出 JSON，并跨文档、跨 Rhino 会话保留。
+- 支持“重复上一放置”和“重复上一更新”，使用最近一次成功操作的不可变快照，不覆盖当前主面板模板。
 - 单颗螺丝的选择摘要使用“杯头 M3*30 +1切割 通1/咬1”式紧凑格式；底部八个操作图标在同一 Rhino 主题下保持统一颜色和按钮背景。
 - 读取组件会原子同步类别卡片和专属参数布局，可在螺丝、六角螺母与热熔螺母之间可靠切换。
 - 类型、规格、长度、嵌入、补偿和咬合孔深度可作为统一模板，一次应用到多个控制点；更新后模板保持不变，便于连续处理多批组件。
@@ -59,6 +66,12 @@
 | `ParametricFastenersPlace` | 启动虚拟紧固件跟随鼠标的智能连续放置 |
 | `ParametricFastenersPlaceClassic` | 使用经典的手动宿主选择和面/点放置 |
 | `ParametricFastenersApplyUpdate` | 将当前面板模板批量应用到选中的控制点 |
+| `ParametricFastenersRefresh` | 修复组件位置、重新绑定宿主并清理无效组件 |
+| `ParametricFastenersMore` | 打开主面板并显示与底部按钮相同的更多菜单 |
+| `ParametricFastenersQuickEdit` | 为当前单选控制点打开视口快速编辑器 |
+| `ParametricFastenersEditHandles` | 使用视口参数手柄编辑长度、嵌入、露出量或方向 |
+| `ParametricFastenersRepeatPlace` | 使用上一次成功放置模板继续智能放置 |
+| `ParametricFastenersRepeatUpdate` | 使用上一次成功更新模板更新当前选择 |
 | `ParametricFastenersExportToRhino` | 生成布尔后的普通 Rhino 宿主副本 |
 | `ParametricFastenersExportToRhinoWithFasteners` | 生成布尔宿主及关联紧固件渲染实体 |
 | `ParametricFastenersExport` | 导出 STEP/STL |
@@ -105,6 +118,7 @@ artifacts/                本地构建产物，默认不入库
 - [每宿主孔配合设计](docs/PER_TARGET_FIT_DESIGN.md)
 - [选择、读取与接管设计](docs/SELECTION_AND_ADOPTION_DESIGN.md)
 - [开发说明](docs/DEVELOPMENT.md)
+- [后续发展路线](docs/FUTURE_DEVELOPMENT_ROADMAP.md)
 - [产品草图](docs/PRODUCT_SKETCHES.md)
 - [决策记录](docs/DECISIONS.md)
 - [GitHub 提交说明](docs/GITHUB_SUBMISSION.md)

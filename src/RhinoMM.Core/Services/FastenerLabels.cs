@@ -4,6 +4,22 @@ namespace RhinoMM.Core.Services;
 
 public static class FastenerLabels
 {
+    public static string ShortKind(FastenerComponentData component) =>
+        component.Kind == FastenerKind.HexNut
+            && component.HexNutStyle == HexNutStyle.NylonInsertLocking
+                ? "防松螺母"
+                : ShortKind(component.Kind);
+
+    public static string ShortKind(FastenerKind kind) => kind switch
+    {
+        FastenerKind.SocketCap => "杯头",
+        FastenerKind.Countersunk => "沉头",
+        FastenerKind.HexBolt => "六角头",
+        FastenerKind.HexNut => "六角螺母",
+        FastenerKind.HeatSetInsert => "热熔螺母",
+        _ => Kind(kind)
+    };
+
     public static string Kind(FastenerComponentData component) =>
         component.Kind == FastenerKind.HexNut
             ? NutStyle(component.HexNutStyle)

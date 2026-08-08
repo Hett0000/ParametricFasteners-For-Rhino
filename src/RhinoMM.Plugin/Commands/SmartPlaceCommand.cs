@@ -18,13 +18,19 @@ namespace RhinoMM.Plugin.Commands;
 
 internal static class SmartPlacementCommand
 {
-    public static Result Execute(RhinoDoc doc, RunMode mode)
+    public static Result Execute(RhinoDoc doc, RunMode mode) => Execute(doc, mode, null);
+
+    public static Result Execute(
+        RhinoDoc doc,
+        RunMode mode,
+        FastenerTemplateData? operationTemplate)
     {
-        var state = EditorState.Current;
         SmartPlacementService placementService;
         try
         {
-            placementService = new SmartPlacementService(doc, state);
+            placementService = operationTemplate is null
+                ? new SmartPlacementService(doc, EditorState.Current)
+                : new SmartPlacementService(doc, operationTemplate);
         }
         catch (Exception ex)
         {
@@ -79,6 +85,10 @@ internal static class SmartPlacementCommand
             }
 
             placed.Add(saved);
+            FastenerTemplateLibraryService.RecordSuccessfulOperation(
+                FastenerTemplateData.FromComponent(saved),
+                FastenerOperationKind.Placement,
+                out _);
             RhinoApp.WriteLine(
                 placed.Count == 1
                     ? message

@@ -19,6 +19,7 @@ internal static class PanelIconProvider
 {
     private const int LogicalSize = 24;
     private const string ResourcePrefix = "RhinoMM.Plugin.UI.Icons.Generated";
+    internal const string PanelResourceName = ResourcePrefix + ".panel.ico";
     private static readonly Dictionary<(PanelActionIcon Icon, string Variant), Icon> Cache = [];
     private static readonly (float Scale, int Pixels)[] Frames = [(1f, 24), (1.5f, 36), (2f, 48)];
 

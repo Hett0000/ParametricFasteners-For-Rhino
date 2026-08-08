@@ -11,15 +11,17 @@ function Decode-Text([string]$value) {
 
 $toolbarName = Decode-Text "5Y+C5pWw5YyW57Sn5Zu65Lu2"
 $labels = @(
-    (Decode-Text "5omT5byA5Y+C5pWw5YyW57Sn5Zu65Lu2"),
-    (Decode-Text "5pS+572u5LiO57uR5a6a5a2U"),
-    (Decode-Text "6K+75Y+W5LiO57yW6L6R57uE5Lu2"),
-    (Decode-Text "6L2s5o2i546w5pyJ5qih5Z6L"),
-    (Decode-Text "5qCh6aqM5paH5qGj"),
-    (Decode-Text "5a+85Ye6IFNURVA="),
+    (Decode-Text "6K+75Y+W57uE5Lu2"),
+    (Decode-Text "5pS+572uL+e7keWumg=="),
+    (Decode-Text "5bqU55So5pu05paw"),
+    (Decode-Text "5Yi35pawL+a4heeQhg=="),
     (Decode-Text "5pS+5YWlIFJoaW5v"),
-    (Decode-Text "57Sn5Zu65Lu257uf6K6h")
+    (Decode-Text "5a+85Ye6IFNURVA="),
+    (Decode-Text "57Sn5Zu65Lu257uf6K6h"),
+    (Decode-Text "5pu05aSa4oCm")
 )
+$rhinoTooltip = Decode-Text "5bem5Ye777ya5LuF5pS+5YWl5biD5bCU5a6/5Li777yb5Y+z5Ye777ya5pS+5YWl5biD5bCU5a6/5Li75ZKM57Sn5Zu65Lu25a6e5L2T"
+$rightRhinoMacroId = "e6c663ce-7f3f-4e57-9a54-4c9760523a01"
 
 $iconIds = @(
     "9c0684e5-48b5-4f5f-b2aa-1894b118cc20",
@@ -74,22 +76,25 @@ $toolbarItems = @(
     @("a20c4548-a9d7-48ba-a816-a602691325fe", "3844e878-b48c-4b4a-a095-a18cf918a4bb", $labels[7])
 )
 $commands = @(
-    "ParametricFasteners",
-    "ParametricFastenersPlace",
     "ParametricFastenersEdit",
-    "ParametricFastenersAdopt",
-    "ParametricFastenersValidate",
-    "ParametricFastenersExportStep",
+    "ParametricFastenersPlace",
+    "ParametricFastenersApplyUpdate",
+    "ParametricFastenersRefresh",
     "ParametricFastenersExportToRhino",
-    "ParametricFastenersStatistics"
+    "ParametricFastenersExportStep",
+    "ParametricFastenersStatistics",
+    "ParametricFastenersMore"
 )
 $toolXml = for ($i = 0; $i -lt $toolbarItems.Count; $i++) {
-    "      <tool_bar_item guid=`"$($toolbarItems[$i][0])`"><text><locale_2052>$($toolbarItems[$i][2])</locale_2052></text><left_macro_id>$($toolbarItems[$i][1])</left_macro_id></tool_bar_item>"
+    $rightMacro = if ($i -eq 4) { "<right_macro_id>$rightRhinoMacroId</right_macro_id>" } else { "" }
+    "      <tool_bar_item guid=`"$($toolbarItems[$i][0])`"><text><locale_2052>$($toolbarItems[$i][2])</locale_2052></text><left_macro_id>$($toolbarItems[$i][1])</left_macro_id>$rightMacro</tool_bar_item>"
 }
 $macroXml = for ($i = 0; $i -lt $toolbarItems.Count; $i++) {
     $iconId = $iconIds[$i + 1]
-    "    <macro_item guid=`"$($toolbarItems[$i][1])`" bitmap_id=`"$iconId`"><text><locale_2052>$($toolbarItems[$i][2])</locale_2052></text><tooltip><locale_2052>$($toolbarItems[$i][2])</locale_2052></tooltip><script>! _$($commands[$i])</script></macro_item>"
+    $tooltip = if ($i -eq 4) { $rhinoTooltip } else { $toolbarItems[$i][2] }
+    "    <macro_item guid=`"$($toolbarItems[$i][1])`" bitmap_id=`"$iconId`"><text><locale_2052>$($toolbarItems[$i][2])</locale_2052></text><tooltip><locale_2052>$tooltip</locale_2052></tooltip><script>! _$($commands[$i])</script></macro_item>"
 }
+$macroXml += "    <macro_item guid=`"$rightRhinoMacroId`" bitmap_id=`"$($iconIds[5])`"><text><locale_2052>$($labels[4])</locale_2052></text><tooltip><locale_2052>$rhinoTooltip</locale_2052></tooltip><script>! _ParametricFastenersExportToRhinoWithFasteners</script></macro_item>"
 
 $xml = @"
 <?xml version="1.0" encoding="utf-8"?>

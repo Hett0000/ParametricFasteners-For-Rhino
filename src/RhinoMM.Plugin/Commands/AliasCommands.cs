@@ -1,4 +1,7 @@
+using Rhino;
 using Rhino.Commands;
+using RhinoMM.Plugin.Services;
+using RhinoMM.Plugin.UI;
 
 namespace RhinoMM.Plugin.Commands;
 
@@ -24,6 +27,43 @@ public sealed class ParametricFastenersEditCommand : Command
 
     protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode) =>
         RhinoMMEditHoleCommand.Execute(doc, mode);
+}
+
+public sealed class ParametricFastenersApplyUpdateCommand : Command
+{
+    public override string EnglishName => "ParametricFastenersApplyUpdate";
+
+    protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode) =>
+        RhinoMMApplyUpdateCommand.Execute(doc, mode);
+}
+
+public sealed class ParametricFastenersRefreshCommand : Command
+{
+    public override string EnglishName => "ParametricFastenersRefresh";
+
+    protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode)
+    {
+        if (!ComponentRefreshCoordinator.TryExecute(doc, null, out var result, out var message))
+        {
+            RhinoApp.WriteLine(message);
+            return Result.Failure;
+        }
+
+        RhinoApp.WriteLine(message);
+        doc.Views.Redraw();
+        return result.FailedComponents > 0 ? Result.Failure : Result.Success;
+    }
+}
+
+public sealed class ParametricFastenersMoreCommand : Command
+{
+    public override string EnglishName => "ParametricFastenersMore";
+
+    protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode)
+    {
+        RhinoMMPanel.OpenMoreMenu();
+        return Result.Success;
+    }
 }
 
 public sealed class ParametricFastenersAdoptCommand : Command

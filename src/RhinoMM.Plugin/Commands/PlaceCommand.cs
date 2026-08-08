@@ -104,6 +104,10 @@ public sealed class RhinoMMPlaceHoleCommand : Command
             placed[^1],
             true,
             ComponentActivationIntent.SynchronizeOnly);
+        FastenerTemplateLibraryService.RecordSuccessfulOperation(
+            FastenerTemplateData.FromComponent(placed[^1]),
+            FastenerOperationKind.Placement,
+            out _);
         RhinoApp.WriteLine(
             placed.Count == 1
                 ? message
@@ -184,6 +188,10 @@ public sealed class RhinoMMPlaceHoleCommand : Command
             saved,
             true,
             ComponentActivationIntent.SynchronizeOnly);
+        FastenerTemplateLibraryService.RecordSuccessfulOperation(
+            FastenerTemplateData.FromComponent(saved),
+            FastenerOperationKind.Placement,
+            out _);
         RhinoApp.WriteLine(message);
         return Result.Success;
     }
