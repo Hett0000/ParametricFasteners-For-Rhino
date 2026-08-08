@@ -309,3 +309,35 @@ ISO 273 的一般用途通孔范围包含从 1 mm 起的细、中、粗系列；
 - `CutterFootprintEnvelopeService`以最终孔径探测圆柱和宿主做布尔交集，再在组件局部轴向提取完整最小/最大覆盖范围；通孔和完全贯穿咬合孔统一使用该范围。
 - 0.27.1 将同一最小覆盖位置用于盲咬合孔入口，避免倾斜进入面残留楔形材料；盲孔终点仍使用公式深度，只有达到完整最大覆盖位置时才按贯穿处理。
 - 正常自动识别使用未裁剪的第一宿主离开深度校验螺杆是否完整穿出，并要求轴向范围内存在后方宿主。
+
+# 0.30.0 快速编辑与模板基础设施
+
+- `FastenerTemplateData`是独立于 3DM 组件的用户级模板 schema v1。模板包含可复用几何与工艺参数，但不包含组件 ID、绑定、宿主、坐标、目标附加修正或全局显示值。
+- `FastenerTemplateLibraryService`通过 Rhino `PersistentSettings`保存最近 5 条、收藏 50 条及最后一次成功放置/更新；规范化签名会清除类型无关字段并去重。
+- `ViewportQuickEditorService`监听控制点选择和 Rhino 命令生命周期，使用 250 ms 延迟显示无任务栏 Eto 窗口；快速草稿独立于`EditorState`。
+- `FastenerGeometryPreparationService`统一执行智能宿主重识别、组件校验、本体构建、切割体构建和警告汇总。
+- `ComponentUpdateCoordinator`统一单组件/批量提交、一次 Undo、控制点选择恢复和编辑会话缓存同步；主面板、快速编辑、参数手柄和重复更新均复用该管线。
+- 参数手柄采用临时`GetPoint`与`DynamicDraw`，不创建 Rhino Grip 或文档对象；每次第二次点击确认后才提交组件。
+- 组件 schema 保持 v16；模板 schema 与 3DM schema 分离，模板损坏不会影响已有模型加载。
+
+# 0.30.1 紧凑快速编辑器
+
+- `ViewportQuickEditorWindow`使用 252 DIP 逻辑宽度和类型相关高度；状态行仅在警告或错误时参与布局。
+- 快速窗口标题由当前草稿实时格式化为 `M3X20` 等核心规格，完整组件摘要只作为 Tooltip。
+- 确定继续复用`FastenerGeometryPreparationService`和`ComponentUpdateCoordinator`，提交后通过用户关闭事件抑制同一控制点再次自动弹出。
+- `RhinoMMPanel`直接绑定`ViewportQuickEditorService.AutoShowEnabled`，复用`QuickEditor.AutoShow`持久化键，不引入新的组件字段。
+
+# 0.30.2 热熔贯穿包络与工具栏命令共享
+
+- `CutterGeometryService`不再对热熔螺母执行本体厚度阻断；六角螺母仍保留安装槽厚度校验。
+- 热熔贯穿使用`HeatSetMouthDiameter`和`CutterFootprintEnvelopeService`计算最大入口圆截面的完整宿主覆盖范围，切割终点取参数深度与覆盖出口余量的较大值。
+- `ComponentRefreshCoordinator`统一面板和公开刷新命令的修复、选择恢复及编辑会话同步。
+- RUI 通过公开的应用更新、刷新和更多命令复用面板工作流；Rhino 输出按钮使用`right_macro_id`提供包含紧固件实体的右击宏。
+- 组件 schema 保持 v16。
+
+# 0.30.3 快速标题与面板图标资源
+
+- `FastenerLabels.ShortKind`集中提供杯头、沉头、六角头、普通/防松六角螺母和热熔螺母的短名称。
+- `ViewportQuickEditorWindow`使用短类型和草稿规格生成单行标题，普通/防松切换会触发标题刷新。
+- 面板图标以16、24、32、48像素PNG帧封装为嵌入式`panel.ico`，并通过`Panels.RegisterPanel`资源重载及`PanelType.System`注册。
+- 组件schema保持v16。

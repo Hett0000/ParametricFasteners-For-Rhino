@@ -40,11 +40,11 @@ public static class FastenerComponentService
             return false;
         }
 
-        var prepared = new List<PreparedComponent>();
+        var prepared = new List<PreparedFastenerGeometry>();
         var preparationErrors = new List<string>();
         foreach (var draft in drafts)
         {
-            if (TryPrepare(doc, draft, out var component, out var error))
+            if (FastenerGeometryPreparationService.TryPrepare(doc, draft, out var component, out var error))
                 prepared.Add(component!);
             else
                 preparationErrors.Add($"{draft.Size} · {draft.ComponentId.ToString("N")[..8]}：{error}");
@@ -99,66 +99,7 @@ public static class FastenerComponentService
         }
     }
 
-    private static bool TryPrepare(
-        RhinoDoc doc,
-        FastenerComponentData draft,
-        out PreparedComponent? prepared,
-        out string message)
-    {
-        prepared = null;
-        message = string.Empty;
-        try
-        {
-            if (!SmartHostBindingService.TryReconcile(
-                    doc,
-                    draft,
-                    out var effectiveDraft,
-                    out var bindingChanges,
-                    out var bindingError))
-            {
-                message = $"宿主重识别失败：{bindingError}";
-                return false;
-            }
-
-            var spec = RhinoMMPlugIn.Catalog.Get(effectiveDraft.Size);
-            var validation = FastenerComponentValidator.Validate(effectiveDraft, spec);
-            if (!validation.IsValid)
-            {
-                message = string.Join(
-                    System.Environment.NewLine,
-                    validation.Issues.Where(item => item.IsError).Select(item => item.Message));
-                return false;
-            }
-
-            var proxies = FastenerGeometryFactory.CreateProxy(effectiveDraft, spec);
-            var cutters = new List<CutterGeometryBuild>();
-            var warnings = new List<string>();
-            if (bindingChanges.HasChanges)
-                warnings.Add(bindingChanges.ToString());
-            foreach (var binding in effectiveDraft.Bindings)
-            {
-                if (!CutterGeometryService.TryBuild(
-                        doc,
-                        effectiveDraft,
-                        spec,
-                        binding,
-                        out var cutter,
-                        out var cutterError))
-                    throw new InvalidOperationException(cutterError);
-                cutters.Add(cutter!);
-                warnings.AddRange(cutter!.Warnings);
-            }
-            prepared = new PreparedComponent(effectiveDraft, proxies, cutters, warnings);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            message = $"几何预检失败：{ex.Message}";
-            return false;
-        }
-    }
-
-    private static FastenerComponentData CommitPrepared(RhinoDoc doc, PreparedComponent prepared)
+    private static FastenerComponentData CommitPrepared(RhinoDoc doc, PreparedFastenerGeometry prepared)
     {
         var draft = prepared.Draft;
         using var suppression = ComponentLifecycleService.Suppress(doc, draft.ComponentId);
@@ -249,9 +190,4 @@ public static class FastenerComponentService
         return saved;
     }
 
-    private sealed record PreparedComponent(
-        FastenerComponentData Draft,
-        IReadOnlyList<Brep> Proxies,
-        IReadOnlyList<CutterGeometryBuild> Cutters,
-        IReadOnlyList<string> Warnings);
 }

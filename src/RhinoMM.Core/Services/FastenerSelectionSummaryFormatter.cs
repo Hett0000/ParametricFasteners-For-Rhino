@@ -25,11 +25,11 @@ public static class FastenerSelectionSummaryFormatter
         if (component.AssemblyMode == ScrewAssemblyMode.NutFastened)
         {
             var pocketCount = component.Bindings.Count(binding => binding.Role == ShaftFitRole.NutPocket);
-            return $"{ShortKind(component.Kind)} {component.Size}*{Number(component.Length)} 螺母固定"
+            return $"{FastenerLabels.ShortKind(component)} {component.Size}*{Number(component.Length)} 螺母固定"
                 + $" 通{clearanceCount}/槽{pocketCount} · 露出{Number(component.NutTipProtrusion)}";
         }
         var mode = component.AssemblyMode == ScrewAssemblyMode.EngagementOnly ? " 只咬合" : string.Empty;
-        return $"{ShortKind(component.Kind)} {component.Size}*{Number(component.Length)}{mode}"
+        return $"{FastenerLabels.ShortKind(component)} {component.Size}*{Number(component.Length)}{mode}"
             + $"{depth} 通{clearanceCount}/咬{engagementBindings.Length}";
     }
 
@@ -103,14 +103,6 @@ public static class FastenerSelectionSummaryFormatter
         DepthMode.FastenerLengthPlusTwoDiameters => "+2切割",
         DepthMode.Blind => "盲孔切割",
         _ => "切割"
-    };
-
-    private static string ShortKind(FastenerKind kind) => kind switch
-    {
-        FastenerKind.SocketCap => "杯头",
-        FastenerKind.Countersunk => "沉头",
-        FastenerKind.HexBolt => "六角头",
-        _ => FastenerLabels.Kind(kind)
     };
 
     private static string Signed(double value) =>

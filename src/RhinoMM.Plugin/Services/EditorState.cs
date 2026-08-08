@@ -97,6 +97,31 @@ public sealed class EditorState
         NutTipProtrusion: NutTipProtrusion,
         NutPocketCompensation: NutPocketCompensation);
 
+    internal void LoadTemplate(FastenerTemplateData template)
+    {
+        template = template.Normalize();
+        Kind = template.Kind;
+        HexNutStyle = template.NutStyle;
+        Size = template.Size;
+        Length = template.Length;
+        HeadEmbedDepth = template.HeadEmbedDepth;
+        InsertOuterDiameter = template.InsertOuterDiameter;
+        InsertDiameterCompensation = template.InsertDiameterCompensation;
+        InsertDepthCompensation = template.InsertDepthCompensation;
+        PrinterCorrection = template.PrinterCorrection;
+        BiteReduction = template.BiteReduction;
+        EngagementDepthMode = template.EngagementDepthMode;
+        EngagementBlindDepth = template.EngagementBlindDepth;
+        CounterboreBridgeEnabled = template.CounterboreBridgeEnabled;
+        CounterboreBridgeLayerHeight = template.CounterboreBridgeLayerHeight;
+        AssemblyMode = template.AssemblyMode;
+        PairedNutStyle = template.PairedNutStyle;
+        NutTipProtrusion = template.NutTipProtrusion;
+        NutPocketCompensation = template.NutPocketCompensation;
+        EngagementOnly = template.AssemblyMode == ScrewAssemblyMode.EngagementOnly;
+        LoadedComponentId = Guid.Empty;
+    }
+
     public void Load(FastenerComponentData component)
     {
         Kind = component.Kind;

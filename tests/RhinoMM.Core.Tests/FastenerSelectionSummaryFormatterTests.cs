@@ -6,6 +6,25 @@ namespace RhinoMM.Core.Tests;
 
 public sealed class FastenerSelectionSummaryFormatterTests
 {
+    [Theory]
+    [InlineData(FastenerKind.SocketCap, "杯头")]
+    [InlineData(FastenerKind.Countersunk, "沉头")]
+    [InlineData(FastenerKind.HexBolt, "六角头")]
+    [InlineData(FastenerKind.HexNut, "六角螺母")]
+    [InlineData(FastenerKind.HeatSetInsert, "热熔螺母")]
+    public void ShortKind_UsesCompactChineseLabels(FastenerKind kind, string expected) =>
+        Assert.Equal(expected, FastenerLabels.ShortKind(kind));
+
+    [Fact]
+    public void ShortKind_DistinguishesNylonLockingNut() =>
+        Assert.Equal(
+            "防松螺母",
+            FastenerLabels.ShortKind(new FastenerComponentData
+            {
+                Kind = FastenerKind.HexNut,
+                HexNutStyle = HexNutStyle.NylonInsertLocking
+            }));
+
     [Fact]
     public void ScrewSummary_UsesCompactRequestedFormat()
     {
