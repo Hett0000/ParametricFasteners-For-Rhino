@@ -43,15 +43,93 @@ public sealed class ParametricFastenersRefreshCommand : Command
 
     protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode)
     {
-        if (!ComponentRefreshCoordinator.TryExecute(doc, null, out var result, out var message))
-        {
-            RhinoApp.WriteLine(message);
-            return Result.Failure;
-        }
+        MaintenanceCenterDialog.Show(doc);
+        return Result.Success;
+    }
+}
 
+public sealed class ParametricFastenersQuickRefreshCommand : Command
+{
+    public override string EnglishName => "ParametricFastenersQuickRefresh";
+    protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode)
+    {
+        var success = ComponentMaintenanceService.QuickRefresh(doc, out var message);
         RhinoApp.WriteLine(message);
-        doc.Views.Redraw();
-        return result.FailedComponents > 0 ? Result.Failure : Result.Success;
+        return success ? Result.Success : Result.Failure;
+    }
+}
+
+public sealed class ParametricFastenersRelinkCommand : Command
+{
+    public override string EnglishName => "ParametricFastenersRelink";
+    protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode)
+    {
+        RelinkWizardDialog.Show(doc);
+        return Result.Success;
+    }
+}
+
+public sealed class ParametricFastenersCleanupCommand : Command
+{
+    public override string EnglishName => "ParametricFastenersCleanup";
+    protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode)
+    {
+        var success = ComponentMaintenanceService.CleanupResiduals(doc, out var message);
+        RhinoApp.WriteLine(message);
+        return success ? Result.Success : Result.Failure;
+    }
+}
+
+public sealed class ParametricFastenersAssemblyInspectorCommand : Command
+{
+    public override string EnglishName => "ParametricFastenersAssemblyInspector";
+    protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode)
+    {
+        AssemblyInspectorDialog.Show(doc);
+        return Result.Success;
+    }
+}
+
+public sealed class ParametricFastenersAssemblySuggestionsCommand : Command
+{
+    public override string EnglishName => "ParametricFastenersAssemblySuggestions";
+    protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode)
+    {
+        AssemblyInspectorDialog.Show(doc);
+        return Result.Success;
+    }
+}
+
+public sealed class ParametricFastenersAdaptiveUpdateCommand : Command
+{
+    public override string EnglishName => "ParametricFastenersAdaptiveUpdate";
+    protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode)
+    {
+        var components = Persistence.ComponentRepository.ReadSelectedControlPoints(doc);
+        var template = EditorState.Current.CaptureUpdateTemplate();
+        var success = AdaptiveBatchUpdateService.TryApply(doc, components, template, out _, out var message);
+        RhinoApp.WriteLine(message);
+        return success ? Result.Success : Result.Failure;
+    }
+}
+
+public sealed class ParametricFastenersOutputCenterCommand : Command
+{
+    public override string EnglishName => "ParametricFastenersOutputCenter";
+    protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode)
+    {
+        OutputCenterDialog.Show(doc);
+        return Result.Success;
+    }
+}
+
+public sealed class ParametricFastenersCustomLibraryCommand : Command
+{
+    public override string EnglishName => "ParametricFastenersCustomLibrary";
+    protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode)
+    {
+        UserFastenerLibraryDialog.Show(doc);
+        return Result.Success;
     }
 }
 
@@ -62,6 +140,17 @@ public sealed class ParametricFastenersMoreCommand : Command
     protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode)
     {
         RhinoMMPanel.OpenMoreMenu();
+        return Result.Success;
+    }
+}
+
+public sealed class ParametricFastenersNavigatorCommand : Command
+{
+    public override string EnglishName => "ParametricFastenersNavigator";
+
+    protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode)
+    {
+        Rhino.UI.Panels.OpenPanel(typeof(ComponentNavigatorPanel).GUID);
         return Result.Success;
     }
 }

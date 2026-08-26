@@ -15,7 +15,7 @@
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./build/build.ps1 -Configuration Release
 ```
 
-脚本依次执行 restore、核心测试、Release 构建、RUI 图标生成和 Rhino `Compat.exe` 检查。所有步骤先在 `artifacts/.staging/` 完成。
+脚本依次执行 restore、核心测试、Release 构建、RUI 图标生成、Rhino `Compat.exe` 检查和 Yak 打包。所有步骤先在 `artifacts/.staging/` 完成。
 
 默认部署目标为主 Git 工作区的 `artifacts/plugin/`；即使从 Codex 或其他 Git worktree 构建，也会通过 Git common directory 找到 Rhino 实际使用的主仓库位置。目标存在时，脚本先检查全部文件能否独占打开；被 Rhino 占用时立即停止，原目录不变。验证通过后，旧目录移动到同一主工作区的 `artifacts/backups/<时间>-v<版本>/`，再原子替换为 staging。备份不会自动删除。若该插件 GUID 已在 Rhino 8 注册，脚本同时把 `FileName` 更新到固定的 canonical RHP 路径，避免重启后继续加载旧版本目录。
 
@@ -23,10 +23,18 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./build/build.ps1 -Confi
 
 最终插件目录仅包含：
 
-- `参数化紧固件.rhp`
-- `参数化紧固件.rui`
+- `ParametricFasteners.rhp`
+- `ParametricFasteners.rui`
 - `RhinoMM.Core.dll`
 - `manifest.yml`
+
+`artifacts/plugin/`仅用于开发加载。正式交付位于`artifacts/packages/`：
+
+- `parametric-fasteners-0.38.7-rh8_18-win.yak`
+- `参数化紧固件-0.38.7-离线安装.zip`
+- `SHA256SUMS.txt`
+
+离线 ZIP 内含一键安装和只读诊断脚本。安装器拒绝在 Rhino 运行时安装，验证 Yak 内容和 SHA256，检测系统级旧注册冲突，并确认稳定用户包目录中的 ASCII RHP。正式注册完全交给 Rhino Package Manager；升级时只清理0.38.3遗留的Yak根项简略路径，用户模板和设置不会被删除。
 
 ## 完成定义
 

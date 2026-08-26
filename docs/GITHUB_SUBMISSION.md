@@ -68,7 +68,7 @@ Add RhinoMM parametric fastener plugin baseline
 ## Validation
 
 - Build with `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./build/build.ps1`
-- Verify Rhino 8.18+ loads `参数化紧固件.rhp`
+- Verify Rhino 8.18+ loads `ParametricFasteners.rhp`
 - Run `ParametricFasteners` and check placement, edit, update, refresh, statistics, and export flows
 ```
 

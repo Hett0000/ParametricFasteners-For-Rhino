@@ -57,7 +57,7 @@ public static class ComponentRefreshService
                 deleteIds.Add(pair.Key);
                 continue;
             }
-            if (!ComponentRepository.TryRead(controlPoint, out var component))
+            if (!ComponentRepository.TryReadControlPoint(controlPoint, out var component))
             {
                 unresolved.Add(pair.Key);
                 continue;
@@ -332,7 +332,7 @@ public static class ComponentRefreshService
         if (component.Kind != FastenerKind.Countersunk)
             return 1;
 
-        var spec = RhinoMMPlugIn.Catalog.Get(component.Size);
+        var spec = FastenerSpecResolver.Resolve(component, RhinoMMPlugIn.Catalog);
         var padding = Math.Max(0.2, documentTolerance * 10);
         var envelope = HeadGeometryCalculator.GetHeadSeatAxialEnvelope(
             component.HeadEmbedDepth,
@@ -351,7 +351,7 @@ public static class ComponentRefreshService
             || !FastenerKindTraits.SupportsHeadEmbed(component.Kind))
             return true;
 
-        var spec = RhinoMMPlugIn.Catalog.Get(component.Size);
+        var spec = FastenerSpecResolver.Resolve(component, RhinoMMPlugIn.Catalog);
         var padding = Math.Max(0.2, documentTolerance * 10);
         var envelope = HeadGeometryCalculator.GetHeadSeatAxialEnvelope(
             component.HeadEmbedDepth,

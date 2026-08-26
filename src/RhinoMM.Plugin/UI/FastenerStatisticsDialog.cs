@@ -37,7 +37,6 @@ public sealed class FastenerStatisticsDialog : Dialog
     private readonly Button _exportButton = new() { Text = "保存 Excel", Height = FastenerUiTheme.ControlHeight };
     private FastenerStatisticsSnapshot? _snapshot;
     private int? _metricColumnCount;
-    private FastenerThemePalette? _appliedTheme;
 
     public FastenerStatisticsDialog(RhinoDoc document, bool focusExport)
     {
@@ -127,8 +126,7 @@ public sealed class FastenerStatisticsDialog : Dialog
         };
         FastenerUiTheme.SetRole(content, FastenerThemeRole.Canvas);
         Content = content;
-        RhinoApp.AppSettingsChanged += RhinoAppSettingsChanged;
-        Closed += (_, _) => RhinoApp.AppSettingsChanged -= RhinoAppSettingsChanged;
+        FastenerUiTheme.WatchWindow(this, () => _scopeSelector.RefreshTheme());
         SizeChanged += (_, _) =>
         {
             RebuildMetrics();
@@ -136,26 +134,11 @@ public sealed class FastenerStatisticsDialog : Dialog
         };
         Shown += (_, _) =>
         {
-            ApplyTheme();
             RebuildMetrics(true);
             RefreshStatistics();
             if (focusExport)
                 _exportButton.Focus();
         };
-    }
-
-    private void RhinoAppSettingsChanged(object? sender, EventArgs e) =>
-        Application.Instance.AsyncInvoke(ApplyTheme);
-
-    private void ApplyTheme()
-    {
-        FastenerUiTheme.RefreshPalette();
-        if (_appliedTheme == FastenerUiTheme.Palette)
-            return;
-        _appliedTheme = FastenerUiTheme.Palette;
-        FastenerUiTheme.ApplyTree(this);
-        _scopeSelector.RefreshTheme();
-        Invalidate();
     }
 
     public static void Show(RhinoDoc document, bool focusExport)

@@ -54,6 +54,12 @@ public enum ScrewAssemblyMode
     NutFastened
 }
 
+public enum EngagementEntryChamferMode
+{
+    AxialFortyFive,
+    SurfaceEqualDistance
+}
+
 public enum HoleDiameterFormula
 {
     LegacyStandardWithSharedCorrection,
@@ -100,6 +106,74 @@ public sealed record LockingNutSizeSpec(
     double TotalHeight,
     string Standard,
     bool IsEngineeringExtension);
+
+public sealed record DeliveryMetadata(
+    string AssemblyNumber = "",
+    string ProjectGroup = "",
+    string UserNote = "");
+
+public sealed record FastenerDefinitionSnapshot(
+    Guid DefinitionId,
+    string Name,
+    FastenerKind Kind,
+    string ThreadDesignation,
+    string Source,
+    string Revision,
+    string Notes,
+    FastenerSizeSpec SizeSpec,
+    LockingNutSizeSpec? LockingNutSpec = null,
+    double DefaultLength = 0,
+    double DefaultInsertOuterDiameter = 0,
+    double DefaultInsertDiameterCompensation = 0,
+    double DefaultInsertDepthCompensation = 0);
+
+public sealed record UserFastenerDefinition
+{
+    public const int CurrentSchemaVersion = 1;
+
+    public int SchemaVersion { get; init; } = CurrentSchemaVersion;
+    public Guid DefinitionId { get; init; } = Guid.NewGuid();
+    public string Name { get; init; } = "用户尺寸";
+    public FastenerKind Kind { get; init; } = FastenerKind.SocketCap;
+    public string ThreadDesignation { get; init; } = "M3";
+    public string Source { get; init; } = "用户定义";
+    public string Revision { get; init; } = "1";
+    public string Notes { get; init; } = "";
+    public FastenerSizeSpec SizeSpec { get; init; } = new(
+        "M3",
+        3,
+        0.5,
+        new ClearanceDimensions(3.2, 3.2, 3.2),
+        new HeadDimensions(5.5, 3, 6, 90, 5.5, 2, 5.5, 2.4));
+    public LockingNutSizeSpec? LockingNutSpec { get; init; }
+    public double DefaultLength { get; init; } = 12;
+    public double DefaultInsertOuterDiameter { get; init; }
+    public double DefaultInsertDiameterCompensation { get; init; }
+    public double DefaultInsertDepthCompensation { get; init; } = 1;
+
+    public FastenerDefinitionSnapshot Snapshot() => new(
+        DefinitionId,
+        Name.Trim(),
+        Kind,
+        ThreadDesignation.Trim(),
+        Source.Trim(),
+        Revision.Trim(),
+        Notes.Trim(),
+        SizeSpec with { Designation = ThreadDesignation.Trim() },
+        LockingNutSpec,
+        DefaultLength,
+        DefaultInsertOuterDiameter,
+        DefaultInsertDiameterCompensation,
+        DefaultInsertDepthCompensation);
+}
+
+public sealed record UserFastenerLibraryDocument
+{
+    public const int CurrentSchemaVersion = 1;
+
+    public int SchemaVersion { get; init; } = CurrentSchemaVersion;
+    public IReadOnlyList<UserFastenerDefinition> Definitions { get; init; } = [];
+}
 
 public sealed record LockingNutCatalogDocument(
     int SchemaVersion,
@@ -160,11 +234,13 @@ public sealed record SmartBindingProfile(
     bool EngagementPreviewVisible,
     bool EngagementBooleanEnabled,
     bool NutPocketPreviewVisible = true,
-    bool NutPocketBooleanEnabled = true);
+    bool NutPocketBooleanEnabled = true,
+    double EngagementOnlyAlignmentDepth = 0,
+    double EngagementOnlyAlignmentDiameterCompensation = 0.2);
 
 public sealed record FastenerComponentData
 {
-    public const int CurrentSchemaVersion = 16;
+    public const int CurrentSchemaVersion = 21;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
     public Guid ComponentId { get; init; } = Guid.NewGuid();
@@ -175,6 +251,12 @@ public sealed record FastenerComponentData
     public double HeadEmbedDepth { get; init; }
     public bool CounterboreBridgeEnabled { get; init; }
     public double CounterboreBridgeLayerHeight { get; init; } = 0.2;
+    public bool EngagementEntryChamferEnabled { get; init; }
+    public double EngagementEntryChamferSize { get; init; } = 0.5;
+    public EngagementEntryChamferMode EngagementEntryChamferMode { get; init; } =
+        EngagementEntryChamferMode.AxialFortyFive;
+    public double EngagementOnlyAlignmentDepth { get; init; } = 3;
+    public double EngagementOnlyAlignmentDiameterCompensation { get; init; } = 0.2;
     public double InsertOuterDiameter { get; init; }
     public double InsertDiameterCompensation { get; init; }
     public double InsertDepthCompensation { get; init; }
@@ -191,6 +273,11 @@ public sealed record FastenerComponentData
     public double NutPocketCompensation { get; init; } = 0.2;
     public bool EngagementOnly { get; init; }
     public bool AutoRecognizeHosts { get; init; }
+    /// <summary>
+    /// A user-confirmed engagement host for smart thread-engagement assemblies.
+    /// Empty means that host classification remains automatic.
+    /// </summary>
+    public Guid ConfirmedEngagementHostId { get; init; }
     public SmartPlacementRecognitionMode SmartRecognitionMode { get; init; } =
         SmartPlacementRecognitionMode.Automatic;
     public SmartBindingProfile? SmartBindingProfile { get; init; }
@@ -198,6 +285,10 @@ public sealed record FastenerComponentData
     public Guid ProxyObjectId { get; init; }
     public Guid ControlPointObjectId { get; init; }
     public Guid AdoptedSourceObjectId { get; init; }
+    public DeliveryMetadata Delivery { get; init; } = new();
+    public Guid? CustomDefinitionId { get; init; }
+    public string CustomDefinitionName { get; init; } = "";
+    public FastenerDefinitionSnapshot? CustomDefinitionSnapshot { get; init; }
     public DateTimeOffset UpdatedAt { get; init; } = DateTimeOffset.UtcNow;
 }
 

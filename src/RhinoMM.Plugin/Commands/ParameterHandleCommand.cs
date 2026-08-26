@@ -29,14 +29,25 @@ public sealed class ParametricFastenersEditHandlesCommand : Command
 
         ViewportQuickEditorService.Hide(false);
         var component = selected[0];
+        if (!ContextualEditSessionService.TryGetOrCreate(
+                doc,
+                component.ComponentId,
+                out var context,
+                out var contextMessage)
+            || context is null)
+        {
+            RhinoApp.WriteLine($"无法建立参数手柄会话：{contextMessage}");
+            return Result.Failure;
+        }
+        component = context.Draft.Component;
         var lengthSnap = true;
         var rotationStep = 15.0;
-        while (ComponentRepository.TryReadComponent(doc, component.ComponentId, out component))
+        while (ComponentRepository.FindControlPoint(doc, component.ComponentId) is not null)
         {
             using var picker = new ParameterHandlePicker(component, lengthSnap, rotationStep);
             var picked = picker.Get();
             if (picked is GetResult.Cancel or GetResult.Nothing)
-                return Result.Success;
+                break;
             if (picked == GetResult.Option)
             {
                 lengthSnap = picker.LengthSnap;
@@ -54,23 +65,21 @@ public sealed class ParametricFastenersEditHandlesCommand : Command
                     rotationStep,
                     out var draft))
                 continue;
-            if (!FastenerGeometryPreparationService.TryPrepare(doc, draft, out var prepared, out var reason))
+            if (!ContextualEditSessionService.TrySetDraft(
+                    doc,
+                    component.ComponentId,
+                    draft,
+                    out context,
+                    out var message)
+                || context is null)
             {
-                RhinoApp.WriteLine($"参数手柄更新失败：{reason}");
+                RhinoApp.WriteLine($"参数手柄预检失败：{message}");
                 continue;
             }
-            if (!ComponentUpdateCoordinator.TryApplyDrafts(doc, [prepared!.Draft], out var saved, out var message))
-            {
-                RhinoApp.WriteLine($"参数手柄更新失败：{message}");
-                continue;
-            }
-            component = saved[0];
-            FastenerTemplateLibraryService.RecordSuccessfulOperation(
-                FastenerTemplateData.FromComponent(component),
-                FastenerOperationKind.Update,
-                out _);
-            RhinoApp.WriteLine(message);
+            component = context.Draft.Component;
+            RhinoApp.WriteLine("参数值已写入上下文草稿；请在浮动编辑条点击“应用”提交。 ");
         }
+        ViewportQuickEditorService.ShowForCurrentSelection(doc, true);
         return Result.Success;
     }
 
@@ -89,7 +98,7 @@ public sealed class ParametricFastenersEditHandlesCommand : Command
         getter.SetCommandPrompt(handle switch
         {
             ParameterHandleKind.Length => "定位螺杆末端，单击或输入长度",
-            ParameterHandleKind.Embed => "定位嵌入深度，单击或输入深度",
+            ParameterHandleKind.Embed => "定位头部偏移，负值表示离面；单击或输入数值",
             ParameterHandleKind.NutProtrusion => "定位螺母外侧端面，单击或输入末端露出量",
             _ => "定位旋转方向，单击或输入角度"
         });
@@ -163,10 +172,7 @@ public sealed class ParametricFastenersEditHandlesCommand : Command
             {
                 Length = lengthSnap ? SnapLength(Math.Max(0.01, value)) : Math.Max(0.01, value)
             },
-            ParameterHandleKind.Embed => component with
-            {
-                HeadEmbedDepth = SnapEmbed(component, Math.Max(0, value))
-            },
+            ParameterHandleKind.Embed => ApplyEmbedValue(component, value),
             ParameterHandleKind.NutProtrusion => component with
             {
                 NutTipProtrusion = SnapProtrusion(Math.Max(0, value))
@@ -216,7 +222,7 @@ public sealed class ParametricFastenersEditHandlesCommand : Command
             ParameterHandleKind.NutProtrusion => plane.Origin
                 + plane.ZAxis * (component.HeadEmbedDepth + component.Length - component.NutTipProtrusion),
             ParameterHandleKind.Rotation => plane.Origin
-                + plane.XAxis * Math.Max(RhinoMMPlugIn.Catalog.Get(component.Size).NominalDiameter * 2, 4),
+                + plane.XAxis * Math.Max(FastenerSpecResolver.Resolve(component, RhinoMMPlugIn.Catalog).NominalDiameter * 2, 4),
             _ => plane.Origin
         };
     }
@@ -230,13 +236,31 @@ public sealed class ParametricFastenersEditHandlesCommand : Command
 
     private static double SnapEmbed(FastenerComponentData component, double value)
     {
-        var spec = RhinoMMPlugIn.Catalog.Get(component.Size);
+        var spec = FastenerSpecResolver.Resolve(component, RhinoMMPlugIn.Catalog);
         var flush = component.Kind == FastenerKind.HexNut
             ? HexNutDimensions.Resolve(component, spec).TotalHeight
             : HeadGeometryCalculator.GetHeadHeight(component.Kind, spec);
         if (Math.Abs(value) <= 0.2)
             return 0;
         return Math.Abs(value - flush) <= 0.2 ? flush : value;
+    }
+
+    private static FastenerComponentData ApplyEmbedValue(
+        FastenerComponentData component,
+        double value)
+    {
+        var snapped = SnapEmbed(
+            component,
+            FastenerKindTraits.SupportsHeadGap(component.Kind)
+                ? value
+                : Math.Max(0, value));
+        return component with
+        {
+            HeadEmbedDepth = snapped,
+            CounterboreBridgeEnabled = component.Kind == FastenerKind.SocketCap
+                && snapped > 0
+                && component.CounterboreBridgeEnabled
+        };
     }
 
     private static double SnapProtrusion(double value)
@@ -295,7 +319,7 @@ internal sealed class ParameterHandlePicker : GetPoint
         {
             list.Add((ParameterHandleKind.Embed,
                 plane.Origin + plane.ZAxis * component.HeadEmbedDepth,
-                component.Kind == FastenerKind.HexNut ? "嵌入" : "头部嵌入"));
+                component.Kind == FastenerKind.HexNut ? "嵌入" : "头部偏移"));
         }
         if (FastenerKindTraits.UsesLengthInStatistics(component.Kind))
         {
@@ -314,7 +338,7 @@ internal sealed class ParameterHandlePicker : GetPoint
             || component.AssemblyMode == ScrewAssemblyMode.NutFastened
             || component.CounterboreBridgeEnabled)
         {
-            var radius = Math.Max(RhinoMMPlugIn.Catalog.Get(component.Size).NominalDiameter * 2, 4);
+            var radius = Math.Max(FastenerSpecResolver.Resolve(component, RhinoMMPlugIn.Catalog).NominalDiameter * 2, 4);
             list.Add((ParameterHandleKind.Rotation, plane.Origin + plane.XAxis * radius, "旋转"));
         }
         _handles = list;
@@ -362,7 +386,7 @@ internal sealed class ParameterHandlePicker : GetPoint
         }
         if (_handles.Any(item => item.Kind == ParameterHandleKind.Rotation))
         {
-            var radius = Math.Max(RhinoMMPlugIn.Catalog.Get(_component.Size).NominalDiameter * 2, 4);
+            var radius = Math.Max(FastenerSpecResolver.Resolve(_component, RhinoMMPlugIn.Catalog).NominalDiameter * 2, 4);
             e.Display.DrawCircle(new Circle(plane, radius), DrawingColor.FromArgb(120, 170, 220), 1);
         }
     }

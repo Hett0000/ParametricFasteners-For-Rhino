@@ -78,6 +78,25 @@ public sealed class FastenerSelectionSummaryFormatterTests
     }
 
     [Fact]
+    public void ScrewSummary_ReportsNegativeOffsetAsGap()
+    {
+        var component = Screw(
+            FastenerKind.Countersunk,
+            length: 20,
+            new HoleTargetBinding
+            {
+                Role = ShaftFitRole.ThreadEngagement,
+                DepthMode = DepthMode.FastenerLengthPlusOneDiameter
+            }) with
+        {
+            HeadEmbedDepth = -2
+        };
+
+        Assert.Equal("沉头 M3*20 离面2 +1切割 通0/咬1", FastenerSelectionSummaryFormatter.Compact(component));
+        Assert.Contains("头部状态：离面 2 mm", FastenerSelectionSummaryFormatter.Full(component));
+    }
+
+    [Fact]
     public void ScrewSummary_ReportsMixedLegacyDepthSettings()
     {
         var component = Screw(

@@ -3,6 +3,7 @@ using Rhino.Geometry;
 using Rhino.Geometry.Intersect;
 using RhinoMM.Core.Domain;
 using RhinoMM.Core.Services;
+using RhinoMM.Plugin.Services;
 
 namespace RhinoMM.Plugin.Geometry;
 
@@ -330,6 +331,46 @@ public static class FastenerGeometryFactory
         return (shaft, leadIn);
     }
 
+    public static Brep CreateEngagementEntryChamferCutter(
+        FastenerComponentData data,
+        EngagementEntryChamferProfile profile)
+    {
+        var cutter = CreateFrustum(
+            profile.OuterRadius,
+            profile.InnerRadius,
+            profile.End - profile.Start,
+            profile.Start);
+        var transform = Transform.PlaneToPlane(Plane.WorldXY, ToPlane(data.Placement));
+        cutter.Transform(transform);
+        return cutter;
+    }
+
+    public static IReadOnlyList<Brep> CreateEngagementOnlyAlignmentCutters(
+        FastenerComponentData data,
+        EngagementOnlyAlignmentProfile profile,
+        double entryMinimum,
+        double straightEnd,
+        double padding,
+        double tolerance)
+    {
+        var overlap = Math.Max(tolerance * 2, 0.001);
+        var guideStart = entryMinimum - padding;
+        var guideEnd = straightEnd + overlap;
+        var guide = CreateCylinder(
+            profile.GuideDiameter / 2,
+            guideEnd - guideStart,
+            guideStart);
+        var transition = CreateFrustum(
+            profile.GuideDiameter / 2,
+            profile.EngagementDiameter / 2,
+            profile.TransitionLength + overlap,
+            straightEnd - overlap);
+        var transform = Transform.PlaneToPlane(Plane.WorldXY, ToPlane(data.Placement));
+        guide.Transform(transform);
+        transition.Transform(transform);
+        return [guide, transition];
+    }
+
     public static bool TryGetTargetInterval(
         GeometryBase geometry,
         PlacementFrame placement,
@@ -337,42 +378,13 @@ public static class FastenerGeometryFactory
         out Interval interval,
         out bool usedFallback)
     {
-        var plane = ToPlane(placement);
-        var axis = plane.ZAxis;
-        axis.Unitize();
-        var box = geometry.GetBoundingBox(true);
-        var projected = box.GetCorners()
-            .Select(point => Vector3d.Multiply(point - plane.Origin, axis))
-            .ToArray();
-        var boxMin = projected.Min();
-        var boxMax = projected.Max();
-        var extension = Math.Max(box.Diagonal.Length * 0.05, Math.Max(tolerance * 10, 0.2));
-        var line = new LineCurve(
-            plane.Origin + axis * (boxMin - extension),
-            plane.Origin + axis * (boxMax + extension));
-
-        var brep = geometry switch
-        {
-            Brep value => value,
-            Extrusion extrusion => extrusion.ToBrep(),
-            _ => null
-        };
-        if (brep is not null
-            && Intersection.CurveBrep(line, brep, tolerance, out _, out var points)
-            && points.Length >= 2)
-        {
-            var parameters = points
-                .Select(point => Vector3d.Multiply(point - plane.Origin, axis))
-                .OrderBy(value => value)
-                .ToArray();
-            interval = new Interval(parameters[0], parameters[^1]);
-            usedFallback = false;
-            return interval.Length > tolerance;
-        }
-
-        interval = new Interval(boxMin, boxMax);
-        usedFallback = true;
-        return interval.Length > tolerance;
+        usedFallback = false;
+        return SmartHostIntervalService.TryGet(
+            geometry,
+            placement,
+            tolerance,
+            out interval,
+            out _);
     }
 
     public static double DepthLimit(FastenerComponentData data, FastenerSizeSpec spec, HoleTargetBinding binding) =>

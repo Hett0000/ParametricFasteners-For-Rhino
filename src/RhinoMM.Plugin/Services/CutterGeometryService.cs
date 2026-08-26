@@ -190,6 +190,21 @@ internal static class CutterGeometryService
             var start = footprint.Min - padding;
             var end = footprint.Max + padding;
             var limit = FastenerGeometryFactory.DepthLimit(component, spec, binding);
+            var shaftReach = component.HeadEmbedDepth + component.Length;
+            if (binding.Role == ShaftFitRole.Clearance
+                && shaftReach < footprint.Max - doc.ModelAbsoluteTolerance)
+            {
+                throw new InvalidOperationException(
+                    $"螺杆实际进入长度 {shaftReach:0.###} mm 未完整穿过宿主“{TargetName(target)}”；"
+                    + "请增加螺杆长度或减小离面距离。");
+            }
+            if (binding.Role == ShaftFitRole.ThreadEngagement
+                && shaftReach < footprint.Min - doc.ModelAbsoluteTolerance)
+            {
+                throw new InvalidOperationException(
+                    $"螺杆实际进入长度 {shaftReach:0.###} mm 无法到达咬合宿主“{TargetName(target)}”；"
+                    + "请增加螺杆长度或减小离面距离。");
+            }
             var isThrough = binding.Role == ShaftFitRole.Clearance
                 || binding.DepthMode == DepthMode.ThroughTarget;
             if (!isThrough && !double.IsPositiveInfinity(limit))
@@ -208,9 +223,127 @@ internal static class CutterGeometryService
                     warnings.Add($"{TargetName(target)}：计算深度超过宿主厚度，将贯穿。");
             }
 
+            var mainShaft = FastenerGeometryFactory.CreateShaftCutter(
+                component,
+                spec,
+                binding,
+                start,
+                end);
+            var shafts = new List<Brep> { mainShaft };
+            if (component.AssemblyMode == ScrewAssemblyMode.EngagementOnly
+                && binding.Role == ShaftFitRole.ThreadEngagement
+                && component.EngagementOnlyAlignmentDepth > 0)
+            {
+                if (!EngagementOnlyAlignmentCalculator.TryCreate(
+                        component,
+                        spec,
+                        binding,
+                        out var alignment,
+                        out var alignmentError)
+                    || alignment is null)
+                    throw new InvalidOperationException(alignmentError);
+                if (!EngagementOnlyAlignmentEnvelopeService.TryGet(
+                        target.Geometry,
+                        component.Placement,
+                        alignment.GuideDiameter / 2,
+                        doc.ModelAbsoluteTolerance,
+                        out var alignmentEnvelope,
+                        out var envelopeError)
+                    || alignmentEnvelope is null)
+                    throw new InvalidOperationException(envelopeError);
+
+                var straightStart = Math.Max(
+                    alignmentEnvelope.EntryMaximum,
+                    component.HeadEmbedDepth > 0 ? component.HeadEmbedDepth : double.NegativeInfinity);
+                var straightEnd = straightStart + alignment.GuideDepth;
+                var transitionEnd = straightEnd + alignment.TransitionLength;
+                var physicalEnd = Math.Min(alignmentEnvelope.ExitMinimum, end);
+                if (transitionEnd + doc.ModelAbsoluteTolerance > physicalEnd)
+                {
+                    throw new InvalidOperationException(
+                        $"只咬合宿主无法容纳 {alignment.GuideDepth:0.###} mm 对位段和60°过渡；"
+                        + $"至少需要到 {transitionEnd:0.###} mm，当前可用到 {physicalEnd:0.###} mm。"
+                        + "请减小对位深度、缩短头部嵌入或调整宿主。" );
+                }
+                shafts.AddRange(FastenerGeometryFactory.CreateEngagementOnlyAlignmentCutters(
+                    component,
+                    alignment,
+                    alignmentEnvelope.EntryMinimum,
+                    straightEnd,
+                    padding,
+                    doc.ModelAbsoluteTolerance));
+            }
+            if (component.EngagementEntryChamferEnabled
+                && component.AssemblyMode == ScrewAssemblyMode.ThreadEngagement
+                && binding.Role == ShaftFitRole.ThreadEngagement)
+            {
+                var chamferSize = component.EngagementEntryChamferSize;
+                if (chamferSize <= doc.ModelAbsoluteTolerance)
+                    throw new InvalidOperationException(
+                        $"倒角 C{chamferSize:0.###} mm 必须大于文档绝对公差 {doc.ModelAbsoluteTolerance:0.###} mm。");
+
+                if (component.EngagementEntryChamferMode
+                    == EngagementEntryChamferMode.SurfaceEqualDistance)
+                {
+                    if (end < interval.Min + chamferSize - doc.ModelAbsoluteTolerance)
+                        throw new InvalidOperationException(
+                            $"咬合孔入口后的孔壁深度不足以退让 C{chamferSize:0.###} mm；"
+                            + "请增加孔深或减小 C 值。");
+                    if (!EngagementSurfaceEqualChamferService.TryCreateCutters(
+                            target.Geometry,
+                            mainShaft,
+                            component.Placement,
+                            finalDiameter * 0.5,
+                            interval.Min,
+                            chamferSize,
+                            doc.ModelAbsoluteTolerance,
+                            doc.ModelAngleToleranceRadians,
+                            out var equalDistanceCutters,
+                            out var equalDistanceError))
+                        throw new InvalidOperationException(equalDistanceError);
+                    shafts.Clear();
+                    shafts.AddRange(equalDistanceCutters);
+                }
+                else
+                {
+                    if (!EngagementEntryEnvelopeService.TryGet(
+                            target.Geometry,
+                            component.Placement,
+                            finalDiameter * 0.5,
+                            chamferSize,
+                            doc.ModelAbsoluteTolerance,
+                            out var entryEnvelope,
+                            out var entryError)
+                        || entryEnvelope is null)
+                        throw new InvalidOperationException(entryError);
+                    if (!EngagementEntryChamferCalculator.TryCreate(
+                            finalDiameter,
+                            chamferSize,
+                            entryEnvelope.EntryMinimum,
+                            entryEnvelope.EntryMaximum,
+                            entryEnvelope.ExitMinimum,
+                            entryEnvelope.MouthMinimum,
+                            padding,
+                            doc.ModelAbsoluteTolerance,
+                            out var chamferProfile,
+                            out var profileError)
+                        || chamferProfile is null)
+                        throw new InvalidOperationException(profileError);
+                    if (chamferProfile.End > end + doc.ModelAbsoluteTolerance)
+                    {
+                        throw new InvalidOperationException(
+                            $"当前咬合孔深度 {end:0.###} mm 不足以容纳 C{chamferSize:0.###} 倒角；"
+                            + $"倒角最小端需要到达 {chamferProfile.End:0.###} mm。请增加孔深或减小 C 值。");
+                    }
+                    shafts.Add(FastenerGeometryFactory.CreateEngagementEntryChamferCutter(
+                        component,
+                        chamferProfile));
+                }
+            }
+
             result = new CutterGeometryBuild(
                 binding,
-                [FastenerGeometryFactory.CreateShaftCutter(component, spec, binding, start, end)],
+                shafts,
                 binding.IncludeHeadSeat
                     ? FastenerGeometryFactory.CreateHeadSeatCutters(
                         component,

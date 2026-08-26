@@ -13,6 +13,12 @@ public static class FastenerGeometryParameters
             || left.HeadEmbedDepth != right.HeadEmbedDepth
             || left.CounterboreBridgeEnabled != right.CounterboreBridgeEnabled
             || left.CounterboreBridgeLayerHeight != right.CounterboreBridgeLayerHeight
+            || left.EngagementEntryChamferEnabled != right.EngagementEntryChamferEnabled
+            || left.EngagementEntryChamferSize != right.EngagementEntryChamferSize
+            || left.EngagementEntryChamferMode != right.EngagementEntryChamferMode
+            || left.EngagementOnlyAlignmentDepth != right.EngagementOnlyAlignmentDepth
+            || left.EngagementOnlyAlignmentDiameterCompensation
+                != right.EngagementOnlyAlignmentDiameterCompensation
             || left.InsertOuterDiameter != right.InsertOuterDiameter
             || left.InsertDiameterCompensation != right.InsertDiameterCompensation
             || left.InsertDepthCompensation != right.InsertDepthCompensation
@@ -23,6 +29,7 @@ public static class FastenerGeometryParameters
             || left.NutPocketCompensation != right.NutPocketCompensation
             || left.EngagementOnly != right.EngagementOnly
             || left.AutoRecognizeHosts != right.AutoRecognizeHosts
+            || left.ConfirmedEngagementHostId != right.ConfirmedEngagementHostId
             || left.SmartRecognitionMode != right.SmartRecognitionMode
             || left.SmartBindingProfile != right.SmartBindingProfile
             || left.Placement != right.Placement

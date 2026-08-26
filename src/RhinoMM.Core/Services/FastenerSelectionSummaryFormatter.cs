@@ -26,10 +26,12 @@ public static class FastenerSelectionSummaryFormatter
         {
             var pocketCount = component.Bindings.Count(binding => binding.Role == ShaftFitRole.NutPocket);
             return $"{FastenerLabels.ShortKind(component)} {component.Size}*{Number(component.Length)} 螺母固定"
+                + HeadGapCompact(component)
                 + $" 通{clearanceCount}/槽{pocketCount} · 露出{Number(component.NutTipProtrusion)}";
         }
         var mode = component.AssemblyMode == ScrewAssemblyMode.EngagementOnly ? " 只咬合" : string.Empty;
         return $"{FastenerLabels.ShortKind(component)} {component.Size}*{Number(component.Length)}{mode}"
+            + HeadGapCompact(component)
             + $"{depth} 通{clearanceCount}/咬{engagementBindings.Length}";
     }
 
@@ -59,11 +61,13 @@ public static class FastenerSelectionSummaryFormatter
         {
             var pocketCount = component.Bindings.Count(binding => binding.Role == ShaftFitRole.NutPocket);
             return $"{FastenerLabels.Kind(component.Kind)} {component.Size}×{Number(component.Length)} mm；"
+                + $"头部状态：{FastenerLabels.HeadOffset(component.HeadEmbedDepth)}；"
                 + $"模式：螺母固定；配套{FastenerLabels.NutStyle(component.PairedNutStyle)}；"
                 + $"末端露出 {Number(component.NutTipProtrusion)} mm；通孔宿主 {clearanceCount}；螺母槽 {pocketCount}";
         }
         var mode = component.AssemblyMode == ScrewAssemblyMode.EngagementOnly ? "；模式：只咬合" : string.Empty;
         return $"{FastenerLabels.Kind(component.Kind)} {component.Size}×{Number(component.Length)} mm{mode}；"
+            + $"头部状态：{FastenerLabels.HeadOffset(component.HeadEmbedDepth)}；"
             + $"{FullDepth(engagementBindings)}；通孔宿主 {clearanceCount}；"
             + $"咬合宿主 {engagementBindings.Length}";
     }
@@ -107,6 +111,11 @@ public static class FastenerSelectionSummaryFormatter
 
     private static string Signed(double value) =>
         value >= 0 ? $"+{Number(value)}" : Number(value);
+
+    private static string HeadGapCompact(FastenerComponentData component) =>
+        component.HeadEmbedDepth < 0
+            ? $" 离面{Number(Math.Abs(component.HeadEmbedDepth))}"
+            : string.Empty;
 
     private static string Number(double value) =>
         value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);

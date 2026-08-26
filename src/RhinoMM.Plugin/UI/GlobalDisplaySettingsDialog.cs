@@ -22,7 +22,6 @@ public sealed class GlobalDisplaySettingsDialog : Dialog
     private readonly UITimer _previewTimer = new() { Interval = 0.08 };
     private readonly Button _confirm = new() { Text = "确定" };
     private readonly Button _cancel = new() { Text = "取消" };
-    private FastenerThemePalette? _appliedTheme;
     private uint _undoRecord;
     private bool _loading = true;
     private bool _previewApplied;
@@ -104,17 +103,15 @@ public sealed class GlobalDisplaySettingsDialog : Dialog
             }
         };
 
-        RhinoApp.AppSettingsChanged += RhinoAppSettingsChanged;
+        FastenerUiTheme.WatchWindow(this);
         Shown += (_, _) =>
         {
-            ApplyTheme();
             if (_document is not null)
                 _undoRecord = _document.BeginUndoRecord("参数化紧固件：全局显示");
             UpdateStatus("拖动滑块可实时预览；确定保存，取消恢复。");
         };
         Closed += (_, _) =>
         {
-            RhinoApp.AppSettingsChanged -= RhinoAppSettingsChanged;
             _previewTimer.Stop();
             if (!_accepted)
                 RestoreOriginal();
@@ -258,19 +255,6 @@ public sealed class GlobalDisplaySettingsDialog : Dialog
     {
         _status.Text = text;
         _status.ToolTip = text;
-    }
-
-    private void RhinoAppSettingsChanged(object? sender, EventArgs e) =>
-        Application.Instance.AsyncInvoke(ApplyTheme);
-
-    private void ApplyTheme()
-    {
-        FastenerUiTheme.RefreshPalette();
-        if (_appliedTheme == FastenerUiTheme.Palette)
-            return;
-        _appliedTheme = FastenerUiTheme.Palette;
-        FastenerUiTheme.ApplyTree(this);
-        Invalidate();
     }
 
     private static Control Field(

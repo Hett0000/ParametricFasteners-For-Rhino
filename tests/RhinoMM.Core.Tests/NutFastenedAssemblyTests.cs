@@ -93,7 +93,7 @@ public sealed class NutFastenedAssemblyTests
             NutPocketCompensation = 0
         });
 
-        Assert.Equal(16, migrated.SchemaVersion);
+        Assert.Equal(FastenerComponentData.CurrentSchemaVersion, migrated.SchemaVersion);
         Assert.Equal(ScrewAssemblyMode.ThreadEngagement, migrated.AssemblyMode);
         Assert.Equal(HexNutStyle.Standard, migrated.PairedNutStyle);
         Assert.Equal(2, migrated.NutTipProtrusion);

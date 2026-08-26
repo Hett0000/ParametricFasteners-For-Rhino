@@ -162,6 +162,7 @@ public static class ComponentLifecycleService
             {
                 _redirectingSelection = false;
             }
+            SynchronizeRedirectedSelection(doc);
             return;
         }
 
@@ -205,6 +206,19 @@ public static class ComponentLifecycleService
         {
             _redirectingSelection = false;
         }
+        SynchronizeRedirectedSelection(doc);
+    }
+
+    private static void SynchronizeRedirectedSelection(RhinoDoc doc)
+    {
+        var components = ComponentRepository.ReadSelectedControlPoints(doc);
+        if (components.Count == 0)
+            return;
+        ComponentEditorSession.ActivateMany(
+            doc,
+            components,
+            false,
+            ComponentActivationIntent.SynchronizeOnly);
     }
 
     private static void BeforeTransformObjects(object? sender, RhinoTransformObjectsEventArgs e)
@@ -380,9 +394,8 @@ public static class ComponentLifecycleService
             var sourceObject = group.FirstOrDefault(obj =>
                     obj.Attributes.GetUserString(ComponentRepository.RoleKey) == "ControlPoint"
                     && obj.Geometry is Point
-                    && ComponentRepository.TryRead(obj, out _))
-                ?? group.FirstOrDefault(obj => ComponentRepository.TryRead(obj, out _));
-            if (!ComponentRepository.TryRead(sourceObject, out var source))
+                    && ComponentRepository.TryReadControlPoint(obj, out _));
+            if (!ComponentRepository.TryReadControlPoint(sourceObject, out var source))
                 continue;
             plans.Add(new ComponentClonePlan(
                 batch.Kind,
@@ -516,6 +529,13 @@ public static class ComponentLifecycleService
             Bindings = bindings,
             UpdatedAt = DateTimeOffset.UtcNow
         };
+        var hasPreparedSignature = FastenerGeometryPreparationService.TryPrepare(
+            doc,
+            updated,
+            out var prepared,
+            out var preparationMessage);
+        if (!hasPreparedSignature && !ComponentHostResolver.NeedsRelink(updated))
+            throw new InvalidOperationException($"移动后统一几何预检失败：{preparationMessage}");
         var bindingsById = updated.Bindings.ToDictionary(binding => binding.BindingId);
         foreach (var obj in objects)
         {
@@ -531,6 +551,19 @@ public static class ComponentLifecycleService
             var attributes = obj.Attributes.Duplicate();
             attributes.Name = ComponentRepository.ObjectName(updated, role);
             ComponentRepository.Write(attributes, updated, role, targetId, bindingId);
+            if (role != "ControlPoint" && hasPreparedSignature)
+            {
+                var partIndex = int.TryParse(
+                    attributes.GetUserString(ComponentRepository.PartIndexKey),
+                    out var parsedPartIndex)
+                    ? parsedPartIndex
+                    : 0;
+                ComponentRepository.WriteDerivedSignature(
+                    attributes,
+                    prepared!.PreparationSignature,
+                    ComponentReliabilitySignatureService.GeometrySignature(obj.Geometry),
+                    partIndex);
+            }
             if (!doc.Objects.ModifyAttributes(obj, attributes, true))
                 throw new InvalidOperationException($"无法更新移动后对象属性：{obj.Id}");
         }

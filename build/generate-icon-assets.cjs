@@ -5,7 +5,7 @@ const { chromium } = require('playwright');
 const root = path.resolve(__dirname, '..');
 const sourceDirectory = path.join(root, 'src', 'RhinoMM.Plugin', 'UI', 'Icons', 'Source');
 const outputDirectory = path.join(root, 'src', 'RhinoMM.Plugin', 'UI', 'Icons', 'Generated');
-const names = ['read', 'place', 'apply', 'refresh', 'rhino', 'step', 'statistics', 'more'];
+const names = ['read', 'place', 'apply', 'refresh', 'rhino', 'step', 'statistics', 'inspector', 'more'];
 const variants = [
   { suffix: '', color: '#34495E', sizes: [16, 24, 32, 36, 48] },
   { suffix: '-dark', color: '#D7DEE8', sizes: [24, 36, 48] },

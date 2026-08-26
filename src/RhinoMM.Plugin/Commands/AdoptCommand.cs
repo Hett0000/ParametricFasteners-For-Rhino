@@ -25,7 +25,8 @@ public sealed class RhinoMMAdoptFastenerCommand : Command
             return go.CommandResult();
 
         var source = go.Object(0).Object();
-        if (ComponentRepository.TryRead(source, out var existing))
+        if (Guid.TryParse(source.Attributes.GetUserString(ComponentRepository.ComponentIdKey), out var componentId)
+            && ComponentRepository.TryReadComponent(doc, componentId, out var existing))
         {
             ComponentEditorSession.Activate(doc, existing, true);
             RhinoApp.WriteLine("该对象已经是参数化紧固件组件，参数已读取到面板。");

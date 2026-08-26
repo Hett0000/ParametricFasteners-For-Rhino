@@ -58,13 +58,8 @@ public static class RhinoPlacementExportService
 
         try
         {
-            var hostIds = hosts.Select(host => host.Id).ToHashSet();
-            var relatedComponents = ComponentRepository.ReadAllControlPoints(doc, out _)
-                .Where(component => component.Bindings.Any(binding =>
-                    binding.TargetObjectId != Guid.Empty
-                    && hostIds.Contains(binding.TargetObjectId)))
-                .GroupBy(component => component.ComponentId)
-                .Select(group => group.First())
+            var relatedComponents = (booleanResult.RelatedComponents ?? [])
+                .DistinctBy(component => component.ComponentId)
                 .ToArray();
 
             if (relatedComponents.Length == 0)
@@ -77,21 +72,7 @@ public static class RhinoPlacementExportService
             var fastenerBodies = new List<RhinoExportFastenerBody>();
             foreach (var component in relatedComponents)
             {
-                if (ComponentHostResolver.NeedsRelink(component))
-                    throw new InvalidOperationException(
-                        $"组件 {component.Size} · {component.ComponentId.ToString("N")[..8]} 尚未绑定宿主；请运行“刷新 / 清理”后重试。");
-
-                var spec = RhinoMMPlugIn.Catalog.Get(component.Size);
-                var validation = FastenerComponentValidator.Validate(component, spec);
-                if (!validation.IsValid)
-                {
-                    var errors = string.Join(" ", validation.Issues
-                        .Where(issue => issue.IsError)
-                        .Select(issue => issue.Message));
-                    throw new InvalidOperationException(
-                        $"组件 {component.Size} · {component.ComponentId.ToString("N")[..8]} 参数无效：{errors}");
-                }
-
+                var spec = FastenerSpecResolver.Resolve(component, RhinoMMPlugIn.Catalog);
                 var proxies = FastenerGeometryFactory.CreateProxy(component, spec);
                 if (proxies.Count == 0
                     || proxies.Any(proxy => !proxy.IsValid || !proxy.IsSolid))

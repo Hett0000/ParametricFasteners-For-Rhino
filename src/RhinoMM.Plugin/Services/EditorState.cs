@@ -15,6 +15,12 @@ public sealed class EditorState
     public double HeadEmbedDepth { get; set; }
     public bool CounterboreBridgeEnabled { get; set; }
     public double CounterboreBridgeLayerHeight { get; set; } = 0.2;
+    public bool EngagementEntryChamferEnabled { get; set; }
+    public double EngagementEntryChamferSize { get; set; } = 0.5;
+    public EngagementEntryChamferMode EngagementEntryChamferMode { get; set; } =
+        EngagementEntryChamferMode.AxialFortyFive;
+    public double EngagementOnlyAlignmentDepth { get; set; } = 3;
+    public double EngagementOnlyAlignmentDiameterCompensation { get; set; } = 0.2;
     public double InsertOuterDiameter { get; set; }
     public double InsertDiameterCompensation { get; set; }
     public double InsertDepthCompensation { get; set; } = 1;
@@ -32,6 +38,9 @@ public sealed class EditorState
     public double NutTipProtrusion { get; set; } = 2;
     public double NutPocketCompensation { get; set; } = 0.2;
     public bool EngagementOnly { get; set; }
+    public Guid? CustomDefinitionId { get; set; }
+    public string CustomDefinitionName { get; set; } = "";
+    public FastenerDefinitionSnapshot? CustomDefinitionSnapshot { get; set; }
     public Guid LoadedComponentId { get; set; }
 
     public FastenerComponentData CreateDraft(PlacementFrame placement, IReadOnlyList<HoleTargetBinding> bindings) => new()
@@ -45,8 +54,17 @@ public sealed class EditorState
         Length = Length,
         HeadEmbedDepth = FastenerKindTraits.SupportsEmbedDepth(Kind) ? HeadEmbedDepth : 0,
         CounterboreBridgeEnabled = Kind == FastenerKind.SocketCap
+            && HeadEmbedDepth > 0
             && CounterboreBridgeEnabled,
         CounterboreBridgeLayerHeight = CounterboreBridgeLayerHeight,
+        EngagementEntryChamferEnabled = FastenerKindTraits.IsScrew(Kind)
+            && AssemblyMode == ScrewAssemblyMode.ThreadEngagement
+            && EngagementEntryChamferEnabled,
+        EngagementEntryChamferSize = EngagementEntryChamferSize,
+        EngagementEntryChamferMode = EngagementEntryChamferMode,
+        EngagementOnlyAlignmentDepth = EngagementOnlyAlignmentDepth,
+        EngagementOnlyAlignmentDiameterCompensation =
+            EngagementOnlyAlignmentDiameterCompensation,
         InsertOuterDiameter = Kind == FastenerKind.HeatSetInsert ? InsertOuterDiameter : 0,
         InsertDiameterCompensation = Kind == FastenerKind.HeatSetInsert ? InsertDiameterCompensation : 0,
         InsertDepthCompensation = Kind == FastenerKind.HeatSetInsert ? InsertDepthCompensation : 0,
@@ -64,6 +82,9 @@ public sealed class EditorState
         NutPocketCompensation = NutPocketCompensation,
         EngagementOnly = FastenerKindTraits.IsScrew(Kind)
             && AssemblyMode == ScrewAssemblyMode.EngagementOnly,
+        CustomDefinitionId = CustomDefinitionId,
+        CustomDefinitionName = CustomDefinitionName,
+        CustomDefinitionSnapshot = CustomDefinitionSnapshot,
         Bindings = bindings,
         UpdatedAt = DateTimeOffset.UtcNow
     };
@@ -95,7 +116,16 @@ public sealed class EditorState
         AssemblyMode: AssemblyMode,
         PairedNutStyle: PairedNutStyle,
         NutTipProtrusion: NutTipProtrusion,
-        NutPocketCompensation: NutPocketCompensation);
+        NutPocketCompensation: NutPocketCompensation,
+        CustomDefinitionId: CustomDefinitionId,
+        CustomDefinitionName: CustomDefinitionName,
+        CustomDefinitionSnapshot: CustomDefinitionSnapshot,
+        EngagementEntryChamferEnabled: EngagementEntryChamferEnabled,
+        EngagementEntryChamferSize: EngagementEntryChamferSize,
+        EngagementEntryChamferMode: EngagementEntryChamferMode,
+        EngagementOnlyAlignmentDepth: EngagementOnlyAlignmentDepth,
+        EngagementOnlyAlignmentDiameterCompensation:
+            EngagementOnlyAlignmentDiameterCompensation);
 
     internal void LoadTemplate(FastenerTemplateData template)
     {
@@ -114,11 +144,20 @@ public sealed class EditorState
         EngagementBlindDepth = template.EngagementBlindDepth;
         CounterboreBridgeEnabled = template.CounterboreBridgeEnabled;
         CounterboreBridgeLayerHeight = template.CounterboreBridgeLayerHeight;
+        EngagementEntryChamferEnabled = template.EngagementEntryChamferEnabled;
+        EngagementEntryChamferSize = template.EngagementEntryChamferSize;
+        EngagementEntryChamferMode = template.EngagementEntryChamferMode;
+        EngagementOnlyAlignmentDepth = template.EngagementOnlyAlignmentDepth;
+        EngagementOnlyAlignmentDiameterCompensation =
+            template.EngagementOnlyAlignmentDiameterCompensation;
         AssemblyMode = template.AssemblyMode;
         PairedNutStyle = template.PairedNutStyle;
         NutTipProtrusion = template.NutTipProtrusion;
         NutPocketCompensation = template.NutPocketCompensation;
         EngagementOnly = template.AssemblyMode == ScrewAssemblyMode.EngagementOnly;
+        CustomDefinitionId = template.CustomDefinitionId;
+        CustomDefinitionName = template.CustomDefinitionName;
+        CustomDefinitionSnapshot = template.CustomDefinitionSnapshot;
         LoadedComponentId = Guid.Empty;
     }
 
@@ -131,6 +170,12 @@ public sealed class EditorState
         HeadEmbedDepth = component.HeadEmbedDepth;
         CounterboreBridgeEnabled = component.CounterboreBridgeEnabled;
         CounterboreBridgeLayerHeight = component.CounterboreBridgeLayerHeight;
+        EngagementEntryChamferEnabled = component.EngagementEntryChamferEnabled;
+        EngagementEntryChamferSize = component.EngagementEntryChamferSize;
+        EngagementEntryChamferMode = component.EngagementEntryChamferMode;
+        EngagementOnlyAlignmentDepth = component.EngagementOnlyAlignmentDepth;
+        EngagementOnlyAlignmentDiameterCompensation =
+            component.EngagementOnlyAlignmentDiameterCompensation;
         InsertOuterDiameter = component.InsertOuterDiameter;
         InsertDiameterCompensation = component.InsertDiameterCompensation;
         InsertDepthCompensation = component.InsertDepthCompensation;
@@ -139,6 +184,9 @@ public sealed class EditorState
         NutTipProtrusion = component.NutTipProtrusion;
         NutPocketCompensation = component.NutPocketCompensation;
         EngagementOnly = component.AssemblyMode == ScrewAssemblyMode.EngagementOnly;
+        CustomDefinitionId = component.CustomDefinitionId;
+        CustomDefinitionName = component.CustomDefinitionName;
+        CustomDefinitionSnapshot = component.CustomDefinitionSnapshot;
         PrinterCorrection = component.PrintProfile.HoleDiameterCorrection;
         LoadedComponentId = component.ComponentId;
         if (component.Bindings.Count > 0)

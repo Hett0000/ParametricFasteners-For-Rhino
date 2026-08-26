@@ -159,4 +159,34 @@ public sealed class SmartBindingReconcilerTests
         Assert.Equal(SmartPlacementRecognitionMode.AllClearance, restored.SmartRecognitionMode);
         Assert.Equal(Profile, restored.SmartBindingProfile);
     }
+
+    [Fact]
+    public void VersionTwentyMigratesWithoutConfirmedEngagementHost()
+    {
+        var legacy = new FastenerComponentData
+        {
+            SchemaVersion = 20,
+            ConfirmedEngagementHostId = Guid.NewGuid()
+        };
+
+        var migrated = ComponentJson.Migrate(legacy);
+
+        Assert.Equal(21, migrated.SchemaVersion);
+        Assert.Equal(Guid.Empty, migrated.ConfirmedEngagementHostId);
+    }
+
+    [Fact]
+    public void VersionTwentyOneRoundTripPreservesConfirmedEngagementHost()
+    {
+        var hostId = Guid.NewGuid();
+        var component = new FastenerComponentData
+        {
+            AssemblyMode = ScrewAssemblyMode.ThreadEngagement,
+            ConfirmedEngagementHostId = hostId
+        };
+
+        var restored = ComponentJson.Deserialize(ComponentJson.Serialize(component));
+
+        Assert.Equal(hostId, restored.ConfirmedEngagementHostId);
+    }
 }

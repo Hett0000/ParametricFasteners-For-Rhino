@@ -1,11 +1,13 @@
 name: parametric-fasteners
-version: 0.29.0
+version: 0.38.7
 authors:
   - 参数化紧固件
 description: >
   参数化紧固件：面向 Rhino 8 与 FDM 打印的螺丝、螺母及补偿孔组件，
   支持逐目标配合、渲染紧固件实体和无损 Rhino/STL/STEP 导出。
+url: https://github.com/Hett0000/ParametricFasteners-For-Rhino
 keywords:
+  - guid:ddc747eb-360e-4629-b65b-6bb1ddb4dc8f
   - 3d-printing
   - fastener
   - screw

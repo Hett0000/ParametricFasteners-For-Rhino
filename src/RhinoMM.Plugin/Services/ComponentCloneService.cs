@@ -217,7 +217,17 @@ internal static class ComponentCloneService
                     TargetObjectId = Guid.Empty,
                     CutterObjectId = Guid.Empty
                 }).ToList();
-            var draft = initial with { Bindings = bindings };
+            var confirmedHostId = Guid.Empty;
+            if (plan.Source.ConfirmedEngagementHostId != Guid.Empty
+                && resolvedTargetsBySource.TryGetValue(
+                    plan.Source.ConfirmedEngagementHostId,
+                    out var mappedConfirmedHost))
+                confirmedHostId = mappedConfirmedHost;
+            var draft = initial with
+            {
+                Bindings = bindings,
+                ConfirmedEngagementHostId = unresolved ? Guid.Empty : confirmedHostId
+            };
             result = new PreparedClone(
                 plan,
                 draft,
@@ -268,15 +278,25 @@ internal static class ComponentCloneService
     private static FastenerComponentData CreateUnresolved(RhinoDoc doc, PreparedClone item)
     {
         var draft = item.Draft;
-        var spec = RhinoMMPlugIn.Catalog.Get(draft.Size);
+        var spec = FastenerSpecResolver.Resolve(draft, RhinoMMPlugIn.Catalog);
         var ids = new List<Guid>();
         var proxies = FastenerGeometryFactory.CreateProxy(draft, spec);
+        var parameterSignature = ComponentReliabilitySignatureService.ParameterSignature(doc, draft, spec);
+        var preparationSignature = ComponentReliabilitySignatureService.PreparationSignature(
+            parameterSignature,
+            proxies,
+            []);
         for (var index = 0; index < proxies.Count; index++)
         {
             var attributes = ComponentRepository.CreateAttributes(draft, "Proxy");
             attributes.SetUserString(
                 ComponentRepository.ProxyPartKey,
                 index == 0 && FastenerKindTraits.HasShaftProxy(draft.Kind) ? "Shaft" : "Head");
+            ComponentRepository.WriteDerivedSignature(
+                attributes,
+                preparationSignature,
+                ComponentReliabilitySignatureService.GeometrySignature(proxies[index]),
+                index);
             ComponentPresentationService.ConfigureAttributes(doc, attributes, draft, false, true);
             var id = doc.Objects.AddBrep(proxies[index], attributes);
             if (id == Guid.Empty)

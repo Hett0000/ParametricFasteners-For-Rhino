@@ -61,15 +61,41 @@ internal static class SmartHostBindingService
                 reach,
                 tolerance,
                 preserveFullExit: draft.SmartRecognitionMode == SmartPlacementRecognitionMode.Automatic);
-            var classification = SmartHostClassifier.Classify(
-                intervals,
-                draft.SmartRecognitionMode,
-                tolerance,
-                draft.HoleDiameterFormula == HoleDiameterFormula.NominalIndependent
-                    ? headSeatTargetId
-                    : Guid.Empty,
-                draft.HeadEmbedDepth,
-                draft.Length);
+            if (draft.ConfirmedEngagementHostId != Guid.Empty
+                && intervals.All(item => item.ObjectId != draft.ConfirmedEngagementHostId)
+                && doc.Objects.FindId(draft.ConfirmedEngagementHostId) is { } confirmedTarget
+                && SmartHostIntervalService.TryGet(
+                    confirmedTarget.Geometry,
+                    draft.Placement,
+                    tolerance,
+                    out var confirmedInterval,
+                    out _)
+                && confirmedInterval.Max > tolerance)
+            {
+                intervals = intervals
+                    .Append(new SmartHostInterval(
+                        draft.ConfirmedEngagementHostId,
+                        Math.Max(0, confirmedInterval.Min),
+                        confirmedInterval.Max))
+                    .ToArray();
+            }
+            var classification = draft.ConfirmedEngagementHostId != Guid.Empty
+                ? ClassifyConfirmed(
+                    intervals,
+                    headSeatTargetId,
+                    draft.ConfirmedEngagementHostId,
+                    tolerance,
+                    draft.HeadEmbedDepth,
+                    draft.Length)
+                : SmartHostClassifier.Classify(
+                    intervals,
+                    draft.SmartRecognitionMode,
+                    tolerance,
+                    draft.HoleDiameterFormula == HoleDiameterFormula.NominalIndependent
+                        ? headSeatTargetId
+                        : Guid.Empty,
+                    draft.HeadEmbedDepth,
+                    draft.Length);
             if (!classification.IsValid)
             {
                 message = classification.Message;
@@ -120,7 +146,7 @@ internal static class SmartHostBindingService
         try
         {
             var tolerance = Math.Max(doc.ModelAbsoluteTolerance, 1e-6);
-            var spec = RhinoMMPlugIn.Catalog.Get(draft.Size);
+            var spec = FastenerSpecResolver.Resolve(draft, RhinoMMPlugIn.Catalog);
             var reach = Math.Max(tolerance, draft.HeadEmbedDepth + draft.Length);
             var existingTargetIds = draft.Bindings
                 .Select(item => item.TargetObjectId)
@@ -365,5 +391,47 @@ internal static class SmartHostBindingService
                 preserveFullExit ? interval.Max : clippedExit));
         }
         return intervals;
+    }
+
+    internal static SmartHostClassification ClassifyConfirmed(
+        IEnumerable<SmartHostInterval> source,
+        Guid placementHostId,
+        Guid confirmedHostId,
+        double tolerance,
+        double headEmbedDepth,
+        double fastenerLength)
+    {
+        var intervals = source
+            .Where(item => item.ObjectId != Guid.Empty && item.Exit - item.Entry > tolerance)
+            .GroupBy(item => item.ObjectId)
+            .Select(group => group.OrderBy(item => item.Entry).First())
+            .OrderBy(item => item.Entry)
+            .ThenBy(item => item.Exit)
+            .ToArray();
+        if (intervals.Length == 0 || intervals[0].ObjectId != placementHostId)
+            return SmartHostClassification.Invalid("已确认组件的放置面宿主不再是轴向第一宿主；请重新绑定。");
+        var confirmedIndex = Array.FindIndex(intervals, item => item.ObjectId == confirmedHostId);
+        if (confirmedIndex <= 0)
+            return SmartHostClassification.Invalid("已确认的咬合宿主已丢失或不在放置宿主之后；请解除确认并重新识别。");
+        var reach = headEmbedDepth + fastenerLength;
+        if (reach < intervals[confirmedIndex].Entry - tolerance)
+        {
+            var minimum = Math.Max(0, intervals[confirmedIndex].Entry - headEmbedDepth);
+            return SmartHostClassification.Invalid(
+                $"当前长度无法到达已确认咬合宿主；至少需要 {minimum:0.###} mm。");
+        }
+        for (var index = 1; index <= confirmedIndex; index++)
+        {
+            if (intervals[index].Entry < intervals[index - 1].Exit - tolerance)
+                return SmartHostClassification.Invalid("已确认咬合宿主与前方宿主重叠，无法可靠绑定。");
+        }
+        var assignments = intervals.Take(confirmedIndex + 1)
+            .Select((item, index) => new SmartHostAssignment(
+                item.ObjectId,
+                index == confirmedIndex ? ShaftFitRole.ThreadEngagement : ShaftFitRole.Clearance,
+                item.Entry,
+                item.Exit))
+            .ToArray();
+        return new SmartHostClassification(true, assignments, string.Empty);
     }
 }

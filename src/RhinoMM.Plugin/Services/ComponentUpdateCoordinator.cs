@@ -2,6 +2,7 @@ using Rhino;
 using RhinoMM.Core.Domain;
 using RhinoMM.Core.Services;
 using RhinoMM.Plugin.Persistence;
+using RhinoMM.Plugin.UI;
 
 namespace RhinoMM.Plugin.Services;
 
@@ -41,6 +42,7 @@ internal static class ComponentUpdateCoordinator
             saved,
             false,
             ComponentActivationIntent.SynchronizeOnly);
+        ViewportOperationFeedback.Show(doc, saved);
         return true;
     }
 

@@ -20,7 +20,13 @@ internal sealed record PlacementCutterPreset(
     double NutTipProtrusion = 2,
     double NutPocketCompensation = 0.2,
     bool NutPocketPreviewVisible = true,
-    bool NutPocketBooleanEnabled = true)
+    bool NutPocketBooleanEnabled = true,
+    bool EngagementEntryChamferEnabled = false,
+    double EngagementEntryChamferSize = 0.5,
+    EngagementEntryChamferMode EngagementEntryChamferMode =
+        EngagementEntryChamferMode.AxialFortyFive,
+    double EngagementOnlyAlignmentDepth = 3,
+    double EngagementOnlyAlignmentDiameterCompensation = 0.2)
 {
     public static PlacementCutterPreset Default { get; } = new(
         0.2,
@@ -34,7 +40,12 @@ internal sealed record PlacementCutterPreset(
         true,
         true,
         true,
-        false);
+        false,
+        EngagementEntryChamferEnabled: false,
+        EngagementEntryChamferSize: 0.5,
+        EngagementEntryChamferMode: EngagementEntryChamferMode.AxialFortyFive,
+        EngagementOnlyAlignmentDepth: 3,
+        EngagementOnlyAlignmentDiameterCompensation: 0.2);
 
     public HoleTargetBinding CreateClearanceBinding(Guid targetId, bool includeHeadSeat) => new()
     {
@@ -79,5 +90,7 @@ internal sealed record PlacementCutterPreset(
         EngagementPreviewVisible,
         EngagementBooleanEnabled,
         NutPocketPreviewVisible,
-        NutPocketBooleanEnabled);
+        NutPocketBooleanEnabled,
+        EngagementOnlyAlignmentDepth,
+        EngagementOnlyAlignmentDiameterCompensation);
 }

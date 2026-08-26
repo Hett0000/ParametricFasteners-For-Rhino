@@ -32,7 +32,16 @@ public sealed record FastenerUpdateTemplate(
     double NutTipProtrusion = 2,
     double NutPocketCompensation = 0.2,
     bool? NutPocketPreviewVisible = null,
-    bool? NutPocketBooleanEnabled = null)
+    bool? NutPocketBooleanEnabled = null,
+    Guid? CustomDefinitionId = null,
+    string CustomDefinitionName = "",
+    FastenerDefinitionSnapshot? CustomDefinitionSnapshot = null,
+    bool EngagementEntryChamferEnabled = false,
+    double EngagementEntryChamferSize = 0.5,
+    EngagementEntryChamferMode EngagementEntryChamferMode =
+        EngagementEntryChamferMode.AxialFortyFive,
+    double EngagementOnlyAlignmentDepth = 3,
+    double EngagementOnlyAlignmentDiameterCompensation = 0.2)
 {
     public FastenerComponentData ApplyTo(
         FastenerComponentData existing,
@@ -90,8 +99,17 @@ public sealed record FastenerUpdateTemplate(
             Length = Length,
             HeadEmbedDepth = FastenerKindTraits.SupportsEmbedDepth(Kind) ? HeadEmbedDepth : 0,
             CounterboreBridgeEnabled = Kind == FastenerKind.SocketCap
+                && HeadEmbedDepth > 0
                 && CounterboreBridgeEnabled,
             CounterboreBridgeLayerHeight = CounterboreBridgeLayerHeight,
+            EngagementEntryChamferEnabled = FastenerKindTraits.IsScrew(Kind)
+                && assemblyMode == ScrewAssemblyMode.ThreadEngagement
+                && EngagementEntryChamferEnabled,
+            EngagementEntryChamferSize = EngagementEntryChamferSize,
+            EngagementEntryChamferMode = EngagementEntryChamferMode,
+            EngagementOnlyAlignmentDepth = EngagementOnlyAlignmentDepth,
+            EngagementOnlyAlignmentDiameterCompensation =
+                EngagementOnlyAlignmentDiameterCompensation,
             InsertOuterDiameter = Kind == FastenerKind.HeatSetInsert ? InsertOuterDiameter : 0,
             InsertDiameterCompensation = Kind == FastenerKind.HeatSetInsert
                 ? InsertDiameterCompensation
@@ -117,6 +135,9 @@ public sealed record FastenerUpdateTemplate(
                 ? NutPocketCompensation
                 : 0.2,
             EngagementOnly = engagementOnly,
+            CustomDefinitionId = CustomDefinitionId,
+            CustomDefinitionName = CustomDefinitionName,
+            CustomDefinitionSnapshot = CustomDefinitionSnapshot,
             AutoRecognizeHosts = existing.AutoRecognizeHosts
                 || existing.AssemblyMode != assemblyMode
                 && (existing.AssemblyMode == ScrewAssemblyMode.NutFastened
@@ -241,7 +262,10 @@ public sealed record FastenerUpdateTemplate(
             NutPocketPreviewVisible =
                 NutPocketPreviewVisible ?? profile.NutPocketPreviewVisible,
             NutPocketBooleanEnabled =
-                NutPocketBooleanEnabled ?? profile.NutPocketBooleanEnabled
+                NutPocketBooleanEnabled ?? profile.NutPocketBooleanEnabled,
+            EngagementOnlyAlignmentDepth = EngagementOnlyAlignmentDepth,
+            EngagementOnlyAlignmentDiameterCompensation =
+                EngagementOnlyAlignmentDiameterCompensation
         };
     }
 }

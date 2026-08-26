@@ -12,6 +12,7 @@ internal enum PanelActionIcon
     Rhino,
     Step,
     Statistics,
+    Inspector,
     More
 }
 
@@ -38,6 +39,7 @@ internal static class PanelIconProvider
             PanelActionIcon.Rhino => "rhino",
             PanelActionIcon.Step => "step",
             PanelActionIcon.Statistics => "statistics",
+            PanelActionIcon.Inspector => "inspector",
             PanelActionIcon.More => "more",
             _ => throw new ArgumentOutOfRangeException(nameof(icon), icon, null)
         };

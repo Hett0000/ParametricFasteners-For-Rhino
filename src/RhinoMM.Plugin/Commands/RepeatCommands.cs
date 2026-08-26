@@ -3,6 +3,7 @@ using Rhino.Commands;
 using RhinoMM.Core.Services;
 using RhinoMM.Plugin.Persistence;
 using RhinoMM.Plugin.Services;
+using RhinoMM.Plugin.UI;
 
 namespace RhinoMM.Plugin.Commands;
 

@@ -105,7 +105,12 @@ public sealed class FastenerTemplateDataTests
         var document = new FastenerTemplateLibraryDocument
         {
             Recent = [new FastenerTemplateEntry(Guid.NewGuid(), "M3 热熔", data, DateTimeOffset.UtcNow)],
-            Favorites = [new FastenerTemplateEntry(Guid.NewGuid(), "常用热熔", data, DateTimeOffset.UtcNow)],
+            Favorites = [new FastenerTemplateEntry(
+                Guid.NewGuid(),
+                "常用热熔",
+                data,
+                DateTimeOffset.UtcNow,
+                new AssemblySchemeOptions(AdaptiveLength: true, OutputFormats: 3))],
             LastPlacement = data,
             LastUpdate = data
         };
@@ -119,6 +124,9 @@ public sealed class FastenerTemplateDataTests
         Assert.Equal(FastenerKind.HeatSetInsert, restored!.LastPlacement!.Kind);
         Assert.Single(restored.Recent);
         Assert.Single(restored.Favorites);
+        Assert.True(restored.Favorites[0].Scheme!.AdaptiveLength);
+        Assert.Equal(3, restored.Favorites[0].Scheme!.OutputFormats);
+        Assert.Equal(2, restored.SchemaVersion);
         Assert.Contains("HeatSetInsert", json, StringComparison.Ordinal);
     }
 }

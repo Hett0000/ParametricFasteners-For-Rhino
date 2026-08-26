@@ -4,16 +4,6 @@ namespace RhinoMM.Plugin.Services;
 
 internal static class FastenerPlacementEditing
 {
-    public static PlacementFrame Flip(PlacementFrame frame) => frame with
-    {
-        YAxisX = -frame.YAxisX,
-        YAxisY = -frame.YAxisY,
-        YAxisZ = -frame.YAxisZ,
-        ZAxisX = -frame.ZAxisX,
-        ZAxisY = -frame.ZAxisY,
-        ZAxisZ = -frame.ZAxisZ
-    };
-
     public static PlacementFrame RotateAroundAxis(PlacementFrame frame, double radians)
     {
         var cosine = Math.Cos(radians);

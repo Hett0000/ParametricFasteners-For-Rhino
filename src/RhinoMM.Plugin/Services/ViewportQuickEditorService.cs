@@ -17,6 +17,7 @@ internal static class ViewportQuickEditorService
     private static readonly UITimer VisibilityTimer = new() { Interval = 0.25 };
     private static PersistentSettings? _settings;
     private static ViewportQuickEditorWindow? _window;
+    private static ViewportBatchEditBar? _batchWindow;
     private static Guid _dismissedComponentId;
     private static bool _initialized;
     private static int _commandDepth;
@@ -87,10 +88,36 @@ internal static class ViewportQuickEditorService
         if (doc is null || (_commandDepth > 0 && !force))
             return false;
         var selected = ComponentRepository.ReadSelectedControlPoints(doc);
-        if (selected.Count != 1)
+        if (selected.Count == 0)
         {
             Hide(false);
             return false;
+        }
+        if (selected.Count > 1)
+        {
+            if (!force && !AutoShowEnabled)
+                return false;
+            _dismissedComponentId = Guid.Empty;
+            if (_batchWindow is not null
+                && _batchWindow.DocumentSerialNumber == doc.RuntimeSerialNumber
+                && _batchWindow.ComponentIds.OrderBy(id => id).SequenceEqual(
+                    selected.Select(item => item.ComponentId).OrderBy(id => id)))
+            {
+                _batchWindow.LoadComponents(selected);
+                return _batchWindow.TryReposition();
+            }
+            Hide(false);
+            _batchWindow = new ViewportBatchEditBar(doc, selected);
+            _batchWindow.Closed += BatchWindowClosed;
+            _batchWindow.Show();
+            if (!_batchWindow.TryReposition())
+            {
+                Hide(false);
+                return false;
+            }
+            VisibilityTimer.Start();
+            RhinoApp.SetFocusToMainWindow();
+            return true;
         }
         var component = selected[0];
         if (!force && (!AutoShowEnabled || component.ComponentId == _dismissedComponentId))
@@ -126,15 +153,23 @@ internal static class ViewportQuickEditorService
     {
         SelectionTimer.Stop();
         VisibilityTimer.Stop();
-        if (_window is null)
-            return;
-        if (rememberDismissal)
-            _dismissedComponentId = _window.ComponentId;
-        var window = _window;
-        _window = null;
-        window.DismissedByUser -= WindowDismissedByUser;
-        window.Closed -= WindowClosed;
-        window.CloseProgrammatically();
+        if (_window is not null)
+        {
+            if (rememberDismissal)
+                _dismissedComponentId = _window.ComponentId;
+            var window = _window;
+            _window = null;
+            window.DismissedByUser -= WindowDismissedByUser;
+            window.Closed -= WindowClosed;
+            window.CloseProgrammatically();
+        }
+        if (_batchWindow is not null)
+        {
+            var batch = _batchWindow;
+            _batchWindow = null;
+            batch.Closed -= BatchWindowClosed;
+            batch.CloseProgrammatically();
+        }
     }
 
     public static void SuppressForComponent(Guid componentId)
@@ -172,15 +207,24 @@ internal static class ViewportQuickEditorService
 
     private static void VisibilityTimerElapsed(object? sender, EventArgs e)
     {
-        if (_window is null || _commandDepth > 0)
+        if ((_window is null && _batchWindow is null) || _commandDepth > 0)
             return;
         var doc = RhinoDoc.ActiveDoc;
         var selected = doc is null ? [] : ComponentRepository.ReadSelectedControlPoints(doc);
-        if (doc is null
-            || _window.DocumentSerialNumber != doc.RuntimeSerialNumber
-            || selected.Count != 1
-            || selected[0].ComponentId != _window.ComponentId
-            || !_window.TryReposition())
+        var singleValid = _window is not null
+            && doc is not null
+            && _window.DocumentSerialNumber == doc.RuntimeSerialNumber
+            && selected.Count == 1
+            && selected[0].ComponentId == _window.ComponentId
+            && _window.TryReposition();
+        var batchValid = _batchWindow is not null
+            && doc is not null
+            && _batchWindow.DocumentSerialNumber == doc.RuntimeSerialNumber
+            && selected.Count > 1
+            && _batchWindow.ComponentIds.OrderBy(id => id).SequenceEqual(
+                selected.Select(item => item.ComponentId).OrderBy(id => id))
+            && _batchWindow.TryReposition();
+        if (!singleValid && !batchValid)
             Hide(false);
     }
 
@@ -198,7 +242,8 @@ internal static class ViewportQuickEditorService
 
     private static void CloseDocument(object? sender, DocumentEventArgs e)
     {
-        if (_window is not null && _window.DocumentSerialNumber == e.Document.RuntimeSerialNumber)
+        if ((_window is not null && _window.DocumentSerialNumber == e.Document.RuntimeSerialNumber)
+            || (_batchWindow is not null && _batchWindow.DocumentSerialNumber == e.Document.RuntimeSerialNumber))
             Hide(false);
     }
 
@@ -212,5 +257,11 @@ internal static class ViewportQuickEditorService
     {
         if (ReferenceEquals(sender, _window))
             _window = null;
+    }
+
+    private static void BatchWindowClosed(object? sender, EventArgs e)
+    {
+        if (ReferenceEquals(sender, _batchWindow))
+            _batchWindow = null;
     }
 }

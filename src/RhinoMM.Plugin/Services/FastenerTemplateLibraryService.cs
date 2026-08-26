@@ -17,10 +17,12 @@ internal static class FastenerTemplateLibraryService
     private const int RecentLimit = 5;
     private const int FavoriteLimit = 50;
     private static FastenerTemplateLibraryDocument _current = new();
+    private static AssemblySchemeOptions? _activeScheme;
 
     public static event EventHandler? Changed;
 
     public static FastenerTemplateLibraryDocument Current => _current;
+    public static AssemblySchemeOptions? ActiveScheme => _activeScheme;
 
     public static void Load(PersistentSettings settings)
     {
@@ -36,7 +38,8 @@ internal static class FastenerTemplateLibraryService
             var parsed = JsonSerializer.Deserialize<FastenerTemplateLibraryDocument>(
                 json,
                 FastenerTemplateData.JsonOptions());
-            if (parsed?.SchemaVersion != FastenerTemplateLibraryDocument.CurrentSchemaVersion)
+            if (parsed is null
+                || parsed.SchemaVersion is < 1 or > FastenerTemplateLibraryDocument.CurrentSchemaVersion)
                 throw new InvalidDataException("模板库版本不受支持。");
             _current = Normalize(parsed);
         }
@@ -149,6 +152,27 @@ internal static class FastenerTemplateLibraryService
         return Save(out message);
     }
 
+    public static bool SetSchemeOptions(Guid id, AssemblySchemeOptions? options, out string message)
+    {
+        var found = false;
+        var favorites = _current.Favorites.Select(item =>
+        {
+            if (item.Id != id)
+                return item;
+            found = true;
+            return item with { Scheme = options, UpdatedAt = DateTimeOffset.UtcNow };
+        }).ToArray();
+        if (!found)
+        {
+            message = "没有找到要设置的收藏模板。";
+            return false;
+        }
+        _current = _current with { Favorites = favorites };
+        return Save(out message);
+    }
+
+    public static void ActivateScheme(AssemblySchemeOptions? options) => _activeScheme = options;
+
     public static bool DeleteFavorite(Guid id, out string message)
     {
         var favorites = _current.Favorites.Where(item => item.Id != id).ToArray();
@@ -180,7 +204,8 @@ internal static class FastenerTemplateLibraryService
             Guid.NewGuid(),
             UniqueName(source.Name + " 副本"),
             source.Data,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            source.Scheme);
         _current = _current with { Favorites = _current.Favorites.Append(duplicate).ToArray() };
         return Save(out message);
     }
@@ -225,7 +250,8 @@ internal static class FastenerTemplateLibraryService
             message = $"模板文件无法读取：{ex.Message}";
             return false;
         }
-        if (document?.SchemaVersion != FastenerTemplateLibraryDocument.CurrentSchemaVersion)
+        if (document is null
+            || document.SchemaVersion is < 1 or > FastenerTemplateLibraryDocument.CurrentSchemaVersion)
         {
             message = "模板文件版本不受支持。";
             return false;
@@ -252,7 +278,12 @@ internal static class FastenerTemplateLibraryService
             var name = list.Any(item => string.Equals(item.Name, preferredName, StringComparison.OrdinalIgnoreCase))
                 ? UniqueImportedName(preferredName, list)
                 : preferredName;
-            list.Add(new FastenerTemplateEntry(Guid.NewGuid(), name, data, DateTimeOffset.UtcNow));
+            list.Add(new FastenerTemplateEntry(
+                Guid.NewGuid(),
+                name,
+                data,
+                DateTimeOffset.UtcNow,
+                source.Scheme));
             signatures.Add(data.Signature());
             imported++;
         }
@@ -270,14 +301,19 @@ internal static class FastenerTemplateLibraryService
     {
         try
         {
-            var spec = RhinoMMPlugIn.Catalog.Get(data.Size);
+            var spec = FastenerSpecResolver.Resolve(data, RhinoMMPlugIn.Catalog);
             if (!double.IsFinite(data.PrinterCorrection)
                 || !double.IsFinite(data.Length)
-                || !double.IsFinite(data.HeadEmbedDepth)
-                || data.HeadEmbedDepth < 0)
+                || !double.IsFinite(data.HeadEmbedDepth))
                 throw new InvalidDataException("模板包含非法的尺寸数值。");
+            if (data.HeadEmbedDepth < 0
+                && !FastenerKindTraits.SupportsHeadGap(data.Kind))
+                throw new InvalidDataException("只有螺丝模板支持负值离面间隙。");
             if (FastenerKindTraits.UsesLengthInStatistics(data.Kind) && data.Length <= 0)
                 throw new InvalidDataException("紧固件长度必须大于 0。" );
+            if (FastenerKindTraits.IsScrew(data.Kind)
+                && data.HeadEmbedDepth + data.Length <= 0)
+                throw new InvalidDataException("离面距离必须小于螺杆长度。" );
             if (data.Kind == FastenerKind.HeatSetInsert
                 && (data.InsertOuterDiameter <= spec.NominalDiameter
                     || data.InsertDepthCompensation < 0))
@@ -329,6 +365,7 @@ internal static class FastenerTemplateLibraryService
 
         return source with
         {
+            SchemaVersion = FastenerTemplateLibraryDocument.CurrentSchemaVersion,
             Recent = NormalizeEntries(source.Recent, RecentLimit, true),
             Favorites = NormalizeEntries(source.Favorites, FavoriteLimit, false),
             LastPlacement = source.LastPlacement?.Normalize(),
@@ -408,6 +445,9 @@ internal static class FastenerTemplateFormatter
             ScrewAssemblyMode.NutFastened => "螺母固定",
             _ => FastenerLabels.Depth(data.EngagementDepthMode)
         };
-        return $"{data.Size}×{data.Length:0.##} {kind} · {mode}";
+        var gap = data.HeadEmbedDepth < 0
+            ? $" · 离面{Math.Abs(data.HeadEmbedDepth):0.##}"
+            : string.Empty;
+        return $"{data.Size}×{data.Length:0.##} {kind}{gap} · {mode}";
     }
 }

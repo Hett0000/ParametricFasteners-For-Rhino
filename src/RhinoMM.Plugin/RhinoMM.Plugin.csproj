@@ -6,7 +6,8 @@
     <AssemblyTitle>参数化紧固件</AssemblyTitle>
     <Product>参数化紧固件</Product>
     <RootNamespace>RhinoMM.Plugin</RootNamespace>
-    <Version>0.30.3</Version>
+    <Version>0.38.7</Version>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\RhinoMM.Core\RhinoMM.Core.csproj" />
@@ -20,6 +21,6 @@
     <EmbeddedResource Include="UI\Icons\Generated\panel.ico" LogicalName="RhinoMM.Plugin.UI.Icons.Generated.panel.ico" />
   </ItemGroup>
   <Target Name="CreateRhp" AfterTargets="Build">
-    <Copy SourceFiles="$(TargetPath)" DestinationFiles="$(TargetDir)参数化紧固件.rhp" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFiles="$(TargetDir)ParametricFasteners.rhp" />
   </Target>
 </Project>

@@ -28,9 +28,10 @@ public sealed class ComponentSelectionChangedEventArgs(
 
 public static class ComponentEditorSession
 {
-    private static readonly Dictionary<uint, FastenerComponentData> ActiveComponents = [];
-    private static readonly Dictionary<uint, IReadOnlyList<FastenerComponentData>> ActiveSelections = [];
+    private static readonly Dictionary<uint, Guid> ActiveComponents = [];
+    private static readonly Dictionary<uint, IReadOnlyList<Guid>> ActiveSelections = [];
     private static readonly Dictionary<uint, ComponentActivationIntent> ActiveIntents = [];
+    private static readonly Dictionary<uint, long> DocumentRevisions = [];
 
     public static event EventHandler<ComponentChangedEventArgs>? ActiveComponentChanged;
     public static event EventHandler<ComponentSelectionChangedEventArgs>? ActiveSelectionChanged;
@@ -53,9 +54,10 @@ public static class ComponentEditorSession
             Forget(doc);
             return;
         }
-        ActiveSelections[doc.RuntimeSerialNumber] = components.ToArray();
-        ActiveComponents[doc.RuntimeSerialNumber] = components[0];
+        ActiveSelections[doc.RuntimeSerialNumber] = components.Select(component => component.ComponentId).ToArray();
+        ActiveComponents[doc.RuntimeSerialNumber] = components[0].ComponentId;
         ActiveIntents[doc.RuntimeSerialNumber] = intent;
+        DocumentRevisions[doc.RuntimeSerialNumber] = FastenerDocumentIndexService.CurrentRevision(doc);
         if (intent == ComponentActivationIntent.LoadIntoEditor)
             EditorState.Current.Load(components[0]);
         if (deselectComponent)
@@ -92,10 +94,10 @@ public static class ComponentEditorSession
 
     public static bool TryGetActive(RhinoDoc doc, out FastenerComponentData component)
     {
-        if (ActiveComponents.TryGetValue(doc.RuntimeSerialNumber, out var cached)
-            && ComponentRepository.TryReadComponent(doc, cached.ComponentId, out component))
+        if (ActiveComponents.TryGetValue(doc.RuntimeSerialNumber, out var componentId)
+            && ComponentRepository.TryReadComponent(doc, componentId, out component))
         {
-            ActiveComponents[doc.RuntimeSerialNumber] = component;
+            DocumentRevisions[doc.RuntimeSerialNumber] = FastenerDocumentIndexService.CurrentRevision(doc);
             return true;
         }
         component = new FastenerComponentData();
@@ -119,9 +121,9 @@ public static class ComponentEditorSession
             return false;
         }
         var current = new List<FastenerComponentData>();
-        foreach (var item in cached)
+        foreach (var componentId in cached)
         {
-            if (ComponentRepository.TryReadComponent(doc, item.ComponentId, out var component))
+            if (ComponentRepository.TryReadComponent(doc, componentId, out var component))
                 current.Add(component);
         }
         if (current.Count == 0)
@@ -130,40 +132,32 @@ public static class ComponentEditorSession
             components = [];
             return false;
         }
-        ActiveSelections[doc.RuntimeSerialNumber] = current;
-        ActiveComponents[doc.RuntimeSerialNumber] = current[0];
+        ActiveSelections[doc.RuntimeSerialNumber] = current.Select(component => component.ComponentId).ToArray();
+        ActiveComponents[doc.RuntimeSerialNumber] = current[0].ComponentId;
+        DocumentRevisions[doc.RuntimeSerialNumber] = FastenerDocumentIndexService.CurrentRevision(doc);
         components = current;
         return true;
     }
 
     public static void UpdateCache(RhinoDoc doc, FastenerComponentData component)
     {
-        ActiveComponents[doc.RuntimeSerialNumber] = component;
-        if (ActiveSelections.TryGetValue(doc.RuntimeSerialNumber, out var selection))
-            ActiveSelections[doc.RuntimeSerialNumber] = selection
-                .Select(item => item.ComponentId == component.ComponentId ? component : item)
-                .ToArray();
+        ActiveComponents[doc.RuntimeSerialNumber] = component.ComponentId;
+        DocumentRevisions[doc.RuntimeSerialNumber] = FastenerDocumentIndexService.CurrentRevision(doc);
     }
 
     public static void UpdateCachedComponents(
         RhinoDoc doc,
         IReadOnlyList<FastenerComponentData> components)
     {
-        var updates = components.ToDictionary(component => component.ComponentId);
-        if (ActiveComponents.TryGetValue(doc.RuntimeSerialNumber, out var active)
-            && updates.TryGetValue(active.ComponentId, out var updatedActive))
-            ActiveComponents[doc.RuntimeSerialNumber] = updatedActive;
-        if (ActiveSelections.TryGetValue(doc.RuntimeSerialNumber, out var selection))
-            ActiveSelections[doc.RuntimeSerialNumber] = selection
-                .Select(item => updates.GetValueOrDefault(item.ComponentId, item))
-                .ToArray();
+        if (components.Count > 0)
+            DocumentRevisions[doc.RuntimeSerialNumber] = FastenerDocumentIndexService.CurrentRevision(doc);
     }
 
     public static void ForgetComponent(RhinoDoc doc, Guid componentId)
     {
         if (!ActiveSelections.TryGetValue(doc.RuntimeSerialNumber, out var selection))
             return;
-        var remaining = selection.Where(item => item.ComponentId != componentId).ToArray();
+        var remaining = selection.Where(item => item != componentId).ToArray();
         if (remaining.Length == selection.Count)
             return;
         if (remaining.Length == 0)
@@ -173,11 +167,16 @@ public static class ComponentEditorSession
         }
         ActiveSelections[doc.RuntimeSerialNumber] = remaining;
         ActiveComponents[doc.RuntimeSerialNumber] = remaining[0];
+        var current = remaining
+            .Select(id => ComponentRepository.TryReadComponent(doc, id, out var component) ? component : null)
+            .Where(component => component is not null)
+            .Cast<FastenerComponentData>()
+            .ToArray();
         ActiveSelectionChanged?.Invoke(
             null,
             new ComponentSelectionChangedEventArgs(
                 doc,
-                remaining,
+                current,
                 ComponentActivationIntent.SynchronizeOnly));
     }
 
@@ -186,6 +185,7 @@ public static class ComponentEditorSession
         ActiveComponents.Remove(doc.RuntimeSerialNumber);
         ActiveSelections.Remove(doc.RuntimeSerialNumber);
         ActiveIntents.Remove(doc.RuntimeSerialNumber);
+        DocumentRevisions.Remove(doc.RuntimeSerialNumber);
         ActiveSelectionChanged?.Invoke(
             null,
             new ComponentSelectionChangedEventArgs(

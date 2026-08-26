@@ -62,6 +62,13 @@ public static class FastenerLabels
         _ => mode.ToString()
     };
 
+    public static string HeadOffset(double value) => value switch
+    {
+        < 0 => $"离面 {Math.Abs(value):0.##} mm",
+        > 0 => $"嵌入 {value:0.##} mm",
+        _ => "头底贴面"
+    };
+
     public static string ClearanceFit(ClearanceFitClass fit) => fit switch
     {
         ClearanceFitClass.Close => "紧配",

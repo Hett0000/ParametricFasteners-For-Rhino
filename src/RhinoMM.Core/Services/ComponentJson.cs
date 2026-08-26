@@ -67,6 +67,24 @@ public static class ComponentJson
                 || data.CounterboreBridgeLayerHeight <= 0
                     ? 0.2
                     : data.CounterboreBridgeLayerHeight,
+            EngagementEntryChamferEnabled = sourceVersion >= 18
+                && data.AssemblyMode == ScrewAssemblyMode.ThreadEngagement
+                && data.EngagementEntryChamferEnabled,
+            EngagementEntryChamferSize = sourceVersion < 18
+                || !double.IsFinite(data.EngagementEntryChamferSize)
+                || data.EngagementEntryChamferSize <= 0
+                    ? 0.5
+                    : data.EngagementEntryChamferSize,
+            EngagementEntryChamferMode = sourceVersion < 19
+                || !Enum.IsDefined(data.EngagementEntryChamferMode)
+                    ? EngagementEntryChamferMode.AxialFortyFive
+                    : data.EngagementEntryChamferMode,
+            EngagementOnlyAlignmentDepth = sourceVersion < 20
+                ? 0
+                : data.EngagementOnlyAlignmentDepth,
+            EngagementOnlyAlignmentDiameterCompensation = sourceVersion < 20
+                ? 0.2
+                : data.EngagementOnlyAlignmentDiameterCompensation,
             InsertDepthCompensation = sourceVersion < 7 ? 0 : data.InsertDepthCompensation,
             AssemblyMode = FastenerKindTraits.IsScrew(data.Kind)
                 ? assemblyMode
@@ -80,9 +98,20 @@ public static class ComponentJson
             NutPocketCompensation = sourceVersion < 16
                 ? 0.2
                 : data.NutPocketCompensation,
+            Delivery = sourceVersion < 17 || data.Delivery is null
+                ? new DeliveryMetadata()
+                : data.Delivery,
+            CustomDefinitionId = sourceVersion < 17 ? null : data.CustomDefinitionId,
+            CustomDefinitionName = sourceVersion < 17 ? string.Empty : data.CustomDefinitionName,
+            CustomDefinitionSnapshot = sourceVersion < 17 ? null : data.CustomDefinitionSnapshot,
             EngagementOnly = FastenerKindTraits.IsScrew(data.Kind)
                 && assemblyMode == ScrewAssemblyMode.EngagementOnly,
             AutoRecognizeHosts = sourceVersion >= 8 && data.AutoRecognizeHosts,
+            ConfirmedEngagementHostId = sourceVersion >= 21
+                && FastenerKindTraits.IsScrew(data.Kind)
+                && assemblyMode == ScrewAssemblyMode.ThreadEngagement
+                    ? data.ConfirmedEngagementHostId
+                    : Guid.Empty,
             SmartRecognitionMode = sourceVersion >= 8
                 ? data.SmartRecognitionMode
                 : SmartPlacementRecognitionMode.Automatic,

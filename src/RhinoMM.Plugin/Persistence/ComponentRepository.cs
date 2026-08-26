@@ -14,6 +14,9 @@ public static class ComponentRepository
     public const string TargetIdKey = "RhinoMM.TargetId";
     public const string BindingIdKey = "RhinoMM.BindingId";
     public const string ProxyPartKey = "RhinoMM.ProxyPart";
+    public const string PreparedSignatureKey = "RhinoMM.PreparedSignature";
+    public const string GeometrySignatureKey = "RhinoMM.GeometrySignature";
+    public const string PartIndexKey = "RhinoMM.PartIndex";
 
     public static ObjectAttributes CreateAttributes(
         FastenerComponentData data,
@@ -49,7 +52,10 @@ public static class ComponentRepository
         Guid targetId = default,
         Guid bindingId = default)
     {
-        attributes.SetUserString(ComponentKey, ComponentJson.Serialize(data));
+        if (role == "ControlPoint")
+            attributes.SetUserString(ComponentKey, ComponentJson.Serialize(data));
+        else
+            attributes.DeleteUserString(ComponentKey);
         attributes.SetUserString(ComponentIdKey, data.ComponentId.ToString("D"));
         attributes.SetUserString(RoleKey, role);
         if (targetId != Guid.Empty)
@@ -81,6 +87,26 @@ public static class ComponentRepository
         }
     }
 
+    public static bool TryReadControlPoint(RhinoObject? obj, out FastenerComponentData data)
+    {
+        data = new FastenerComponentData();
+        return obj is not null
+            && obj.Geometry is Point
+            && obj.Attributes.GetUserString(RoleKey) == "ControlPoint"
+            && TryRead(obj, out data);
+    }
+
+    public static void WriteDerivedSignature(
+        ObjectAttributes attributes,
+        string preparedSignature,
+        string geometrySignature,
+        int partIndex)
+    {
+        attributes.SetUserString(PreparedSignatureKey, preparedSignature);
+        attributes.SetUserString(GeometrySignatureKey, geometrySignature);
+        attributes.SetUserString(PartIndexKey, partIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
     public static bool TryReadSelection(RhinoDoc doc, out FastenerComponentData data)
     {
         var selected = ReadSelectedControlPoints(doc);
@@ -99,9 +125,7 @@ public static class ComponentRepository
         var componentIds = new HashSet<Guid>();
         foreach (var obj in doc.Objects.GetSelectedObjects(false, false))
         {
-            if (obj.Attributes.GetUserString(RoleKey) != "ControlPoint"
-                || obj.Geometry is not Point
-                || !TryRead(obj, out var data)
+            if (!TryReadControlPoint(obj, out var data)
                 || !componentIds.Add(data.ComponentId))
                 continue;
             result.Add(data);
@@ -126,7 +150,7 @@ public static class ComponentRepository
                 invalidComponentIds.Add(componentId);
                 continue;
             }
-            if (obj.Geometry is Point && TryRead(obj, out var data) && componentIds.Add(data.ComponentId))
+            if (TryReadControlPoint(obj, out var data) && componentIds.Add(data.ComponentId))
             {
                 result.Add(data);
                 invalidComponentIds.Remove(data.ComponentId);
@@ -143,11 +167,9 @@ public static class ComponentRepository
 
     public static bool TryReadComponent(RhinoDoc doc, Guid componentId, out FastenerComponentData data)
     {
-        foreach (var obj in FindComponentObjects(doc, componentId))
-        {
-            if (TryRead(obj, out data))
-                return true;
-        }
+        var controlPoints = FindControlPoints(doc, componentId).ToArray();
+        if (controlPoints.Length == 1 && TryReadControlPoint(controlPoints[0], out data))
+            return true;
         data = new FastenerComponentData();
         return false;
     }
@@ -164,9 +186,13 @@ public static class ComponentRepository
     }
 
     public static RhinoObject? FindControlPoint(RhinoDoc doc, Guid componentId) =>
-        doc.Objects.FirstOrDefault(obj =>
+        FindControlPoints(doc, componentId).FirstOrDefault();
+
+    public static IEnumerable<RhinoObject> FindControlPoints(RhinoDoc doc, Guid componentId) =>
+        doc.Objects.Where(obj =>
             string.Equals(obj.Attributes.GetUserString(ComponentIdKey), componentId.ToString("D"), StringComparison.OrdinalIgnoreCase)
-            && obj.Attributes.GetUserString(RoleKey) == "ControlPoint");
+            && obj.Attributes.GetUserString(RoleKey) == "ControlPoint"
+            && obj.Geometry is Point);
 
     public static IEnumerable<RhinoObject> FindComponentObjects(RhinoDoc doc, Guid componentId) =>
         doc.Objects.Where(obj => string.Equals(

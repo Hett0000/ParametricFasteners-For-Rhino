@@ -20,8 +20,19 @@ public static class HexNutDimensions
 
     public static HexNutDimensionResult Resolve(
         FastenerComponentData component,
-        FastenerSizeSpec ordinarySpec) =>
-        Resolve(component.HexNutStyle, ordinarySpec);
+        FastenerSizeSpec ordinarySpec)
+    {
+        if (component.HexNutStyle == HexNutStyle.NylonInsertLocking
+            && component.CustomDefinitionSnapshot?.LockingNutSpec is { } custom)
+        {
+            return new HexNutDimensionResult(
+                custom.AcrossFlats,
+                custom.TotalHeight,
+                custom.Standard,
+                custom.IsEngineeringExtension);
+        }
+        return Resolve(component.HexNutStyle, ordinarySpec);
+    }
 
     public static HexNutDimensionResult Resolve(
         HexNutStyle style,

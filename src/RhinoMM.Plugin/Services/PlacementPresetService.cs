@@ -60,7 +60,36 @@ internal static class PlacementPresetService
                     -20,
                     20),
                 settings.GetBool(Prefix + "NutPocketPreviewVisible", defaults.NutPocketPreviewVisible),
-                settings.GetBool(Prefix + "NutPocketBooleanEnabled", defaults.NutPocketBooleanEnabled));
+                settings.GetBool(Prefix + "NutPocketBooleanEnabled", defaults.NutPocketBooleanEnabled),
+                settings.GetBool(
+                    Prefix + "EngagementEntryChamferEnabled",
+                    defaults.EngagementEntryChamferEnabled),
+                FiniteOrDefault(
+                    settings.GetDouble(
+                        Prefix + "EngagementEntryChamferSize",
+                        defaults.EngagementEntryChamferSize),
+                    defaults.EngagementEntryChamferSize,
+                    0.05,
+                    5.0),
+                ParseEnum(
+                    settings.GetString(
+                        Prefix + "EngagementEntryChamferMode",
+                        defaults.EngagementEntryChamferMode.ToString()),
+                    defaults.EngagementEntryChamferMode),
+                FiniteOrDefault(
+                    settings.GetDouble(
+                        Prefix + "EngagementOnlyAlignmentDepth",
+                        defaults.EngagementOnlyAlignmentDepth),
+                    defaults.EngagementOnlyAlignmentDepth,
+                    0,
+                    1000),
+                FiniteOrDefault(
+                    settings.GetDouble(
+                        Prefix + "EngagementOnlyAlignmentDiameterCompensation",
+                        defaults.EngagementOnlyAlignmentDiameterCompensation),
+                    defaults.EngagementOnlyAlignmentDiameterCompensation,
+                    0,
+                    5));
         }
         catch
         {
@@ -95,6 +124,21 @@ internal static class PlacementPresetService
             settings.SetDouble(Prefix + "NutPocketCompensation", preset.NutPocketCompensation);
             settings.SetBool(Prefix + "NutPocketPreviewVisible", preset.NutPocketPreviewVisible);
             settings.SetBool(Prefix + "NutPocketBooleanEnabled", preset.NutPocketBooleanEnabled);
+            settings.SetBool(
+                Prefix + "EngagementEntryChamferEnabled",
+                preset.EngagementEntryChamferEnabled);
+            settings.SetDouble(
+                Prefix + "EngagementEntryChamferSize",
+                preset.EngagementEntryChamferSize);
+            settings.SetString(
+                Prefix + "EngagementEntryChamferMode",
+                preset.EngagementEntryChamferMode.ToString());
+            settings.SetDouble(
+                Prefix + "EngagementOnlyAlignmentDepth",
+                preset.EngagementOnlyAlignmentDepth);
+            settings.SetDouble(
+                Prefix + "EngagementOnlyAlignmentDiameterCompensation",
+                preset.EngagementOnlyAlignmentDiameterCompensation);
             message = "放置切割预设已保存。";
             return true;
         }

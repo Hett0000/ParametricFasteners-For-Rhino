@@ -16,7 +16,8 @@ public static class FastenerStatisticsWorkbookWriter
         string path,
         string documentName,
         DateTimeOffset exportedAt,
-        FastenerStatisticsReport report)
+        FastenerStatisticsReport report,
+        IReadOnlyDictionary<Guid, FastenerDeliveryHostInfo>? hostInfo = null)
     {
         if (string.IsNullOrWhiteSpace(path))
             throw new ArgumentException("必须指定 Excel 文件路径。", nameof(path));
@@ -39,7 +40,7 @@ public static class FastenerStatisticsWorkbookWriter
                 WriteXml(archive, "xl/worksheets/sheet1.xml", writer =>
                     WriteSummarySheet(writer, documentName, exportedAt, report));
                 WriteXml(archive, "xl/worksheets/sheet2.xml", writer =>
-                    WriteDetailSheet(writer, report));
+                    WriteDetailSheet(writer, report, hostInfo));
             }
             File.Move(temporaryPath, fullPath, true);
         }
@@ -168,38 +169,43 @@ public static class FastenerStatisticsWorkbookWriter
         writer.WriteEndElement();
     }
 
-    private static void WriteDetailSheet(XmlWriter writer, FastenerStatisticsReport report)
+    private static void WriteDetailSheet(XmlWriter writer, FastenerStatisticsReport report, IReadOnlyDictionary<Guid, FastenerDeliveryHostInfo>? hostInfo)
     {
         StartWorksheet(writer, 1, 2);
-        WriteColumns(writer, [8, 24, 14, 18, 22, 10, 12, 12, 14, 14, 14, 14, 14, 14, 14, 12, 12, 24, 16, 14, 14, 14, 14, 14, 38]);
+        WriteColumns(writer, [8, 24, 14, 18, 22, 10, 12, 12, 14, 14, 14, 14, 14, 14, 14, 12, 12, 24, 16, 14, 14, 16, 18, 28, 24, 24, 18, 14, 14, 14, 38]);
         writer.WriteStartElement("sheetData", SpreadsheetNamespace);
         var headers = new[]
         {
-            "序号", "类型", "装配角色", "螺母样式", "尺寸标准", "规格", "长度 mm", "外径 mm", "孔径补偿 mm", "深度补偿 mm", "嵌入深度 mm", "孔径修正 mm", "通孔最终直径 mm", "咬合缩减 mm", "咬合最终直径 mm",
+            "序号", "类型", "装配角色", "螺母样式", "尺寸标准", "规格", "长度 mm", "外径 mm", "孔径补偿 mm", "深度补偿 mm", "嵌入/离面 mm", "孔径修正 mm", "通孔最终直径 mm", "咬合缩减 mm", "咬合最终直径 mm",
             "通孔宿主数", "咬合宿主数", "咬合深度模式", "装配方式", "末端露出量 mm", "螺母槽补偿 mm", "控制点 X", "控制点 Y", "控制点 Z", "组件 ID"
         };
+        headers = headers.Take(21)
+            .Concat(["装配编号", "项目分组", "用户备注", "宿主名称", "宿主图层", "装配角色"])
+            .Concat(headers.Skip(21))
+            .ToArray();
         WriteRow(writer, 1, headers.Select(value => Text(value, true)).ToArray());
         var rowIndex = 2;
         foreach (var component in report.Components)
         {
-            WriteRow(writer, rowIndex, BuildDetailCells(component, false, rowIndex - 1));
+            WriteRow(writer, rowIndex, BuildDetailCells(component, false, rowIndex - 1, hostInfo));
             rowIndex++;
             if (FastenerKindTraits.IsScrew(component.Kind)
                 && component.AssemblyMode == ScrewAssemblyMode.NutFastened)
             {
-                WriteRow(writer, rowIndex, BuildDetailCells(component, true, rowIndex - 1));
+                WriteRow(writer, rowIndex, BuildDetailCells(component, true, rowIndex - 1, hostInfo));
                 rowIndex++;
             }
         }
         writer.WriteEndElement();
-        WriteAutoFilter(writer, $"A1:Y{Math.Max(1, rowIndex - 1)}");
+        WriteAutoFilter(writer, $"A1:AE{Math.Max(1, rowIndex - 1)}");
         writer.WriteEndElement();
     }
 
     private static CellValue[] BuildDetailCells(
         FastenerComponentData component,
         bool pairedNut,
-        int sequence)
+        int sequence,
+        IReadOnlyDictionary<Guid, FastenerDeliveryHostInfo>? hostInfo)
     {
         var clearance = component.Bindings.FirstOrDefault(binding => binding.Role == ShaftFitRole.Clearance);
         var engagement = component.Bindings.FirstOrDefault(binding => binding.Role == ShaftFitRole.ThreadEngagement);
@@ -207,8 +213,9 @@ public static class FastenerStatisticsWorkbookWriter
             .Where(binding => binding.Role == ShaftFitRole.ThreadEngagement)
             .Select(binding => FastenerLabels.Depth(binding.DepthMode))
             .Distinct());
-        var spec = Catalog.Value.Sizes.FirstOrDefault(item =>
-            string.Equals(item.Designation, component.Size, StringComparison.OrdinalIgnoreCase));
+        FastenerSizeSpec? spec = component.CustomDefinitionSnapshot?.SizeSpec
+            ?? Catalog.Value.Sizes.FirstOrDefault(item =>
+                string.Equals(item.Designation, component.Size, StringComparison.OrdinalIgnoreCase));
         var clearanceDiameter = spec is not null && clearance is not null
             ? HoleDiameterCalculator.Calculate(component, spec, clearance).FinalDiameter
             : (double?)null;
@@ -223,6 +230,9 @@ public static class FastenerStatisticsWorkbookWriter
             ? component.PairedNutStyle
             : component.Kind == FastenerKind.HexNut ? component.HexNutStyle : (HexNutStyle?)null;
         var position = (X: component.Placement.OriginX, Y: component.Placement.OriginY, Z: component.Placement.OriginZ);
+        var hosts = hostInfo is not null && hostInfo.TryGetValue(component.ComponentId, out var foundHosts)
+            ? foundHosts
+            : new FastenerDeliveryHostInfo();
         if (pairedNut && spec is not null)
         {
             var range = PairedNutAssemblyCalculator.AxialRange(component, spec);
@@ -255,6 +265,12 @@ public static class FastenerStatisticsWorkbookWriter
             Text(FastenerLabels.AssemblyMode(component.AssemblyMode)),
             component.AssemblyMode == ScrewAssemblyMode.NutFastened ? Number(component.NutTipProtrusion) : Blank(),
             component.AssemblyMode == ScrewAssemblyMode.NutFastened ? Number(component.NutPocketCompensation) : Blank(),
+            Text(component.Delivery.AssemblyNumber),
+            Text(component.Delivery.ProjectGroup),
+            Text(component.Delivery.UserNote),
+            Text(hosts.HostNames),
+            Text(hosts.HostLayers),
+            Text(role),
             Number(position.X),
             Number(position.Y),
             Number(position.Z),

@@ -10,7 +10,9 @@ internal sealed record PreparedFastenerGeometry(
     FastenerComponentData Draft,
     IReadOnlyList<Brep> Proxies,
     IReadOnlyList<CutterGeometryBuild> Cutters,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<string> Warnings,
+    string ParameterSignature,
+    string PreparationSignature);
 
 internal static class FastenerGeometryPreparationService
 {
@@ -35,7 +37,7 @@ internal static class FastenerGeometryPreparationService
                 return false;
             }
 
-            var spec = RhinoMMPlugIn.Catalog.Get(effectiveDraft.Size);
+            var spec = FastenerSpecResolver.Resolve(effectiveDraft, RhinoMMPlugIn.Catalog);
             var validation = FastenerComponentValidator.Validate(effectiveDraft, spec);
             if (!validation.IsValid)
             {
@@ -63,7 +65,21 @@ internal static class FastenerGeometryPreparationService
                 cutters.Add(cutter!);
                 warnings.AddRange(cutter!.Warnings);
             }
-            prepared = new PreparedFastenerGeometry(effectiveDraft, proxies, cutters, warnings);
+            var parameterSignature = ComponentReliabilitySignatureService.ParameterSignature(
+                doc,
+                effectiveDraft,
+                spec);
+            var preparationSignature = ComponentReliabilitySignatureService.PreparationSignature(
+                parameterSignature,
+                proxies,
+                cutters);
+            prepared = new PreparedFastenerGeometry(
+                effectiveDraft,
+                proxies,
+                cutters,
+                warnings,
+                parameterSignature,
+                preparationSignature);
             return true;
         }
         catch (Exception ex)

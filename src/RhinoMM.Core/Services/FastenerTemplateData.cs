@@ -7,7 +7,7 @@ namespace RhinoMM.Core.Services;
 
 public sealed record FastenerTemplateData
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 5;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
     public FastenerKind Kind { get; init; } = FastenerKind.SocketCap;
@@ -25,6 +25,12 @@ public sealed record FastenerTemplateData
     public double EngagementBlindDepth { get; init; } = 3;
     public bool CounterboreBridgeEnabled { get; init; }
     public double CounterboreBridgeLayerHeight { get; init; } = 0.2;
+    public bool EngagementEntryChamferEnabled { get; init; }
+    public double EngagementEntryChamferSize { get; init; } = 0.5;
+    public EngagementEntryChamferMode EngagementEntryChamferMode { get; init; } =
+        EngagementEntryChamferMode.AxialFortyFive;
+    public double EngagementOnlyAlignmentDepth { get; init; } = 3;
+    public double EngagementOnlyAlignmentDiameterCompensation { get; init; } = 0.2;
     public ScrewAssemblyMode AssemblyMode { get; init; } =
         ScrewAssemblyMode.ThreadEngagement;
     public HexNutStyle PairedNutStyle { get; init; } = HexNutStyle.Standard;
@@ -38,6 +44,9 @@ public sealed record FastenerTemplateData
     public bool? InstallationBooleanEnabled { get; init; }
     public bool? NutPocketPreviewVisible { get; init; }
     public bool? NutPocketBooleanEnabled { get; init; }
+    public Guid? CustomDefinitionId { get; init; }
+    public string CustomDefinitionName { get; init; } = "";
+    public FastenerDefinitionSnapshot? CustomDefinitionSnapshot { get; init; }
 
     public FastenerUpdateTemplate ToUpdateTemplate(
         double fastenerOpacityPercent,
@@ -71,7 +80,15 @@ public sealed record FastenerTemplateData
         NutTipProtrusion,
         NutPocketCompensation,
         NutPocketPreviewVisible,
-        NutPocketBooleanEnabled);
+        NutPocketBooleanEnabled,
+        CustomDefinitionId,
+        CustomDefinitionName,
+        CustomDefinitionSnapshot,
+        EngagementEntryChamferEnabled,
+        EngagementEntryChamferSize,
+        EngagementEntryChamferMode,
+        EngagementOnlyAlignmentDepth,
+        EngagementOnlyAlignmentDiameterCompensation);
 
     public string Signature()
     {
@@ -94,6 +111,11 @@ public sealed record FastenerTemplateData
         AddNumber(value.EngagementBlindDepth);
         Add(value.CounterboreBridgeEnabled);
         AddNumber(value.CounterboreBridgeLayerHeight);
+        Add(value.EngagementEntryChamferEnabled);
+        AddNumber(value.EngagementEntryChamferSize);
+        Add(value.EngagementEntryChamferMode);
+        AddNumber(value.EngagementOnlyAlignmentDepth);
+        AddNumber(value.EngagementOnlyAlignmentDiameterCompensation);
         Add(value.AssemblyMode);
         Add(value.PairedNutStyle);
         AddNumber(value.NutTipProtrusion);
@@ -106,6 +128,9 @@ public sealed record FastenerTemplateData
         Add(value.InstallationBooleanEnabled);
         Add(value.NutPocketPreviewVisible);
         Add(value.NutPocketBooleanEnabled);
+        Add(value.CustomDefinitionId);
+        Add(value.CustomDefinitionName);
+        Add(value.CustomDefinitionSnapshot?.Revision);
         return builder.ToString();
     }
 
@@ -131,10 +156,31 @@ public sealed record FastenerTemplateData
                 : DepthMode.FastenerLengthPlusOneDiameter,
             EngagementBlindDepth = isScrew ? EngagementBlindDepth : 3,
             CounterboreBridgeEnabled = Kind == FastenerKind.SocketCap
+                && HeadEmbedDepth > 0
                 && CounterboreBridgeEnabled,
             CounterboreBridgeLayerHeight = Kind == FastenerKind.SocketCap
                 ? CounterboreBridgeLayerHeight
                 : 0.2,
+            EngagementEntryChamferEnabled = isScrew
+                && assembly == ScrewAssemblyMode.ThreadEngagement
+                && EngagementEntryChamferEnabled,
+            EngagementEntryChamferSize = double.IsFinite(EngagementEntryChamferSize)
+                && EngagementEntryChamferSize is >= 0.05 and <= 5.0
+                    ? EngagementEntryChamferSize
+                    : 0.5,
+            EngagementEntryChamferMode = Enum.IsDefined(EngagementEntryChamferMode)
+                ? EngagementEntryChamferMode
+                : EngagementEntryChamferMode.AxialFortyFive,
+            EngagementOnlyAlignmentDepth = isScrew
+                && double.IsFinite(EngagementOnlyAlignmentDepth)
+                && EngagementOnlyAlignmentDepth is >= 0 and <= 1000
+                    ? EngagementOnlyAlignmentDepth
+                    : 0,
+            EngagementOnlyAlignmentDiameterCompensation = isScrew
+                && double.IsFinite(EngagementOnlyAlignmentDiameterCompensation)
+                && EngagementOnlyAlignmentDiameterCompensation is >= 0 and <= 5
+                    ? EngagementOnlyAlignmentDiameterCompensation
+                    : 0.2,
             AssemblyMode = assembly,
             PairedNutStyle = isScrew
                 ? PairedNutStyle
@@ -160,7 +206,9 @@ public sealed record FastenerTemplateData
                 : null,
             InstallationBooleanEnabled = FastenerKindTraits.IsNut(Kind)
                 ? InstallationBooleanEnabled
-                : null
+                : null,
+            CustomDefinitionId = CustomDefinitionSnapshot is null ? null : CustomDefinitionId,
+            CustomDefinitionName = CustomDefinitionSnapshot is null ? string.Empty : CustomDefinitionName.Trim()
         };
     }
 
@@ -181,6 +229,12 @@ public sealed record FastenerTemplateData
             EngagementBlindDepth = template.EngagementBlindDepth,
             CounterboreBridgeEnabled = template.CounterboreBridgeEnabled,
             CounterboreBridgeLayerHeight = template.CounterboreBridgeLayerHeight,
+            EngagementEntryChamferEnabled = template.EngagementEntryChamferEnabled,
+            EngagementEntryChamferSize = template.EngagementEntryChamferSize,
+            EngagementEntryChamferMode = template.EngagementEntryChamferMode,
+            EngagementOnlyAlignmentDepth = template.EngagementOnlyAlignmentDepth,
+            EngagementOnlyAlignmentDiameterCompensation =
+                template.EngagementOnlyAlignmentDiameterCompensation,
             AssemblyMode = template.AssemblyMode,
             PairedNutStyle = template.PairedNutStyle,
             NutTipProtrusion = template.NutTipProtrusion,
@@ -192,7 +246,10 @@ public sealed record FastenerTemplateData
             InstallationPreviewVisible = template.InstallationPreviewVisible,
             InstallationBooleanEnabled = template.InstallationBooleanEnabled,
             NutPocketPreviewVisible = template.NutPocketPreviewVisible,
-            NutPocketBooleanEnabled = template.NutPocketBooleanEnabled
+            NutPocketBooleanEnabled = template.NutPocketBooleanEnabled,
+            CustomDefinitionId = template.CustomDefinitionId,
+            CustomDefinitionName = template.CustomDefinitionName,
+            CustomDefinitionSnapshot = template.CustomDefinitionSnapshot
         }.Normalize();
 
     public static FastenerTemplateData FromComponent(FastenerComponentData component)
@@ -226,6 +283,12 @@ public sealed record FastenerTemplateData
                 ?? 3,
             CounterboreBridgeEnabled = component.CounterboreBridgeEnabled,
             CounterboreBridgeLayerHeight = component.CounterboreBridgeLayerHeight,
+            EngagementEntryChamferEnabled = component.EngagementEntryChamferEnabled,
+            EngagementEntryChamferSize = component.EngagementEntryChamferSize,
+            EngagementEntryChamferMode = component.EngagementEntryChamferMode,
+            EngagementOnlyAlignmentDepth = component.EngagementOnlyAlignmentDepth,
+            EngagementOnlyAlignmentDiameterCompensation =
+                component.EngagementOnlyAlignmentDiameterCompensation,
             AssemblyMode = component.AssemblyMode,
             PairedNutStyle = component.PairedNutStyle,
             NutTipProtrusion = component.NutTipProtrusion,
@@ -243,7 +306,10 @@ public sealed record FastenerTemplateData
             NutPocketPreviewVisible = nutPocket?.IsPreviewVisible
                 ?? profile?.NutPocketPreviewVisible,
             NutPocketBooleanEnabled = nutPocket?.IsBooleanEnabled
-                ?? profile?.NutPocketBooleanEnabled
+                ?? profile?.NutPocketBooleanEnabled,
+            CustomDefinitionId = component.CustomDefinitionId,
+            CustomDefinitionName = component.CustomDefinitionName,
+            CustomDefinitionSnapshot = component.CustomDefinitionSnapshot
         }.Normalize();
     }
 
@@ -253,8 +319,17 @@ public sealed record FastenerTemplateData
         {
             data = JsonSerializer.Deserialize<FastenerTemplateData>(json, JsonOptions())
                 ?? new FastenerTemplateData();
-            if (data.SchemaVersion != CurrentSchemaVersion)
+            if (data.SchemaVersion is < 1 or > CurrentSchemaVersion)
                 return false;
+            if (data.SchemaVersion < 5)
+            {
+                data = data with
+                {
+                    EngagementOnlyAlignmentDepth = 0,
+                    EngagementOnlyAlignmentDiameterCompensation = 0.2
+                };
+            }
+            data = data with { SchemaVersion = CurrentSchemaVersion };
             data = data.Normalize();
             return true;
         }
@@ -277,11 +352,12 @@ public sealed record FastenerTemplateEntry(
     Guid Id,
     string Name,
     FastenerTemplateData Data,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    AssemblySchemeOptions? Scheme = null);
 
 public sealed record FastenerTemplateLibraryDocument
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
     public IReadOnlyList<FastenerTemplateEntry> Recent { get; init; } = [];

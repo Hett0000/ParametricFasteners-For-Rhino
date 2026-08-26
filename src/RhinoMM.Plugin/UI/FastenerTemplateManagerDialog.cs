@@ -2,6 +2,7 @@ using System.Text;
 using Eto.Drawing;
 using Eto.Forms;
 using Rhino.UI;
+using RhinoMM.Core.Domain;
 using RhinoMM.Core.Services;
 using RhinoMM.Plugin.Services;
 
@@ -11,13 +12,16 @@ internal sealed class FastenerTemplateManagerDialog : Dialog
 {
     private readonly ListBox _list = new();
     private readonly Label _status = FastenerUiTheme.SecondaryLabel();
+    private readonly CheckBox _scheme = new() { Text = "作为装配方案" };
+    private readonly CheckBox _adaptive = new() { Text = "长度按宿主自适应" };
+    private readonly CheckBox _output = new() { Text = "保存当前输出偏好" };
 
     private FastenerTemplateManagerDialog()
     {
         Title = "紧固件模板管理";
         ClientSize = new Size(460, 360);
+        MinimumSize = new Size(360, 300);
         Resizable = true;
-        Padding = new Padding(12);
         FastenerUiTheme.SetRole(this, FastenerThemeRole.Canvas);
 
         var rename = MakeButton("重命名", RenameSelected);
@@ -27,27 +31,48 @@ internal sealed class FastenerTemplateManagerDialog : Dialog
         var delete = MakeButton("删除", DeleteSelected);
         var import = MakeButton("导入 JSON", ImportJson);
         var export = MakeButton("导出 JSON", ExportJson);
+        var saveScheme = MakeButton("保存方案设置", SaveScheme);
         var close = MakeButton("关闭", Close);
 
         var actions = new DynamicLayout { Spacing = new Size(6, 6) };
         actions.AddRow(rename, copy, up, down, delete);
-        actions.AddRow(import, export, null, close);
-        Content = new TableLayout
+        actions.AddRow(import, export, saveScheme, close);
+        var header = FastenerUiTheme.CreateCard(new DynamicLayout
         {
-            Spacing = new Size(8, 8),
-            Padding = new Padding(0),
             Rows =
             {
-                new TableRow(FastenerUiTheme.SectionTitle("收藏模板")),
-                new TableRow(_list) { ScaleHeight = true },
-                new TableRow(_status),
-                new TableRow(actions)
+                new DynamicRow(FastenerUiTheme.SectionTitle("收藏模板")),
+                new DynamicRow(FastenerUiTheme.SecondaryLabel("管理跨文档和 Rhino 会话复用的参数模板。"))
             }
-        };
+        });
+        Content = FastenerUiTheme.CreateWindowShell(
+            header,
+            FastenerUiTheme.CreateCard(new TableLayout
+            {
+                Spacing = new Size(0, FastenerUiTheme.SpaceSmall),
+                Rows =
+                {
+                    new TableRow(_list) { ScaleHeight = true },
+                    new TableRow(new StackLayout
+                    {
+                        Orientation = Orientation.Horizontal,
+                        Spacing = FastenerUiTheme.SpaceLarge,
+                        Items = { _scheme, _adaptive, _output }
+                    })
+                }
+            }, FastenerUiTheme.SpaceSmall),
+            _status,
+            actions);
         FastenerTemplateLibraryService.Changed += LibraryChanged;
         Closed += (_, _) => FastenerTemplateLibraryService.Changed -= LibraryChanged;
         RefreshList();
-        FastenerUiTheme.ApplyTree(this);
+        _list.SelectedIndexChanged += (_, _) => LoadSchemeControls();
+        _scheme.CheckedChanged += (_, _) =>
+        {
+            _adaptive.Enabled = _scheme.Checked == true;
+            _output.Enabled = _scheme.Checked == true;
+        };
+        FastenerUiTheme.WatchWindow(this);
     }
 
     public static void Show()
@@ -76,7 +101,7 @@ internal sealed class FastenerTemplateManagerDialog : Dialog
             _list.Items.Add(new ListItem
             {
                 Key = entry.Id.ToString("D"),
-                Text = $"{entry.Name}    {FastenerTemplateFormatter.Compact(entry.Data)}"
+                Text = $"{(entry.Scheme is null ? "模板" : "方案")} · {entry.Name}    {FastenerTemplateFormatter.Compact(entry.Data)}"
             });
         }
         if (selectedId != Guid.Empty)
@@ -84,6 +109,34 @@ internal sealed class FastenerTemplateManagerDialog : Dialog
         _status.Text = _list.Items.Count == 0
             ? "暂无收藏模板；可在主面板点击 ☆ 收藏当前模板。"
             : $"共 {_list.Items.Count} 个收藏模板。最近使用记录不会导出。";
+        LoadSchemeControls();
+    }
+
+    private void LoadSchemeControls()
+    {
+        var entry = FastenerTemplateLibraryService.Current.Favorites.FirstOrDefault(item => item.Id == SelectedId());
+        _scheme.Checked = entry?.Scheme is not null;
+        _adaptive.Checked = entry?.Scheme?.AdaptiveLength == true;
+        _output.Checked = entry?.Scheme?.OutputFormats is not null;
+        _adaptive.Enabled = _scheme.Checked == true;
+        _output.Enabled = _scheme.Checked == true;
+    }
+
+    private void SaveScheme()
+    {
+        var entry = SelectedEntry();
+        if (entry is null)
+            return;
+        var output = OutputCenterSettingsService.Current;
+        AssemblySchemeOptions? options = _scheme.Checked == true
+            ? new AssemblySchemeOptions(
+                AdaptiveLength: _adaptive.Checked == true,
+                OutputFormats: _output.Checked == true ? (int)output.Formats : null,
+                IncludeFastenerSolids: _output.Checked == true ? output.IncludeFasteners : null)
+            : null;
+        SetStatus(FastenerTemplateLibraryService.SetSchemeOptions(entry.Id, options, out var message), message);
+        RefreshList();
+        _list.SelectedKey = entry.Id.ToString("D");
     }
 
     private Guid SelectedId() =>
@@ -215,6 +268,7 @@ internal sealed class FastenerTemplateManagerDialog : Dialog
                 new DynamicRow(null, ok, cancel)
             }
         };
+        FastenerUiTheme.WatchWindow(dialog);
         return dialog.ShowModal(RhinoEtoApp.MainWindow);
     }
 

@@ -11,8 +11,20 @@ public static class FastenerComponentValidator
         if (FastenerKindTraits.UsesLengthInStatistics(component.Kind) && component.Length <= 0)
             result.Issues.Add(new("length", "紧固件长度必须大于 0。"));
 
-        if (component.HeadEmbedDepth < 0)
-            result.Issues.Add(new("head-embed-negative", "螺丝头嵌入深度不能小于 0。"));
+        if (!double.IsFinite(component.HeadEmbedDepth))
+            result.Issues.Add(new("head-offset-invalid", "螺丝头偏移必须是有限数值。"));
+
+        if (component.HeadEmbedDepth < 0
+            && !FastenerKindTraits.SupportsHeadGap(component.Kind))
+            result.Issues.Add(new("head-gap-unsupported", "只有螺丝支持负值离面间隙。"));
+
+        if (FastenerKindTraits.IsScrew(component.Kind)
+            && component.HeadEmbedDepth < 0
+            && component.HeadEmbedDepth + component.Length <= 0)
+            result.Issues.Add(new(
+                "head-gap-reach",
+                $"离面距离 {Math.Abs(component.HeadEmbedDepth):0.###} mm 已达到螺杆长度 "
+                + $"{component.Length:0.###} mm，螺杆无法进入宿主。"));
 
         if (!FastenerKindTraits.SupportsEmbedDepth(component.Kind) && component.HeadEmbedDepth != 0)
             result.Issues.Add(new("nut-head-embed", "螺母不支持螺丝头嵌入深度。"));
@@ -27,6 +39,16 @@ public static class FastenerComponentValidator
                 result.Issues.Add(new(
                     "engagement-only-binding",
                     "“只咬合”模式必须且只能绑定一个咬合宿主。"));
+            if (!double.IsFinite(component.EngagementOnlyAlignmentDepth)
+                || component.EngagementOnlyAlignmentDepth is < 0 or > 1000)
+                result.Issues.Add(new(
+                    "engagement-only-alignment-depth",
+                    "只咬合对位深度必须在 0–1000 mm 之间。"));
+            if (!double.IsFinite(component.EngagementOnlyAlignmentDiameterCompensation)
+                || component.EngagementOnlyAlignmentDiameterCompensation is < 0 or > 5)
+                result.Issues.Add(new(
+                    "engagement-only-alignment-diameter",
+                    "只咬合对位正补偿必须在 0–5 mm 之间。"));
         }
 
         if (assemblyMode == ScrewAssemblyMode.NutFastened)
@@ -77,6 +99,28 @@ public static class FastenerComponentValidator
                     "悬垂沉孔架桥层高必须在 0.05–1.00 mm 之间。"));
         }
 
+        if (component.EngagementEntryChamferEnabled)
+        {
+            if (!FastenerKindTraits.IsScrew(component.Kind)
+                || component.AssemblyMode != ScrewAssemblyMode.ThreadEngagement)
+            {
+                result.Issues.Add(new ValidationIssue(
+                    "engagement-chamfer-mode",
+                    "咬合孔入口倒角仅支持螺纹咬合装配方式。"));
+            }
+            if (!double.IsFinite(component.EngagementEntryChamferSize)
+                || component.EngagementEntryChamferSize is < 0.05 or > 5.0)
+            {
+                result.Issues.Add(new ValidationIssue(
+                    "engagement-chamfer-size",
+                    "咬合孔入口倒角 C 值必须在 0.05–5.00 mm 之间。"));
+            }
+            if (!Enum.IsDefined(component.EngagementEntryChamferMode))
+                result.Issues.Add(new ValidationIssue(
+                    "engagement-chamfer-mode-value",
+                    "咬合孔入口倒角方式无效。"));
+        }
+
         if (FastenerKindTraits.SupportsHeadEmbed(component.Kind)
             && component.HeadEmbedDepth > 0
             && component.Bindings.All(binding => !binding.IncludeHeadSeat))
@@ -96,6 +140,21 @@ public static class FastenerComponentValidator
 
         if (component.AutoRecognizeHosts && component.SmartBindingProfile is null)
             result.Issues.Add(new("smart-host-profile", "智能组件缺少宿主识别工艺模板。"));
+
+        if (component.ConfirmedEngagementHostId != Guid.Empty)
+        {
+            if (!FastenerKindTraits.IsScrew(component.Kind)
+                || component.AssemblyMode != ScrewAssemblyMode.ThreadEngagement)
+                result.Issues.Add(new(
+                    "confirmed-engagement-mode",
+                    "固定咬合宿主只适用于螺纹咬合装配方式。"));
+            else if (component.Bindings.All(binding =>
+                         binding.TargetObjectId != component.ConfirmedEngagementHostId
+                         || binding.Role != ShaftFitRole.ThreadEngagement))
+                result.Issues.Add(new(
+                    "confirmed-engagement-binding",
+                    "已确认咬合宿主与当前咬合绑定不一致；请解除确认或重新绑定。"));
+        }
 
         if (component.Kind == FastenerKind.HeatSetInsert)
         {

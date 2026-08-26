@@ -31,7 +31,14 @@ public sealed class RhinoMMPanel : Panel, IPanel
     private readonly CardSelector _size = new();
     private readonly CardSelector _lengthCards = new();
     private readonly NumericStepper _length = new() { MinValue = 0, MaxValue = 500, DecimalPlaces = 2, Increment = 0.5 };
-    private readonly NumericStepper _headEmbed = new() { MinValue = 0, MaxValue = 500, DecimalPlaces = 2, Increment = 0.1 };
+    private readonly NumericStepper _headEmbed = new()
+    {
+        MinValue = -500,
+        MaxValue = 500,
+        DecimalPlaces = 2,
+        Increment = 0.1,
+        ToolTip = "正值表示嵌入，0 表示头底贴面，负值表示螺丝头离开宿主表面的距离。"
+    };
     private readonly NumericStepper _insertOuterDiameter = new() { MinValue = 0, MaxValue = 500, DecimalPlaces = 2, Increment = 0.1 };
     private readonly NumericStepper _insertDiameterCompensation = new() { MinValue = -20, MaxValue = 20, DecimalPlaces = 2, Increment = 0.05 };
     private readonly NumericStepper _insertDepthCompensation = new() { MinValue = 0, MaxValue = 1000, DecimalPlaces = 2, Increment = 0.1, Value = 1 };
@@ -96,6 +103,49 @@ public sealed class RhinoMMPanel : Panel, IPanel
         Text = "每层 0.20 mm · 总高 0.40 mm",
         Wrap = WrapMode.Word
     };
+    private readonly CheckBox _engagementEntryChamferEnabled = new()
+    {
+        Text = "咬合孔入口倒角",
+        ToolTip = "仅用于螺纹咬合模式；沿螺丝轴生成45°直线锥口。"
+    };
+    private readonly NumericStepper _engagementEntryChamferSize = new()
+    {
+        MinValue = 0.05,
+        MaxValue = 5.0,
+        DecimalPlaces = 2,
+        Increment = 0.05,
+        Value = 0.5,
+        ToolTip = "轴向45°模式表示最深入口处的最小倒角；表面等距模式表示宿主表面和孔壁各退让 C。"
+    };
+    private readonly NumericStepper _engagementOnlyAlignmentDepth = new()
+    {
+        MinValue = 0,
+        MaxValue = 1000,
+        DecimalPlaces = 2,
+        Increment = 0.5,
+        Value = 3,
+        ToolTip = "从完整孔口圆周的最深入口起算；0 表示关闭顶部对位孔。"
+    };
+    private readonly NumericStepper _engagementOnlyAlignmentCompensation = new()
+    {
+        MinValue = 0,
+        MaxValue = 5,
+        DecimalPlaces = 2,
+        Increment = 0.05,
+        Value = 0.2,
+        ToolTip = "对位孔直径 = 螺纹公称直径 + 此正补偿 + 宿主附加修正。"
+    };
+    private readonly Label _engagementOnlyAlignmentSummary = new()
+    {
+        TextColor = FastenerUiTheme.SecondaryText,
+        Wrap = WrapMode.Word
+    };
+    private readonly CardSelector _engagementEntryChamferMode = new();
+    private readonly Label _engagementEntryChamferSummary = new()
+    {
+        Text = "45°直线倒角 · C0.5",
+        Wrap = WrapMode.None
+    };
     private readonly CardSelector _assemblyMode = new();
     private readonly NumericStepper _nutTipProtrusion = new()
     {
@@ -130,13 +180,13 @@ public sealed class RhinoMMPanel : Panel, IPanel
         Text = "未读取组件",
         Font = new Font(SystemFont.Bold, 12),
         TextColor = FastenerUiTheme.PrimaryText,
-        Wrap = WrapMode.Word,
+        Wrap = WrapMode.None,
         Height = 22
     };
     private readonly Label _status = new()
     {
         Text = "选择组件后点击“读取组件”。",
-        Wrap = WrapMode.Word,
+        Wrap = WrapMode.None,
         Height = 18,
         TextColor = FastenerUiTheme.SecondaryText
     };
@@ -179,6 +229,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
     private readonly List<Button> _actionButtons = [];
     private readonly Dictionary<Button, PanelActionIcon> _actionButtonIcons = [];
     private readonly UITimer _selectionTimer = new() { Interval = 0.06 };
+    private readonly UITimer _successStatusTimer = new() { Interval = 1.2 };
     private FastenerComponentData? _loadedComponent;
     private IReadOnlyList<FastenerComponentData> _loadedComponents = [];
     private SelectedComponentSummary? _selectedSummary;
@@ -192,6 +243,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
     private bool? _nutPocketBooleanOverride;
     private bool _loadingControls;
     private bool _geometryDirty;
+    private bool _applyInProgress;
     private HoleEditingContext _holeEditingContext = HoleEditingContext.PlacementPreset;
     private ResponsiveLayoutProfile? _layoutProfile;
     private StatusKind _statusKind = StatusKind.Info;
@@ -200,6 +252,12 @@ public sealed class RhinoMMPanel : Panel, IPanel
     public RhinoMMPanel()
     {
         _currentPanel = new WeakReference<RhinoMMPanel>(this);
+        _successStatusTimer.Elapsed += (_, _) =>
+        {
+            _successStatusTimer.Stop();
+            if (_statusKind == StatusKind.Success)
+                ShowSelectionSummary();
+        };
         Style = Panels.EtoPanelStyleName;
         FastenerUiTheme.RefreshPalette();
         FastenerUiTheme.SetRole(this, FastenerThemeRole.Canvas);
@@ -242,6 +300,18 @@ public sealed class RhinoMMPanel : Panel, IPanel
         _assemblyMode.Add(ScrewAssemblyMode.NutFastened.ToString(), "螺母固定", "全部正补偿通孔 + 末端螺母槽");
         _assemblyMode.SetColumns(3);
         _assemblyMode.Select(ScrewAssemblyMode.ThreadEngagement.ToString(), false);
+        _engagementEntryChamferMode.Add(
+            EngagementEntryChamferMode.AxialFortyFive.ToString(),
+            "轴向45°",
+            "沿螺丝轴生成45°锥形导入口，支持平面和连续曲面入口。");
+        _engagementEntryChamferMode.Add(
+            EngagementEntryChamferMode.SurfaceEqualDistance.ToString(),
+            "表面等距",
+            "宿主表面和孔壁分别退让相同 C 值；仅支持单一连续平面入口。");
+        _engagementEntryChamferMode.SetColumns(2);
+        _engagementEntryChamferMode.Select(
+            EngagementEntryChamferMode.AxialFortyFive.ToString(),
+            false);
         _holeContext.Add(HoleEditingContext.CurrentComponent.ToString(), "当前组件");
         _holeContext.Add(HoleEditingContext.PlacementPreset.ToString(), "放置预设");
         _holeContext.SetColumns(2);
@@ -318,13 +388,15 @@ public sealed class RhinoMMPanel : Panel, IPanel
         _scrollable.SizeChanged += (_, _) => RebuildResponsiveLayout();
         RhinoApp.AppSettingsChanged += RhinoAppSettingsChanged;
         RhinoDoc.SelectObjects += DocumentSelectionChanged;
+        RhinoDoc.DeselectAllObjects += DocumentSelectionCleared;
         ComponentEditorSession.ActiveSelectionChanged += SessionSelectionChanged;
         FastenerTemplateLibraryService.Changed += TemplateLibraryChanged;
+        ComponentDocumentHealthService.ReportChanged += DocumentHealthChanged;
         WireEvents();
         LoadControls();
         RebuildResponsiveLayout(force: true);
         UpdateHoleContextPresentation();
-        RefreshSelectedTargets();
+        SynchronizeSelectedTargets();
         UpdateSummary();
         ApplyTheme();
     }
@@ -342,17 +414,29 @@ public sealed class RhinoMMPanel : Panel, IPanel
                 out var intent)
             && intent == ComponentActivationIntent.LoadIntoEditor)
             ActivateComponents(activeComponents);
-        RefreshSelectedTargets();
+        SynchronizeSelectedTargets();
     }
 
     public void PanelHidden(uint documentSerialNumber, ShowPanelReason reason) { }
 
     public void PanelClosing(uint documentSerialNumber, bool onCloseDocument)
     {
+        _selectionTimer.Stop();
+        _successStatusTimer.Stop();
         RhinoApp.AppSettingsChanged -= RhinoAppSettingsChanged;
         RhinoDoc.SelectObjects -= DocumentSelectionChanged;
+        RhinoDoc.DeselectAllObjects -= DocumentSelectionCleared;
         ComponentEditorSession.ActiveSelectionChanged -= SessionSelectionChanged;
         FastenerTemplateLibraryService.Changed -= TemplateLibraryChanged;
+        ComponentDocumentHealthService.ReportChanged -= DocumentHealthChanged;
+    }
+
+    private void DocumentHealthChanged(object? sender, DocumentHealthReportChangedEventArgs e)
+    {
+        if (RhinoDoc.ActiveDoc?.RuntimeSerialNumber != e.Document.RuntimeSerialNumber
+            || !e.Report.HasProblems)
+            return;
+        Application.Instance.AsyncInvoke(() => SetStatus(e.Report.Summary, StatusKind.Warning));
     }
 
     private void RhinoAppSettingsChanged(object? sender, EventArgs e) =>
@@ -369,6 +453,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
         _size.RefreshTheme();
         _lengthCards.RefreshTheme();
         _assemblyMode.RefreshTheme();
+        _engagementEntryChamferMode.RefreshTheme();
         _holeContext.RefreshTheme();
         foreach (var button in _actionButtons)
             ApplyActionButtonStyle(button);
@@ -381,7 +466,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
         _selectionTimer.Elapsed += (_, _) =>
         {
             _selectionTimer.Stop();
-            RefreshSelectedTargets();
+            SynchronizeSelectedTargets();
         };
         _kind.SelectedKeyChanged += (_, _) =>
         {
@@ -398,15 +483,25 @@ public sealed class RhinoMMPanel : Panel, IPanel
             RebuildResponsiveLayout(force: true);
             UpdateInsertSummary();
             UpdateHoleDiameterSummary();
+            UpdateEngagementOnlyAlignmentSummary();
             UpdatePairedNutSummary();
             ScheduleUpdate();
         };
         _nylonLockingNut.CheckedChanged += (_, _) => HexNutStyleChanged();
         _size.SelectedKeyChanged += (_, _) =>
         {
+            if (!_loadingControls
+                && EditorState.Current.CustomDefinitionSnapshot is not null
+                && !string.Equals(_size.SelectedKey, EditorState.Current.CustomDefinitionSnapshot.ThreadDesignation, StringComparison.OrdinalIgnoreCase))
+            {
+                EditorState.Current.CustomDefinitionId = null;
+                EditorState.Current.CustomDefinitionName = string.Empty;
+                EditorState.Current.CustomDefinitionSnapshot = null;
+            }
             PreserveHexNutEmbedModeAcrossSizeChange();
             UpdateInsertSummary();
             UpdateHoleDiameterSummary();
+            UpdateEngagementOnlyAlignmentSummary();
             UpdatePairedNutSummary();
             ScheduleUpdate();
         };
@@ -419,6 +514,12 @@ public sealed class RhinoMMPanel : Panel, IPanel
         };
         _headEmbed.ValueChanged += (_, _) =>
         {
+            if (!_loadingControls
+                && _headEmbed.Value <= 0
+                && _counterboreBridgeEnabled.Checked == true)
+                _counterboreBridgeEnabled.Checked = false;
+            _counterboreBridgeEnabled.Enabled = SelectedKind() == FastenerKind.SocketCap
+                && _headEmbed.Value > 0;
             UpdateInsertSummary();
             ScheduleUpdate();
         };
@@ -461,6 +562,16 @@ public sealed class RhinoMMPanel : Panel, IPanel
             CounterboreBridgeChanged(rebuildLayout: true);
         _counterboreBridgeLayerHeight.ValueChanged += (_, _) =>
             CounterboreBridgeChanged(rebuildLayout: false);
+        _engagementEntryChamferEnabled.CheckedChanged += (_, _) =>
+            EngagementEntryChamferChanged(rebuildLayout: true);
+        _engagementEntryChamferMode.SelectedKeyChanged += (_, _) =>
+            EngagementEntryChamferChanged(rebuildLayout: false);
+        _engagementEntryChamferSize.ValueChanged += (_, _) =>
+            EngagementEntryChamferChanged(rebuildLayout: false);
+        _engagementOnlyAlignmentDepth.ValueChanged += (_, _) =>
+            EngagementOnlyAlignmentChanged();
+        _engagementOnlyAlignmentCompensation.ValueChanged += (_, _) =>
+            EngagementOnlyAlignmentChanged();
         _assemblyMode.SelectedKeyChanged += (_, _) => AssemblyModeChanged();
         _pairedNutLocking.CheckedChanged += (_, _) => PairedNutParameterChanged(rebuildLayout: false);
         _nutTipProtrusion.ValueChanged += (_, _) => PairedNutParameterChanged(rebuildLayout: false);
@@ -478,15 +589,18 @@ public sealed class RhinoMMPanel : Panel, IPanel
 
     private Control BuildActions()
     {
-        var load = MakeActionButton(
-            PanelActionIcon.Read,
-            "读取组件：读取选中控制点的参数",
-            (_, _) => LoadSelection());
         ConfigureActionButton(
             _placeButton,
             PanelActionIcon.Place,
-            "放置 / 绑定：创建并绑定新的紧固件",
+            "放置 / 绑定｜左击：智能放置｜右击：点集批量放置",
             (_, _) => Run("_-ParametricFastenersPlace"));
+        _placeButton.MouseDown += (_, e) =>
+        {
+            if (!e.Buttons.HasFlag(MouseButtons.Alternate))
+                return;
+            e.Handled = true;
+            Application.Instance.AsyncInvoke(() => Run("_-ParametricFastenersBatchPlace"));
+        };
         ConfigureActionButton(
             _applyButton,
             PanelActionIcon.Apply,
@@ -516,14 +630,19 @@ public sealed class RhinoMMPanel : Panel, IPanel
             PanelActionIcon.Statistics,
             "紧固件统计：统计数量并可保存 Excel",
             (_, _) => Run("_-ParametricFastenersStatistics"));
+        var inspector = MakeActionButton(
+            PanelActionIcon.Inspector,
+            "装配检查器：检查装配可靠性、布尔结果与长度建议",
+            (_, _) => Run("_-ParametricFastenersAssemblyInspector"));
         ConfigureActionButton(
             _moreButton,
             PanelActionIcon.More,
-            "更多：全局显示、导出 STL、转换模型和校验文档",
+            "更多：读取、模板、输出、全局显示、版本信息等工具",
             (_, _) => ShowMoreMenu(_moreButton));
         _actionButtons.AddRange([
-            load, _placeButton, _applyButton, refresh,
-            toRhino, step, statistics, _moreButton
+            _placeButton, _applyButton, refresh,
+            toRhino, step, statistics,
+            inspector, _moreButton
         ]);
         RebuildActionLayout();
         UpdatePrimaryActionStyle();
@@ -535,7 +654,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
         var cells = new List<TableCell>();
         for (var index = 0; index < _actionButtons.Count; index++)
         {
-            if (index == 4)
+            if (index is 3 or 6)
                 cells.Add(new TableCell(new Panel { Width = 4 }));
             cells.Add(new TableCell(_actionButtons[index], true));
         }
@@ -558,22 +677,8 @@ public sealed class RhinoMMPanel : Panel, IPanel
             return;
         }
 
-        var loadedIds = _loadedComponents
-            .Select(component => component.ComponentId)
-            .ToArray();
-        var succeeded = ComponentRefreshCoordinator.TryExecute(
-            doc,
-            loadedIds,
-            out var result,
-            out var message);
-        if (!succeeded)
-        {
-            SetStatus(message, StatusKind.Error);
-            return;
-        }
-
-        RefreshSelectedTargets();
-        SetStatus(message, result.FailedComponents > 0 ? StatusKind.Warning : StatusKind.Success);
+        MaintenanceCenterDialog.Show(doc);
+        SynchronizeSelectedTargets();
     }
 
     internal static void OpenMoreMenu()
@@ -589,42 +694,51 @@ public sealed class RhinoMMPanel : Panel, IPanel
         });
     }
 
+    internal static bool ApplyCurrentTemplateToSelection(out string message)
+    {
+        if (_currentPanel is null || !_currentPanel.TryGetTarget(out var panel))
+        {
+            message = "主面板尚未打开，无法读取当前创建模板。";
+            return false;
+        }
+        var success = panel.ApplyLoaded();
+        message = success ? "已将主面板模板应用到当前选择。" : "主面板模板更新未完成；请查看面板状态或 Rhino 命令行。";
+        return success;
+    }
+
+    internal static void LoadExternalTemplate(FastenerTemplateData data, string name)
+    {
+        Panels.OpenPanel(typeof(RhinoMMPanel).GUID);
+        Application.Instance.AsyncInvoke(() =>
+        {
+            if (_currentPanel is not null && _currentPanel.TryGetTarget(out var panel))
+                panel.ApplyTemplateData(data, name);
+        });
+    }
+
     private void ShowMoreMenu(Control owner)
     {
-        var handles = new ButtonMenuItem { Text = "参数手柄…" };
-        handles.Click += (_, _) => Run("_-ParametricFastenersEditHandles");
-        var repeatPlace = new ButtonMenuItem { Text = "重复上一放置" };
-        repeatPlace.Click += (_, _) => Run("_-ParametricFastenersRepeatPlace");
-        var repeatUpdate = new ButtonMenuItem { Text = "重复上一更新" };
-        repeatUpdate.Click += (_, _) => Run("_-ParametricFastenersRepeatUpdate");
-        var templates = new ButtonMenuItem { Text = "模板管理…" };
-        templates.Click += (_, _) => FastenerTemplateManagerDialog.Show();
-        var display = new ButtonMenuItem { Text = "全局显示…" };
-        display.Click += (_, _) => GlobalDisplaySettingsDialog.Show(RhinoDoc.ActiveDoc);
-        var stl = new ButtonMenuItem { Text = "导出 STL…" };
-        stl.Click += (_, _) => RunExport("_-ParametricFastenersExportStl");
-        var adopt = new ButtonMenuItem { Text = "转换选中模型" };
-        adopt.Click += (_, _) => Run("_-ParametricFastenersAdopt");
-        var validate = new ButtonMenuItem { Text = "校验文档" };
-        validate.Click += (_, _) => Run("_-ParametricFastenersValidate");
-        var menu = new ContextMenu
-        {
-            Items =
-            {
-                handles,
-                repeatPlace,
-                repeatUpdate,
-                templates,
-                new SeparatorMenuItem(),
-                display,
-                new SeparatorMenuItem(),
-                stl,
-                new SeparatorMenuItem(),
-                adopt,
-                validate
-            }
-        };
-        menu.Show(owner);
+        FastenerActionPalette.Show(owner,
+        [
+            new("编辑", "读取选中组件参数", "读取 模板 参数", LoadSelection),
+            new("编辑", "参数手柄", "长度 嵌入 旋转 露出", () => Run("_-ParametricFastenersEditHandles")),
+            new("编辑", "重复上一放置", "重复 放置", () => Run("_-ParametricFastenersRepeatPlace")),
+            new("编辑", "重复上一更新", "重复 更新", () => Run("_-ParametricFastenersRepeatUpdate")),
+            new("编辑", "长度按宿主自适应更新", "批量 长度 宿主 自适应", () => Run("_-ParametricFastenersAdaptiveUpdate")),
+            new("检查", "组件导航器与问题中心", "导航 问题 健康", () => Run("_-ParametricFastenersNavigator")),
+            new("检查", "装配检查器", "长度 建议 碰撞 壁厚", () => Run("_-ParametricFastenersAssemblyInspector")),
+            new("检查", "智能装配建议", "测量 长度 装配方式 自适应", () => Run("_-ParametricFastenersAssemblySuggestions")),
+            new("检查", "维护中心", "刷新 重绑 清理 修复", () => Run("_-ParametricFastenersRefresh")),
+            new("检查", "校验文档", "校验 验证", () => Run("_-ParametricFastenersValidate")),
+            new("输出", "输出中心", "3DM STEP STL Excel CSV", () => Run("_-ParametricFastenersOutputCenter")),
+            new("输出", "导出 STL", "打印 网格", () => RunExport("_-ParametricFastenersExportStl")),
+            new("管理", "模板管理", "最近 收藏 导入 导出", FastenerTemplateManagerDialog.Show),
+            new("管理", "装配方案管理", "收藏 方案 自适应 输出", FastenerTemplateManagerDialog.Show),
+            new("管理", "自定义标准件库 Beta", "规格 标准件 JSON CSV", () => Run("_-ParametricFastenersCustomLibrary")),
+            new("管理", "转换选中模型", "迁移 旧模型", () => Run("_-ParametricFastenersAdopt")),
+            new("设置", "全局显示", "透明度 本体 切割", () => GlobalDisplaySettingsDialog.Show(RhinoDoc.ActiveDoc)),
+            new("设置", $"关于参数化紧固件 · v{FastenerVersionInfo.PluginVersion}", "版本 安装 路径", FastenerAboutDialog.Show)
+        ]);
     }
 
     private void ShowTemplateMenu(Control owner)
@@ -636,7 +750,11 @@ public sealed class RhinoMMPanel : Panel, IPanel
             foreach (var entry in FastenerTemplateLibraryService.Current.Recent)
             {
                 var item = new ButtonMenuItem { Text = entry.Name };
-                item.Click += (_, _) => ApplyTemplateData(entry.Data, entry.Name);
+                item.Click += (_, _) =>
+                {
+                    FastenerTemplateLibraryService.ActivateScheme(entry.Scheme);
+                    ApplyTemplateData(entry.Data, entry.Name);
+                };
                 menu.Items.Add(item);
             }
         }
@@ -648,7 +766,11 @@ public sealed class RhinoMMPanel : Panel, IPanel
             foreach (var entry in FastenerTemplateLibraryService.Current.Favorites)
             {
                 var item = new ButtonMenuItem { Text = $"★ {entry.Name}" };
-                item.Click += (_, _) => ApplyTemplateData(entry.Data, entry.Name);
+                item.Click += (_, _) =>
+                {
+                    FastenerTemplateLibraryService.ActivateScheme(entry.Scheme);
+                    ApplyTemplateData(entry.Data, entry.Name);
+                };
                 menu.Items.Add(item);
             }
         }
@@ -705,7 +827,12 @@ public sealed class RhinoMMPanel : Panel, IPanel
             data.NutTipProtrusion,
             data.NutPocketCompensation,
             nutPreview,
-            nutBoolean);
+            nutBoolean,
+            data.EngagementEntryChamferEnabled,
+            data.EngagementEntryChamferSize,
+            data.EngagementEntryChamferMode,
+            data.EngagementOnlyAlignmentDepth,
+            data.EngagementOnlyAlignmentDiameterCompensation);
         if (RhinoMMPlugIn.Instance is { } plugin)
         {
             PlacementPresetService.Save(plugin.Settings, preset, out _);
@@ -815,15 +942,17 @@ public sealed class RhinoMMPanel : Panel, IPanel
             if (profile.PairDimensionFields)
                 _parameterLayout.AddRow(CompactRow(
                     FieldStack("自定义长度 mm", _length),
-                    FieldStack("嵌入深度 mm", _headEmbedControl)));
+                    FieldStack("嵌入/离面 mm", _headEmbedControl)));
             else
             {
                 _parameterLayout.AddRow(CompactRow(FieldStack("自定义长度 mm", _length)));
-                _parameterLayout.AddRow(CompactRow(FieldStack("嵌入深度 mm", _headEmbedControl)));
+                _parameterLayout.AddRow(CompactRow(FieldStack("嵌入/离面 mm", _headEmbedControl)));
             }
         }
 
-        _holeHeaderLayout.AddRow(CompactRow(_holeTitle, _holeContextHost));
+        // 0.37 exposes one unambiguous template surface. Component selection
+        // only supplies update targets; it never switches the visible hole editor.
+        _holeHeaderLayout.AddRow(_holeTitle);
         if (selectedKind == FastenerKind.HexNut)
         {
             _holeParameterLayout.AddRow(CompactRow(
@@ -894,6 +1023,10 @@ public sealed class RhinoMMPanel : Panel, IPanel
         if (assemblyMode == ScrewAssemblyMode.EngagementOnly)
         {
             _presetOptionsLayout.AddRow(CompactRow(depth, engagementOptions));
+            _presetOptionsLayout.AddRow(CompactRow(
+                FieldStack("对位深度 mm", _engagementOnlyAlignmentDepth),
+                FieldStack("对位正补偿 mm", _engagementOnlyAlignmentCompensation)));
+            _presetOptionsLayout.AddRow(CompactRow(_engagementOnlyAlignmentSummary));
         }
         else if (assemblyMode == ScrewAssemblyMode.NutFastened)
         {
@@ -916,6 +1049,19 @@ public sealed class RhinoMMPanel : Panel, IPanel
         {
             _presetOptionsLayout.AddRow(CompactRow(
                 FieldStack("追加深度 mm", _presetBlindDepth)));
+        }
+
+        if (assemblyMode == ScrewAssemblyMode.ThreadEngagement)
+        {
+            _presetOptionsLayout.AddRow(CompactRow(_engagementEntryChamferEnabled));
+            if (_engagementEntryChamferEnabled.Checked == true)
+            {
+                _presetOptionsLayout.AddRow(
+                    FieldStack("倒角方式", _engagementEntryChamferMode));
+                _presetOptionsLayout.AddRow(CompactRow(
+                    FieldStack("倒角 C mm", _engagementEntryChamferSize),
+                    _engagementEntryChamferSummary));
+            }
         }
 
         if (SelectedKind() == FastenerKind.SocketCap)
@@ -942,6 +1088,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
         _bite.Width = profile.NumericFieldWidth;
         _presetDepth.Width = profile.DepthFieldWidth;
         _presetBlindDepth.Width = profile.NumericFieldWidth;
+        _engagementEntryChamferSize.Width = profile.NumericFieldWidth;
         _counterboreBridgeLayerHeight.Width = profile.NumericFieldWidth;
         _nutTipProtrusion.Width = profile.NumericFieldWidth;
         _nutPocketCompensation.Width = profile.NumericFieldWidth;
@@ -1021,15 +1168,28 @@ public sealed class RhinoMMPanel : Panel, IPanel
     {
         if (RhinoDoc.ActiveDoc?.RuntimeSerialNumber != e.Document.RuntimeSerialNumber)
             return;
+        ScheduleSelectedTargetSynchronization();
+    }
+
+    private void DocumentSelectionCleared(
+        object? sender,
+        Rhino.DocObjects.RhinoDeselectAllObjectsEventArgs e)
+    {
+        if (RhinoDoc.ActiveDoc?.RuntimeSerialNumber != e.Document.RuntimeSerialNumber)
+            return;
+        ScheduleSelectedTargetSynchronization();
+    }
+
+    private void ScheduleSelectedTargetSynchronization() =>
         Application.Instance.AsyncInvoke(() =>
         {
             _selectionTimer.Stop();
             _selectionTimer.Start();
         });
-    }
 
-    private void RefreshSelectedTargets()
+    private void SynchronizeSelectedTargets()
     {
+        _selectionTimer.Stop();
         if (RhinoDoc.ActiveDoc is not { } doc)
         {
             _selectedSummary = null;
@@ -1045,7 +1205,9 @@ public sealed class RhinoMMPanel : Panel, IPanel
 
     private void ShowSelectionSummary()
     {
-        var text = _selectedSummary?.ShortText ?? "未选择更新目标";
+        var text = _selectedSummary is null
+            ? "选择目标 · 未选择更新目标"
+            : $"选择目标 · {_selectedSummary.ShortText}";
         _status.Text = text;
         _status.ToolTip = _selectedSummary?.FullText ?? text;
         _statusKind = _selectedSummary?.HasBlockingIssues == true
@@ -1062,7 +1224,9 @@ public sealed class RhinoMMPanel : Panel, IPanel
             ActivateComponents(e.Components);
         else
             RefreshLoadedComponentCache(e.Document, e.Components);
-        RefreshSelectedTargets();
+        SynchronizeSelectedTargets();
+        if (ComponentDocumentHealthService.Current(e.Document) is { HasProblems: true } health)
+            SetStatus(health.Summary, StatusKind.Warning);
     }
 
     private void RefreshLoadedComponentCache(
@@ -1117,6 +1281,13 @@ public sealed class RhinoMMPanel : Panel, IPanel
         _holeEditingContext = HoleEditingContext.CurrentComponent;
         _holeContext.Select(HoleEditingContext.CurrentComponent.ToString(), false);
         LoadControls();
+        // Reading is the only operation that replaces the create/update template.
+        // Once loaded, keep a single visible template context for both future
+        // placement and selection-driven updates.
+        _holeEditingContext = HoleEditingContext.PlacementPreset;
+        _holeContext.Select(HoleEditingContext.PlacementPreset.ToString(), false);
+        SaveControls();
+        SaveActivePlacementPresetControls();
         UpdateSummary();
         if (components.Any(ComponentHostResolver.NeedsRelink))
             SetStatus("组件副本尚未绑定宿主；请选择对应宿主后运行“刷新 / 清理”。", StatusKind.Warning);
@@ -1146,14 +1317,25 @@ public sealed class RhinoMMPanel : Panel, IPanel
         _size.Select(state.Size, false);
         _length.Value = state.Length;
         UpdateLengthCardSelection();
+        _headEmbed.MinValue = FastenerKindTraits.SupportsHeadGap(state.Kind) ? -500 : 0;
         _headEmbed.Value = state.HeadEmbedDepth;
         _counterboreBridgeEnabled.Checked = state.CounterboreBridgeEnabled;
         _counterboreBridgeLayerHeight.Value = state.CounterboreBridgeLayerHeight;
+        _engagementEntryChamferEnabled.Checked = state.EngagementEntryChamferEnabled;
+        _engagementEntryChamferMode.Select(
+            state.EngagementEntryChamferMode.ToString(),
+            false);
+        _engagementEntryChamferSize.Value = state.EngagementEntryChamferSize;
+        _engagementOnlyAlignmentDepth.Value = state.EngagementOnlyAlignmentDepth;
+        _engagementOnlyAlignmentCompensation.Value =
+            state.EngagementOnlyAlignmentDiameterCompensation;
         _assemblyMode.Select(state.AssemblyMode.ToString(), false);
         _pairedNutLocking.Checked = state.PairedNutStyle == HexNutStyle.NylonInsertLocking;
         _nutTipProtrusion.Value = state.NutTipProtrusion;
         _nutPocketCompensation.Value = state.NutPocketCompensation;
         UpdateCounterboreBridgeSummary();
+        UpdateEngagementEntryChamferSummary();
+        UpdateEngagementOnlyAlignmentSummary();
         _insertOuterDiameter.Value = state.InsertOuterDiameter;
         _insertDiameterCompensation.Value = state.InsertDiameterCompensation;
         _insertDepthCompensation.Value = state.InsertDepthCompensation;
@@ -1191,11 +1373,20 @@ public sealed class RhinoMMPanel : Panel, IPanel
         state.Length = _length.Value;
         state.HeadEmbedDepth = FastenerKindTraits.SupportsEmbedDepth(state.Kind) ? _headEmbed.Value : 0;
         state.CounterboreBridgeEnabled = state.Kind == FastenerKind.SocketCap
+            && state.HeadEmbedDepth > 0
             && _counterboreBridgeEnabled.Checked == true;
         state.CounterboreBridgeLayerHeight = _counterboreBridgeLayerHeight.Value;
         state.AssemblyMode = FastenerKindTraits.IsScrew(state.Kind)
             ? SelectedAssemblyMode()
             : ScrewAssemblyMode.ThreadEngagement;
+        state.EngagementEntryChamferEnabled = FastenerKindTraits.IsScrew(state.Kind)
+            && state.AssemblyMode == ScrewAssemblyMode.ThreadEngagement
+            && _engagementEntryChamferEnabled.Checked == true;
+        state.EngagementEntryChamferMode = SelectedEngagementEntryChamferMode();
+        state.EngagementEntryChamferSize = _engagementEntryChamferSize.Value;
+        state.EngagementOnlyAlignmentDepth = _engagementOnlyAlignmentDepth.Value;
+        state.EngagementOnlyAlignmentDiameterCompensation =
+            _engagementOnlyAlignmentCompensation.Value;
         state.EngagementOnly = state.AssemblyMode == ScrewAssemblyMode.EngagementOnly;
         state.PairedNutStyle = state.AssemblyMode == ScrewAssemblyMode.NutFastened
             && _pairedNutLocking.Checked == true
@@ -1251,6 +1442,14 @@ public sealed class RhinoMMPanel : Panel, IPanel
         _presetBlindDepth.Value = preset.EngagementBlindDepth;
         _counterboreBridgeEnabled.Checked = preset.CounterboreBridgeEnabled;
         _counterboreBridgeLayerHeight.Value = preset.CounterboreBridgeLayerHeight;
+        _engagementEntryChamferEnabled.Checked = preset.EngagementEntryChamferEnabled;
+        _engagementEntryChamferMode.Select(
+            preset.EngagementEntryChamferMode.ToString(),
+            false);
+        _engagementEntryChamferSize.Value = preset.EngagementEntryChamferSize;
+        _engagementOnlyAlignmentDepth.Value = preset.EngagementOnlyAlignmentDepth;
+        _engagementOnlyAlignmentCompensation.Value =
+            preset.EngagementOnlyAlignmentDiameterCompensation;
         _assemblyMode.Select(preset.AssemblyMode.ToString(), false);
         _pairedNutLocking.Checked = preset.PairedNutStyle == HexNutStyle.NylonInsertLocking;
         _nutTipProtrusion.Value = preset.NutTipProtrusion;
@@ -1260,7 +1459,13 @@ public sealed class RhinoMMPanel : Panel, IPanel
         EditorState.Current.PairedNutStyle = preset.PairedNutStyle;
         EditorState.Current.NutTipProtrusion = preset.NutTipProtrusion;
         EditorState.Current.NutPocketCompensation = preset.NutPocketCompensation;
+        EditorState.Current.EngagementOnlyAlignmentDepth =
+            preset.EngagementOnlyAlignmentDepth;
+        EditorState.Current.EngagementOnlyAlignmentDiameterCompensation =
+            preset.EngagementOnlyAlignmentDiameterCompensation;
         UpdateCounterboreBridgeSummary();
+        UpdateEngagementEntryChamferSummary();
+        UpdateEngagementOnlyAlignmentSummary();
         SetCustomDepthVisibility(
             preset.EngagementDepthMode == DepthMode.FastenerLengthPlusCustom);
         _presetClearancePreview.Checked = preset.ClearancePreviewVisible;
@@ -1332,7 +1537,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
             return;
         try
         {
-            var spec = RhinoMMPlugIn.Catalog.Get(_size.SelectedKey);
+            var spec = CurrentSpec(_size.SelectedKey);
             if (SelectedKind() == FastenerKind.HexNut)
             {
                 var nutDimensions = HexNutDimensions.Resolve(SelectedHexNutStyle(), spec);
@@ -1393,6 +1598,13 @@ public sealed class RhinoMMPanel : Panel, IPanel
             ? mode
             : EditorState.Current.AssemblyMode;
 
+    private EngagementEntryChamferMode SelectedEngagementEntryChamferMode() =>
+        Enum.TryParse<EngagementEntryChamferMode>(
+            _engagementEntryChamferMode.SelectedKey,
+            out var mode)
+                ? mode
+                : EditorState.Current.EngagementEntryChamferMode;
+
     private void SavePlacementPresetControls()
     {
         if (_loadingControls
@@ -1410,7 +1622,8 @@ public sealed class RhinoMMPanel : Panel, IPanel
             BiteReduction = _bite.Value,
             EngagementDepthMode = depth,
             EngagementBlindDepth = _presetBlindDepth.Value,
-            CounterboreBridgeEnabled = _counterboreBridgeEnabled.Checked == true,
+            CounterboreBridgeEnabled = _headEmbed.Value > 0
+                && _counterboreBridgeEnabled.Checked == true,
             CounterboreBridgeLayerHeight = _counterboreBridgeLayerHeight.Value,
             ClearancePreviewVisible = _presetClearancePreview.Checked == true,
             ClearanceBooleanEnabled = _presetClearanceBoolean.Checked == true,
@@ -1424,7 +1637,14 @@ public sealed class RhinoMMPanel : Panel, IPanel
             NutTipProtrusion = _nutTipProtrusion.Value,
             NutPocketCompensation = _nutPocketCompensation.Value,
             NutPocketPreviewVisible = _presetNutPreview.Checked == true,
-            NutPocketBooleanEnabled = _presetNutBoolean.Checked == true
+            NutPocketBooleanEnabled = _presetNutBoolean.Checked == true,
+            EngagementEntryChamferEnabled = SelectedAssemblyMode() == ScrewAssemblyMode.ThreadEngagement
+                && _engagementEntryChamferEnabled.Checked == true,
+            EngagementEntryChamferSize = _engagementEntryChamferSize.Value,
+            EngagementEntryChamferMode = SelectedEngagementEntryChamferMode(),
+            EngagementOnlyAlignmentDepth = _engagementOnlyAlignmentDepth.Value,
+            EngagementOnlyAlignmentDiameterCompensation =
+                _engagementOnlyAlignmentCompensation.Value
         };
         if (!PlacementPresetService.Save(RhinoMMPlugIn.Instance.Settings, preset, out var message))
         {
@@ -1446,7 +1666,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
 
         try
         {
-            var nominal = RhinoMMPlugIn.Catalog.Get(_size.SelectedKey).NominalDiameter;
+            var nominal = CurrentSpec(_size.SelectedKey).NominalDiameter;
             var clearance = nominal + _printerCorrection.Value;
             var engagement = nominal - _bite.Value;
             if (SelectedAssemblyMode() == ScrewAssemblyMode.NutFastened)
@@ -1476,6 +1696,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
             return;
         UpdateInsertSummary();
         UpdateHoleDiameterSummary();
+        UpdateEngagementOnlyAlignmentSummary();
         SaveControls();
         if (_holeEditingContext == HoleEditingContext.PlacementPreset)
         {
@@ -1520,7 +1741,17 @@ public sealed class RhinoMMPanel : Panel, IPanel
             _presetBlindDepth.Value = state.EngagementBlindDepth;
             _counterboreBridgeEnabled.Checked = state.CounterboreBridgeEnabled;
             _counterboreBridgeLayerHeight.Value = state.CounterboreBridgeLayerHeight;
+            _engagementEntryChamferEnabled.Checked = state.EngagementEntryChamferEnabled;
+            _engagementEntryChamferMode.Select(
+                state.EngagementEntryChamferMode.ToString(),
+                false);
+            _engagementEntryChamferSize.Value = state.EngagementEntryChamferSize;
+            _engagementOnlyAlignmentDepth.Value = state.EngagementOnlyAlignmentDepth;
+            _engagementOnlyAlignmentCompensation.Value =
+                state.EngagementOnlyAlignmentDiameterCompensation;
             UpdateCounterboreBridgeSummary();
+            UpdateEngagementEntryChamferSummary();
+            UpdateEngagementOnlyAlignmentSummary();
             SetCustomDepthVisibility(
                 state.EngagementDepthMode == DepthMode.FastenerLengthPlusCustom);
             LoadCurrentModuleVisibility();
@@ -1534,16 +1765,18 @@ public sealed class RhinoMMPanel : Panel, IPanel
     private void UpdateHoleContextPresentation()
     {
         var hasComponents = _loadedComponents.Count > 0;
-        _holeContextHost.Visible = hasComponents;
+        _holeContextHost.Visible = false;
         _holeContext.SetEnabled(HoleEditingContext.CurrentComponent.ToString(), hasComponents);
         _presetOptionsLayout.Visible = true;
         var selected = _selectedSummary;
-        _applyButton.Enabled = selected is { HasTargets: true, HasBlockingIssues: false };
+        // The update entry remains available in every idle selection state.
+        // ApplyLoaded performs a fresh, transactional validation when invoked.
+        _applyButton.Enabled = true;
         _applyButton.ToolTip = selected?.HasBlockingIssues == true
-            ? "应用更新：选中组件需要先运行“刷新 / 清理”"
+            ? "应用更新：点击后将检查损坏或待重绑组件并给出维护建议"
             : selected is { HasTargets: true }
                 ? $"应用更新：将面板模板应用到 {selected.Components.Count} 个控制点组件"
-                : "应用更新：请先选中一个或多个控制点";
+                : "应用更新：点击后将提示选择一个或多个控制点";
         UpdatePrimaryActionStyle();
     }
 
@@ -1635,6 +1868,36 @@ public sealed class RhinoMMPanel : Panel, IPanel
             RebuildResponsiveLayout(force: true);
     }
 
+    private void EngagementEntryChamferChanged(bool rebuildLayout)
+    {
+        if (_loadingControls)
+            return;
+        UpdateEngagementEntryChamferSummary();
+        SaveControls();
+        if (_holeEditingContext == HoleEditingContext.PlacementPreset)
+            SavePlacementPresetControls();
+        else
+            MarkGeometryDirty();
+        NotifySmartPlacementDraftChanged();
+        UpdateSummary();
+        if (rebuildLayout)
+            RebuildResponsiveLayout(force: true);
+    }
+
+    private void EngagementOnlyAlignmentChanged()
+    {
+        if (_loadingControls)
+            return;
+        UpdateEngagementOnlyAlignmentSummary();
+        SaveControls();
+        if (_holeEditingContext == HoleEditingContext.PlacementPreset)
+            SavePlacementPresetControls();
+        else
+            MarkGeometryDirty();
+        NotifySmartPlacementDraftChanged();
+        UpdateSummary();
+    }
+
     private void AssemblyModeChanged()
     {
         if (_loadingControls)
@@ -1647,6 +1910,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
         NotifySmartPlacementDraftChanged();
         UpdateHexNutSizeAvailability();
         UpdateHoleDiameterSummary();
+        UpdateEngagementOnlyAlignmentSummary();
         UpdatePairedNutSummary();
         UpdateSummary();
         RebuildResponsiveLayout(force: true);
@@ -1682,7 +1946,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
         }
         try
         {
-            var spec = RhinoMMPlugIn.Catalog.Get(_size.SelectedKey);
+            var spec = CurrentSpec(_size.SelectedKey);
             var style = _pairedNutLocking.Checked == true
                 ? HexNutStyle.NylonInsertLocking
                 : HexNutStyle.Standard;
@@ -1708,6 +1972,52 @@ public sealed class RhinoMMPanel : Panel, IPanel
             $"双层 · 总高 {layerHeight * 2:0.00} mm";
         _counterboreBridgeSummary.ToolTip =
             "第一层形成两条切线桥，第二层形成垂直桥，随后恢复圆形螺杆孔。";
+    }
+
+    private void UpdateEngagementEntryChamferSummary()
+    {
+        var size = _engagementEntryChamferSize.Value;
+        if (SelectedEngagementEntryChamferMode()
+            == EngagementEntryChamferMode.SurfaceEqualDistance)
+        {
+            _engagementEntryChamferSummary.Text = $"表面等距 · C{size:0.##}";
+            _engagementEntryChamferSummary.ToolTip =
+                "宿主表面与孔壁分别退让相同 C 值；仅支持单一连续平面入口。";
+            return;
+        }
+
+        _engagementEntryChamferSummary.Text = $"轴向45° · C{size:0.##}";
+        _engagementEntryChamferSummary.ToolTip =
+            "沿螺丝轴向生成45°锥形导入口；支持平面和连续曲面入口。";
+    }
+
+    private void UpdateEngagementOnlyAlignmentSummary()
+    {
+        if (_engagementOnlyAlignmentDepth.Value <= 0)
+        {
+            _engagementOnlyAlignmentSummary.Text = "顶部对位关闭";
+            _engagementOnlyAlignmentSummary.ToolTip = "深度为 0，不生成正补偿对位段和60°圆台。";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(_size.SelectedKey))
+        {
+            _engagementOnlyAlignmentSummary.Text = string.Empty;
+            return;
+        }
+        try
+        {
+            var spec = CurrentSpec(_size.SelectedKey);
+            var guide = spec.NominalDiameter + _engagementOnlyAlignmentCompensation.Value;
+            var engagement = spec.NominalDiameter - _bite.Value;
+            _engagementOnlyAlignmentSummary.Text =
+                $"对位 Ø{guide:0.###}×{_engagementOnlyAlignmentDepth.Value:0.##} · 60° · 咬合 Ø{engagement:0.###}";
+            _engagementOnlyAlignmentSummary.ToolTip =
+                "对位段从完整孔口圆周的最深入口起算；圆台夹角60°，随后恢复咬合孔直径。";
+        }
+        catch
+        {
+            _engagementOnlyAlignmentSummary.Text = "无法计算当前规格的对位尺寸";
+        }
     }
 
     private void SetCustomDepthVisibility(bool visible)
@@ -1739,7 +2049,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
         if (_holeEditingContext == HoleEditingContext.PlacementPreset)
         {
             SaveActivePlacementPresetControls();
-            ShowSelectionSummary();
+            SynchronizeSelectedTargets();
             return;
         }
         ApplyTopLevelVisibilityToLoadedComponents(effectiveRole, isPreview, value);
@@ -1812,7 +2122,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
     {
         if (_loadedComponents.Count == 0 || RhinoDoc.ActiveDoc is not { } doc)
         {
-            ShowSelectionSummary();
+            SynchronizeSelectedTargets();
             return;
         }
         var drafts = _loadedComponents.Select(component => component with
@@ -1842,6 +2152,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
         _loadedComponents = saved;
         _loadedComponent = saved.FirstOrDefault();
         ComponentEditorSession.UpdateCachedComponents(doc, saved);
+        SynchronizeSelectedTargets();
         SetStatus(message, StatusKind.Success);
     }
 
@@ -1879,52 +2190,72 @@ public sealed class RhinoMMPanel : Panel, IPanel
 
     private bool ApplyLoaded()
     {
+        if (_applyInProgress)
+        {
+            SetStatus("正在应用更新，请稍候。", StatusKind.Info);
+            return false;
+        }
         if (RhinoDoc.ActiveDoc is not { } doc)
         {
             SetStatus("当前没有可更新的 Rhino 文档。", StatusKind.Warning);
             return false;
         }
-        RefreshSelectedTargets();
-        if (_selectedSummary is not { HasTargets: true })
+        _applyInProgress = true;
+        try
         {
-            SetStatus("请先选中一个或多个紧固件控制点；面板模板未修改。", StatusKind.Warning);
-            return false;
-        }
-        if (_selectedSummary.HasBlockingIssues)
-        {
-            SetStatus("选中的组件存在损坏或待重新绑定项；请先运行“刷新 / 清理”。", StatusKind.Warning);
-            return false;
-        }
-
-        SaveControls();
-        var selectedComponents = _selectedSummary.Components;
-        var keepLoadedComponentDetails = selectedComponents.Count == 1
-            && _loadedComponents.Count == 1
-            && selectedComponents[0].ComponentId == _loadedComponents[0].ComponentId;
-        var template = CaptureUpdateTemplate();
-        if (ComponentUpdateCoordinator.TryApplyTemplate(
-                doc,
-                selectedComponents,
-                template,
-                out var saved,
-                out var message))
-        {
-            if (keepLoadedComponentDetails)
+            // Always capture the real Rhino selection at click time. The cached
+            // summary is presentation-only and must never choose update targets.
+            _selectedSummary = SelectedComponentSummary.Capture(doc);
+            ShowSelectionSummary();
+            UpdateHoleContextPresentation();
+            if (_selectedSummary is not { HasTargets: true })
             {
-                _loadedComponents = saved;
-                _loadedComponent = saved[0];
+                SetStatus("请先选中一个或多个紧固件控制点；面板模板未修改。", StatusKind.Warning);
+                return false;
             }
-            _geometryDirty = false;
-            FastenerTemplateLibraryService.RecordSuccessfulOperation(
-                FastenerTemplateData.FromUpdateTemplate(template),
-                FastenerOperationKind.Update,
-                out _);
-            RefreshSelectedTargets();
-            SetStatus(message, message.Contains("警告") || message.Contains("贯穿") ? StatusKind.Warning : StatusKind.Success);
-            return true;
+            if (_selectedSummary.HasBlockingIssues)
+            {
+                SetStatus("选中的组件存在损坏或待重新绑定项；请先运行“刷新 / 清理”。", StatusKind.Warning);
+                return false;
+            }
+
+            SaveControls();
+            var selectedComponents = _selectedSummary.Components;
+            var keepLoadedComponentDetails = selectedComponents.Count == 1
+                && _loadedComponents.Count == 1
+                && selectedComponents[0].ComponentId == _loadedComponents[0].ComponentId;
+            var template = CaptureUpdateTemplate();
+            if (ComponentUpdateCoordinator.TryApplyTemplate(
+                    doc,
+                    selectedComponents,
+                    template,
+                    out var saved,
+                    out var message))
+            {
+                if (keepLoadedComponentDetails)
+                {
+                    _loadedComponents = saved;
+                    _loadedComponent = saved[0];
+                }
+                _geometryDirty = false;
+                FastenerTemplateLibraryService.RecordSuccessfulOperation(
+                    FastenerTemplateData.FromUpdateTemplate(template),
+                    FastenerOperationKind.Update,
+                    out _);
+                SynchronizeSelectedTargets();
+                SetStatus(message, message.Contains("警告") || message.Contains("贯穿") ? StatusKind.Warning : StatusKind.Success);
+                return true;
+            }
+            SetStatus(message, StatusKind.Error);
+            return false;
         }
-        SetStatus(message, StatusKind.Error);
-        return false;
+        finally
+        {
+            _applyInProgress = false;
+            // Selection events raised by UnselectAll/Select can arrive after the
+            // transaction. Re-read once more after the current UI event finishes.
+            Application.Instance.AsyncInvoke(SynchronizeSelectedTargets);
+        }
     }
 
     private bool ApplyDraftForExport()
@@ -1987,11 +2318,14 @@ public sealed class RhinoMMPanel : Panel, IPanel
         _summary.Text = state.Kind switch
         {
             FastenerKind.HexNut =>
-                $"模板 · {state.Size} · {FastenerLabels.NutStyle(state.HexNutStyle)} · 嵌入{state.HeadEmbedDepth:0.##}",
+                $"创建模板 · {state.Size} · {FastenerLabels.NutStyle(state.HexNutStyle)} · 嵌入{state.HeadEmbedDepth:0.##}",
             FastenerKind.HeatSetInsert =>
-                $"模板 · {state.Size} · {kind} · L{state.Length:0.##} · Ø{state.InsertOuterDiameter:0.##}",
+                $"创建模板 · {state.Size} · {kind} · L{state.Length:0.##} · Ø{state.InsertOuterDiameter:0.##}",
             _ =>
-                $"模板 · {state.Size} · {kind} · L{state.Length:0.##}"
+                $"创建模板 · {state.Size} · {kind} · L{state.Length:0.##}"
+                + (state.HeadEmbedDepth < 0
+                    ? $" · 离面{Math.Abs(state.HeadEmbedDepth):0.##}"
+                    : string.Empty)
                 + (state.AssemblyMode switch
                 {
                     ScrewAssemblyMode.EngagementOnly => " · 只咬合 · " + CompactDepthLabel(state.EngagementDepthMode),
@@ -2001,7 +2335,10 @@ public sealed class RhinoMMPanel : Panel, IPanel
         };
         _summary.ToolTip = _summary.Text;
         UpdateTemplateStrip();
-        ShowSelectionSummary();
+        // Parameter edits must not depend on a selection event having already
+        // refreshed the cached summary. Re-read the actual Rhino selection so
+        // box-selected control points can be updated immediately.
+        SynchronizeSelectedTargets();
     }
 
     private void MarkGeometryDirty()
@@ -2026,9 +2363,14 @@ public sealed class RhinoMMPanel : Panel, IPanel
     {
         var kind = SelectedKind();
         var supportsEmbedDepth = FastenerKindTraits.SupportsEmbedDepth(kind);
+        _headEmbed.MinValue = FastenerKindTraits.SupportsHeadGap(kind) ? -500 : 0;
+        if (!FastenerKindTraits.SupportsHeadGap(kind) && _headEmbed.Value < 0)
+            _headEmbed.Value = 0;
         _headEmbed.Enabled = supportsEmbedDepth;
         _zeroHeadButton.Enabled = supportsEmbedDepth;
         _flushHeadButton.Enabled = supportsEmbedDepth;
+        _counterboreBridgeEnabled.Enabled = kind == FastenerKind.SocketCap
+            && _headEmbed.Value > 0;
         _flushHeadButton.Text = kind == FastenerKind.HexNut ? "全埋" : "齐平";
         _flushHeadButton.ToolTip = kind == FastenerKind.HexNut
             ? "将嵌入深度设置为当前规格的标准螺母厚度"
@@ -2057,7 +2399,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
             return;
         try
         {
-            var previousSpec = RhinoMMPlugIn.Catalog.Get(EditorState.Current.Size);
+            var previousSpec = CurrentSpec(EditorState.Current.Size);
             var previousThickness = HexNutDimensions.Resolve(
                 EditorState.Current.HexNutStyle,
                 previousSpec).TotalHeight;
@@ -2078,7 +2420,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
             || !FastenerKindTraits.SupportsEmbedDepth(kind)
             || string.IsNullOrWhiteSpace(_size.SelectedKey))
             return;
-        var spec = RhinoMMPlugIn.Catalog.Get(_size.SelectedKey);
+        var spec = CurrentSpec(_size.SelectedKey);
         _headEmbed.Value = kind == FastenerKind.HexNut
             ? HexNutDimensions.Resolve(SelectedHexNutStyle(), spec).TotalHeight
             : HeadGeometryCalculator.GetHeadHeight(kind, spec);
@@ -2103,7 +2445,7 @@ public sealed class RhinoMMPanel : Panel, IPanel
             return false;
         try
         {
-            var spec = RhinoMMPlugIn.Catalog.Get(_size.SelectedKey);
+            var spec = CurrentSpec(_size.SelectedKey);
             var previousHeight = HexNutDimensions.Resolve(
                 EditorState.Current.HexNutStyle,
                 spec).TotalHeight;
@@ -2147,15 +2489,27 @@ public sealed class RhinoMMPanel : Panel, IPanel
             return 0;
         return HexNutDimensions.Resolve(
             SelectedHexNutStyle(),
-            RhinoMMPlugIn.Catalog.Get(_size.SelectedKey)).TotalHeight;
+            CurrentSpec(_size.SelectedKey)).TotalHeight;
+    }
+
+    private static FastenerSizeSpec CurrentSpec(string size)
+    {
+        var state = EditorState.Current;
+        return state.CustomDefinitionSnapshot is { } custom
+            && string.Equals(custom.ThreadDesignation, size, StringComparison.OrdinalIgnoreCase)
+                ? custom.SizeSpec
+                : RhinoMMPlugIn.Catalog.Get(size);
     }
 
     private void SetStatus(string message, StatusKind kind)
     {
+        _successStatusTimer.Stop();
         _status.Text = message;
         _status.ToolTip = message;
         _statusKind = kind;
         ApplyStatusTheme();
+        if (kind == StatusKind.Success)
+            _successStatusTimer.Start();
     }
 
     private void ApplyStatusTheme()

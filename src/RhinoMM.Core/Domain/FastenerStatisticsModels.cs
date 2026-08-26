@@ -22,3 +22,5 @@ public sealed record FastenerStatisticsReport(
     int MaterialCount,
     IReadOnlyList<FastenerStatisticsRow> SummaryRows,
     IReadOnlyList<FastenerComponentData> Components);
+
+public sealed record FastenerDeliveryHostInfo(string HostNames = "", string HostLayers = "");

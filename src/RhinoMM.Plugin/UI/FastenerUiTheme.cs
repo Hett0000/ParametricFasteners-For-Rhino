@@ -1,8 +1,10 @@
 using System.Runtime.CompilerServices;
 using Eto.Drawing;
 using Eto.Forms;
+using Rhino;
 using Rhino.ApplicationSettings;
 using Rhino.Runtime;
+using Rhino.UI;
 
 namespace RhinoMM.Plugin.UI;
 
@@ -18,7 +20,12 @@ internal enum FastenerThemeRole
     PrimaryAction,
     StatusSuccess,
     StatusWarning,
-    StatusError
+    StatusError,
+    StatusInfo,
+    Selection,
+    ProgressTrack,
+    DestructiveAction,
+    DestructiveConfirm
 }
 
 internal readonly record struct FastenerThemePalette(
@@ -34,7 +41,11 @@ internal readonly record struct FastenerThemePalette(
     Color Focus,
     Color Success,
     Color Warning,
-    Color Error);
+    Color Error,
+    Color DestructiveFill,
+    Color DestructiveText,
+    Color DestructiveConfirmFill,
+    Color DestructiveConfirmText);
 
 internal static class FastenerUiTheme
 {
@@ -43,6 +54,11 @@ internal static class FastenerUiTheme
     public const int SpaceLarge = 12;
     public const int ControlHeight = 28;
     public const int ActionButtonHeight = 40;
+    public const int DialogButtonWidth = 88;
+    public const int CompactFontSize = 9;
+    public const int BodyFontSize = 9;
+    public const int SectionFontSize = 10;
+    public const int TitleFontSize = 12;
 
     private sealed class ThemeRoleHolder(FastenerThemeRole role)
     {
@@ -66,6 +82,10 @@ internal static class FastenerUiTheme
     public static Color Success => _palette.Success;
     public static Color Warning => _palette.Warning;
     public static Color Error => _palette.Error;
+    public static Color DestructiveFill => _palette.DestructiveFill;
+    public static Color DestructiveText => _palette.DestructiveText;
+    public static Color DestructiveConfirmFill => _palette.DestructiveConfirmFill;
+    public static Color DestructiveConfirmText => _palette.DestructiveConfirmText;
 
     public static bool RefreshPalette()
     {
@@ -116,7 +136,7 @@ internal static class FastenerUiTheme
     public static Label SectionTitle(string text) => Register(new Label
     {
         Text = text,
-        Font = new Font(SystemFont.Bold, 10)
+        Font = new Font(SystemFont.Bold, SectionFontSize)
     }, FastenerThemeRole.PrimaryText);
 
     public static Label PrimaryLabel(string text = "") => Register(new Label
@@ -145,6 +165,58 @@ internal static class FastenerUiTheme
 
     public static Color StatusColor(bool success, bool warning = false) =>
         success ? Success : warning ? Warning : Error;
+
+    public static void WatchWindow(Window window, Action? afterApply = null)
+    {
+        window.UseRhinoStyle();
+        EventHandler handler = (_, _) => RhinoApp.InvokeOnUiThread((Action)(() =>
+        {
+            RefreshPalette();
+            ApplyTree(window);
+            afterApply?.Invoke();
+            window.Invalidate();
+        }));
+        RhinoApp.AppSettingsChanged += handler;
+        window.Closed += (_, _) => RhinoApp.AppSettingsChanged -= handler;
+        ApplyTree(window);
+    }
+
+    public static TableLayout CreateWindowShell(
+        Control summary,
+        Control body,
+        Control? status,
+        Control footer,
+        int padding = SpaceLarge)
+    {
+        var rows = new List<TableRow>
+        {
+            new(summary),
+            new(body) { ScaleHeight = true }
+        };
+        if (status is not null)
+            rows.Add(new TableRow(status));
+        rows.Add(new TableRow(footer));
+        var layout = Register(new TableLayout
+        {
+            Padding = new Padding(padding),
+            Spacing = new Size(0, SpaceMedium)
+        }, FastenerThemeRole.Canvas);
+        foreach (var row in rows)
+            layout.Rows.Add(row);
+        return layout;
+    }
+
+    public static TableLayout CreateActionBar(params Control[] controls)
+    {
+        var row = new TableRow { Cells = { new TableCell(null, true) } };
+        foreach (var control in controls)
+            row.Cells.Add(new TableCell(control));
+        return new TableLayout
+        {
+            Spacing = new Size(SpaceSmall, 0),
+            Rows = { row }
+        };
+    }
 
     private static void ApplyRole(Control control, FastenerThemeRole role)
     {
@@ -184,6 +256,24 @@ internal static class FastenerUiTheme
                 break;
             case FastenerThemeRole.StatusError:
                 SetTextColor(control, Error);
+                break;
+            case FastenerThemeRole.StatusInfo:
+                SetTextColor(control, Focus);
+                break;
+            case FastenerThemeRole.Selection:
+                control.BackgroundColor = Accent;
+                SetTextColor(control, Colors.White);
+                break;
+            case FastenerThemeRole.ProgressTrack:
+                control.BackgroundColor = SecondaryFill;
+                break;
+            case FastenerThemeRole.DestructiveAction:
+                control.BackgroundColor = DestructiveFill;
+                SetTextColor(control, DestructiveText);
+                break;
+            case FastenerThemeRole.DestructiveConfirm:
+                control.BackgroundColor = DestructiveConfirmFill;
+                SetTextColor(control, DestructiveConfirmText);
                 break;
         }
     }
@@ -229,7 +319,11 @@ internal static class FastenerUiTheme
                 Color.FromArgb(100, 168, 255),
                 Color.FromArgb(97, 201, 122),
                 Color.FromArgb(255, 179, 64),
-                Color.FromArgb(255, 107, 107));
+                Color.FromArgb(255, 107, 107),
+                Color.FromArgb(74, 41, 45),
+                Color.FromArgb(255, 180, 171),
+                Color.FromArgb(198, 66, 58),
+                Colors.White);
         }
 
         var lightCard = System.Drawing.Color.White;
@@ -253,7 +347,11 @@ internal static class FastenerUiTheme
             Color.FromArgb(0, 103, 197),
             Color.FromArgb(36, 124, 68),
             Color.FromArgb(154, 85, 0),
-            Color.FromArgb(190, 45, 45));
+            Color.FromArgb(190, 45, 45),
+            Color.FromArgb(252, 232, 232),
+            Color.FromArgb(156, 28, 28),
+            Color.FromArgb(179, 38, 30),
+            Colors.White);
     }
 
     private static bool SafeDarkMode()
