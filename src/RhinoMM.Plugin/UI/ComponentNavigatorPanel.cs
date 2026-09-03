@@ -11,23 +11,23 @@ using RhinoMM.Plugin.Services;
 namespace RhinoMM.Plugin.UI;
 
 [System.Runtime.InteropServices.Guid("5198F2BC-B0BB-46FA-9695-415280AEBEA5")]
-public sealed class ComponentNavigatorPanel : Panel, IPanel
+public sealed class ComponentNavigatorPanel : Panel, IPanel, ILocalizableView
 {
     private sealed record DisplayRow(IndexedComponentEntry Source, IReadOnlySet<ComponentHealthState> States)
     {
         public string Status => StatusLabel(States);
         public string Type => Source.Component is { } component
             ? FastenerLabels.ShortKind(component)
-            : "数据损坏";
+            : FastenerText.Translate("数据损坏");
         public string Size => Source.Component?.Size ?? "—";
         public string Assembly => Source.Component is { Kind: FastenerKind.SocketCap or FastenerKind.Countersunk or FastenerKind.HexBolt } component
             ? FastenerLabels.AssemblyMode(component.AssemblyMode)
-            : "安装槽";
+            : FastenerText.Translate("安装槽");
         public string Hosts => Source.HostIds.Count.ToString();
         public string Id => Source.ShortId;
         public string Issue => States.Contains(ComponentHealthState.BooleanFailure)
-            ? "实际布尔失败"
-            : Source.IssueText;
+            ? FastenerText.Translate("实际布尔失败")
+            : FastenerText.Translate(Source.IssueText);
     }
 
     private readonly TextBox _search = new() { PlaceholderText = "搜索类型、规格、宿主或短 ID" };
@@ -100,6 +100,8 @@ public sealed class ComponentNavigatorPanel : Panel, IPanel
         _deepTimer.Elapsed += (_, _) => ProcessDeepCheck();
         _operation.CancelRequested += (_, _) => _cancelDeepCheck = true;
         RhinoApp.AppSettingsChanged += RhinoAppSettingsChanged;
+        ComponentDocumentHealthService.ReportChanged += DocumentHealthChanged;
+        FastenerLocalizationService.Register(this);
         _refreshTimer.Start();
         foreach (var button in new[] { _select, _update, _statistics, _export, _deepCheck, _assemblyCheck, _deliveryInfo })
             FastenerUiTheme.ApplySecondary(button);
@@ -128,6 +130,7 @@ public sealed class ComponentNavigatorPanel : Panel, IPanel
         FastenerUiTheme.SetRole(Content, FastenerThemeRole.Canvas);
         SizeChanged += (_, _) => RebuildResponsiveChrome();
         RebuildResponsiveChrome();
+        ApplyLocalization();
         PollDocument();
     }
 
@@ -192,6 +195,8 @@ public sealed class ComponentNavigatorPanel : Panel, IPanel
         _deepTimer.Stop();
         _deepQueue = null;
         RhinoApp.AppSettingsChanged -= RhinoAppSettingsChanged;
+        ComponentDocumentHealthService.ReportChanged -= DocumentHealthChanged;
+        FastenerLocalizationService.Unregister(this);
     }
 
     private void RhinoAppSettingsChanged(object? sender, EventArgs e) =>
@@ -209,8 +214,24 @@ public sealed class ComponentNavigatorPanel : Panel, IPanel
             _refreshTimer.Stop();
             _deepTimer.Stop();
             RhinoApp.AppSettingsChanged -= RhinoAppSettingsChanged;
+            ComponentDocumentHealthService.ReportChanged -= DocumentHealthChanged;
+            FastenerLocalizationService.Unregister(this);
         }
         base.Dispose(disposing);
+    }
+
+    public void ApplyLocalization()
+    {
+        FastenerUiLocalization.ApplyTree(this);
+        ApplyFilters();
+        Invalidate();
+    }
+
+    private void DocumentHealthChanged(object? sender, DocumentHealthReportChangedEventArgs e)
+    {
+        if (RhinoDoc.ActiveDoc?.RuntimeSerialNumber != e.Document.RuntimeSerialNumber)
+            return;
+        Application.Instance.AsyncInvoke(ApplyFilters);
     }
 
     private void PollDocument()
@@ -255,10 +276,23 @@ public sealed class ComponentNavigatorPanel : Panel, IPanel
         if (RhinoDoc.ActiveDoc is not { } doc)
             return;
         var text = _search.Text?.Trim() ?? string.Empty;
+        var healthReport = ComponentDocumentHealthService.Current(doc);
+        var healthByComponent = healthReport is { IsStale: false }
+            ? healthReport.Entries.ToDictionary(entry => entry.ComponentId)
+            : [];
         var rows = FastenerDocumentIndexService.Components(doc)
             .Select(entry =>
             {
                 var states = new HashSet<ComponentHealthState>(entry.States);
+                if (healthByComponent.TryGetValue(entry.ComponentId, out var healthEntry))
+                {
+                    var mapped = MapHealthState(healthEntry.State);
+                    if (mapped != ComponentHealthState.Healthy)
+                    {
+                        states.Remove(ComponentHealthState.Healthy);
+                        states.Add(mapped);
+                    }
+                }
                 if (_deepResults.TryGetValue(entry.ComponentId, out var deep) && !deep.Success)
                     states.Add(ComponentHealthState.BooleanFailure);
                 return new DisplayRow(entry, states);
@@ -280,15 +314,15 @@ public sealed class ComponentNavigatorPanel : Panel, IPanel
         _filtered = rows;
         _grid.DataStore = rows;
         var total = FastenerDocumentIndexService.Components(doc).Count;
-        var problems = rows.Count(row => !row.States.SetEquals([ComponentHealthState.Healthy]));
-        var health = ComponentDocumentHealthService.Current(doc);
-        _summary.Text = health is { HasProblems: true, IsStale: false }
-            ? $"组件 {total} · 需重建 {health.NeedsRebuildCount} · 待重绑 {health.NeedsRelinkCount} · 损坏 {health.CorruptCount}"
-            : $"组件 {total} · 当前 {rows.Length} · 问题 {problems}";
+        var problems = rows.Count(row => IsProblem(row.States));
+        var health = healthReport;
+        _summary.Text = FastenerText.Translate(health is { HasProblems: true, IsStale: false }
+            ? $"组件 {total} · 需维护 {health.MaintenanceCount} · 待重绑 {health.RelinkRequiredCount} · 损坏 {health.CorruptCount}"
+            : $"组件 {total} · 当前 {rows.Length} · 问题 {problems}");
         _select.Enabled = rows.Length > 0;
         _update.Enabled = rows.Length > 0 && rows.All(row => row.Source.Component is not null
             && !row.States.Contains(ComponentHealthState.Corrupt)
-            && !row.States.Contains(ComponentHealthState.NeedsRelink));
+            && !row.States.Contains(ComponentHealthState.RelinkRequired));
     }
 
     private void SelectSingleRow()
@@ -345,12 +379,12 @@ public sealed class ComponentNavigatorPanel : Panel, IPanel
                 out var message))
         {
             _message.Text = message;
-            RhinoApp.WriteLine(message);
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
             return;
         }
         FastenerDocumentIndexService.Invalidate(doc);
         _message.Text = $"已使用主面板模板更新 {saved.Count} 个组件。";
-        RhinoApp.WriteLine(message);
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
     }
 
     private void EditDeliveryInfo()
@@ -523,14 +557,30 @@ public sealed class ComponentNavigatorPanel : Panel, IPanel
 
     private static string StatusLabel(IReadOnlySet<ComponentHealthState> states)
     {
-        if (states.Contains(ComponentHealthState.Corrupt)) return "数据损坏";
-        if (states.Contains(ComponentHealthState.BooleanFailure)) return "布尔失败";
-        if (states.Contains(ComponentHealthState.NeedsRelink)) return "待重绑";
-        if (states.Contains(ComponentHealthState.NeedsRebuild)) return "需重建";
-        if (states.Contains(ComponentHealthState.InvalidParameters)) return "参数无效";
-        if (states.Contains(ComponentHealthState.BooleanDisabled)) return "导出关闭";
-        if (states.Contains(ComponentHealthState.PreviewHidden)) return "预览隐藏";
-        if (states.Contains(ComponentHealthState.Warning)) return "提示";
-        return "正常";
+        if (states.Contains(ComponentHealthState.Corrupt)) return FastenerText.Translate("数据损坏");
+        if (states.Contains(ComponentHealthState.BooleanFailure)) return FastenerText.Translate("布尔失败");
+        if (states.Contains(ComponentHealthState.RelinkRequired)) return FastenerText.Translate("待重绑");
+        if (states.Contains(ComponentHealthState.MaintenanceRequired)) return FastenerText.Translate("需维护");
+        if (states.Contains(ComponentHealthState.PresentationDrift)) return FastenerText.Translate("显示差异");
+        if (states.Contains(ComponentHealthState.Configuration)) return FastenerText.Translate("配置");
+        if (states.Contains(ComponentHealthState.LegacyUnverified)) return FastenerText.Translate("兼容状态");
+        return FastenerText.Translate("正常");
     }
+
+    private static bool IsProblem(IReadOnlySet<ComponentHealthState> states) =>
+        states.Contains(ComponentHealthState.Corrupt)
+        || states.Contains(ComponentHealthState.BooleanFailure)
+        || states.Contains(ComponentHealthState.RelinkRequired)
+        || states.Contains(ComponentHealthState.MaintenanceRequired);
+
+    private static ComponentHealthState MapHealthState(DocumentComponentHealthState state) => state switch
+    {
+        DocumentComponentHealthState.MaintenanceRequired => ComponentHealthState.MaintenanceRequired,
+        DocumentComponentHealthState.RelinkRequired => ComponentHealthState.RelinkRequired,
+        DocumentComponentHealthState.Corrupt => ComponentHealthState.Corrupt,
+        DocumentComponentHealthState.PresentationDrift => ComponentHealthState.PresentationDrift,
+        DocumentComponentHealthState.Configuration => ComponentHealthState.Configuration,
+        DocumentComponentHealthState.LegacyUnverified => ComponentHealthState.LegacyUnverified,
+        _ => ComponentHealthState.Healthy
+    };
 }

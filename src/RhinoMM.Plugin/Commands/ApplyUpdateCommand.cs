@@ -17,7 +17,7 @@ public sealed class RhinoMMApplyUpdateCommand : Command
         var existing = ComponentsFromSelection(doc);
         if (existing.Count == 0)
         {
-            RhinoApp.WriteLine("请先选择一个或多个参数化紧固件控制点。");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine("请先选择一个或多个参数化紧固件控制点。");
             return Result.Nothing;
         }
         var state = EditorState.Current;
@@ -29,14 +29,14 @@ public sealed class RhinoMMApplyUpdateCommand : Command
                 out _,
                 out var message))
         {
-            RhinoApp.WriteLine(message);
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
             return Result.Failure;
         }
         FastenerTemplateLibraryService.RecordSuccessfulOperation(
             FastenerTemplateData.FromUpdateTemplate(template),
             FastenerOperationKind.Update,
             out _);
-        RhinoApp.WriteLine(message);
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
         return Result.Success;
     }
 

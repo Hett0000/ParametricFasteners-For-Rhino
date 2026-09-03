@@ -23,7 +23,7 @@ public sealed class ParametricFastenersEditHandlesCommand : Command
         var selected = ComponentRepository.ReadSelectedControlPoints(doc);
         if (selected.Count != 1)
         {
-            RhinoApp.WriteLine("参数手柄需要单选一个有效控制点。");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine("参数手柄需要单选一个有效控制点。");
             return Result.Nothing;
         }
 
@@ -36,7 +36,7 @@ public sealed class ParametricFastenersEditHandlesCommand : Command
                 out var contextMessage)
             || context is null)
         {
-            RhinoApp.WriteLine($"无法建立参数手柄会话：{contextMessage}");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"无法建立参数手柄会话：{contextMessage}");
             return Result.Failure;
         }
         component = context.Draft.Component;
@@ -73,11 +73,11 @@ public sealed class ParametricFastenersEditHandlesCommand : Command
                     out var message)
                 || context is null)
             {
-                RhinoApp.WriteLine($"参数手柄预检失败：{message}");
+                RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"参数手柄预检失败：{message}");
                 continue;
             }
             component = context.Draft.Component;
-            RhinoApp.WriteLine("参数值已写入上下文草稿；请在浮动编辑条点击“应用”提交。 ");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine("参数值已写入上下文草稿；请在浮动编辑条点击“应用”提交。 ");
         }
         ViewportQuickEditorService.ShowForCurrentSelection(doc, true);
         return Result.Success;
@@ -95,13 +95,13 @@ public sealed class ParametricFastenersEditHandlesCommand : Command
         var plane = FastenerGeometryFactory.ToPlane(component.Placement);
         var current = HandlePoint(component, handle, plane);
         using var getter = new GetPoint();
-        getter.SetCommandPrompt(handle switch
+        getter.SetCommandPrompt(FastenerText.Translate(handle switch
         {
             ParameterHandleKind.Length => "定位螺杆末端，单击或输入长度",
             ParameterHandleKind.Embed => "定位头部偏移，负值表示离面；单击或输入数值",
             ParameterHandleKind.NutProtrusion => "定位螺母外侧端面，单击或输入末端露出量",
             _ => "定位旋转方向，单击或输入角度"
-        });
+        }));
         getter.SetBasePoint(current, false);
         getter.AcceptNumber(true, false);
         getter.AcceptNothing(true);
@@ -152,7 +152,7 @@ public sealed class ParametricFastenersEditHandlesCommand : Command
         draft = ApplyValue(component, handle, value, plane, lengthSnap, rotationStep);
         if (!FastenerGeometryPreparationService.TryPrepare(doc, draft, out _, out var finalError))
         {
-            RhinoApp.WriteLine($"参数手柄预检失败：{(string.IsNullOrWhiteSpace(finalError) ? previewError : finalError)}");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"参数手柄预检失败：{(string.IsNullOrWhiteSpace(finalError) ? previewError : finalError)}");
             return false;
         }
         return true;
@@ -342,12 +342,12 @@ internal sealed class ParameterHandlePicker : GetPoint
             list.Add((ParameterHandleKind.Rotation, plane.Origin + plane.XAxis * radius, "旋转"));
         }
         _handles = list;
-        SetCommandPrompt("单击参数手柄；Esc 退出");
+        SetCommandPrompt(FastenerText.Translate("单击参数手柄；Esc 退出"));
         AcceptNothing(true);
-        _lengthSnap = new OptionToggle(lengthSnap, "关闭", "开启");
+        _lengthSnap = new OptionToggle(lengthSnap, FastenerText.Translate("关闭"), FastenerText.Translate("开启"));
         _rotationStep = new OptionDouble(Math.Max(0, rotationStep), 0, 180);
-        AddOptionToggle(new LocalizeStringPair("LengthSnap", "长度吸附"), ref _lengthSnap);
-        AddOptionDouble(new LocalizeStringPair("AngleStep", "角度步长"), ref _rotationStep, "°");
+        AddOptionToggle(new LocalizeStringPair("LengthSnap", FastenerText.Translate("长度吸附")), ref _lengthSnap);
+        AddOptionDouble(new LocalizeStringPair("AngleStep", FastenerText.Translate("角度步长")), ref _rotationStep, "°");
     }
 
     public ParameterHandleKind Hovered { get; private set; }

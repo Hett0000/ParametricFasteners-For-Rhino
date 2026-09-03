@@ -3,6 +3,8 @@ using Rhino.DocObjects;
 using Rhino.Geometry;
 using RhinoMM.Core.Domain;
 using RhinoMM.Core.Services;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace RhinoMM.Plugin.Persistence;
 
@@ -17,6 +19,8 @@ public static class ComponentRepository
     public const string PreparedSignatureKey = "RhinoMM.PreparedSignature";
     public const string GeometrySignatureKey = "RhinoMM.GeometrySignature";
     public const string PartIndexKey = "RhinoMM.PartIndex";
+    public const string SourceSignatureKey = "RhinoMM.SourceSignature";
+    public const string DerivedManifestKey = "RhinoMM.DerivedManifest";
 
     public static ObjectAttributes CreateAttributes(
         FastenerComponentData data,
@@ -100,11 +104,26 @@ public static class ComponentRepository
         ObjectAttributes attributes,
         string preparedSignature,
         string geometrySignature,
-        int partIndex)
+        int partIndex,
+        string? sourceSignature = null)
     {
         attributes.SetUserString(PreparedSignatureKey, preparedSignature);
         attributes.SetUserString(GeometrySignatureKey, geometrySignature);
         attributes.SetUserString(PartIndexKey, partIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        if (!string.IsNullOrWhiteSpace(sourceSignature))
+            attributes.SetUserString(SourceSignatureKey, sourceSignature);
+    }
+
+    public static string DerivedManifestSignature(IEnumerable<RhinoObject> objects)
+    {
+        var canonical = string.Join("\n", objects
+            .Where(obj => obj.Attributes.GetUserString(RoleKey) != "ControlPoint")
+            .Select(obj => string.Join("|",
+                obj.Attributes.GetUserString(RoleKey) ?? string.Empty,
+                obj.Attributes.GetUserString(BindingIdKey) ?? string.Empty,
+                obj.Attributes.GetUserString(PartIndexKey) ?? string.Empty))
+            .OrderBy(value => value, StringComparer.Ordinal));
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
     }
 
     public static bool TryReadSelection(RhinoDoc doc, out FastenerComponentData data)

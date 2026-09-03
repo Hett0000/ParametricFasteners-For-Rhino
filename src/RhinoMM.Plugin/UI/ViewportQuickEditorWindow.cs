@@ -2,6 +2,7 @@ using System.Globalization;
 using Eto.Drawing;
 using Eto.Forms;
 using Rhino;
+using Rhino.Display;
 using Rhino.UI;
 using RhinoMM.Core.Domain;
 using RhinoMM.Core.Services;
@@ -12,10 +13,10 @@ namespace RhinoMM.Plugin.UI;
 
 internal sealed class ViewportQuickEditorWindow : Form
 {
-    private const int CompactWidth = 280;
-    private const int ControlHeight = 22;
+    private const int CompactWidth = 268;
+    private const int ControlHeight = FastenerUiMetrics.QuickControlHeight;
     private const int StatusHeight = 20;
-    private const int TextContentWidth = CompactWidth - 14;
+    private const int TextContentWidth = CompactWidth - 12;
     private const int OffsetX = 36;
     private const int OffsetY = 40;
     private static readonly double[] CommonLengths = [8, 10, 12, 15, 20, 25, 30, 35, 40, 45, 50, 60];
@@ -25,8 +26,8 @@ internal sealed class ViewportQuickEditorWindow : Form
     private readonly UITimer _deleteTimer = new() { Interval = 2.0 };
     private readonly Label _title = FastenerUiTheme.PrimaryLabel();
     private readonly Label _summary = FastenerUiTheme.SecondaryLabel();
+    private readonly Label _health = FastenerUiTheme.SecondaryLabel();
     private readonly Label _status = FastenerUiTheme.SecondaryLabel();
-    private readonly Button _expand = new() { Text = "⌃", Width = 26, ToolTip = "展开/收起参数" };
     private readonly DropDown _size = new();
     private readonly NumericStepper _length = Number(0.5);
     private readonly NumericStepper _embed = Number(0.1, -500, 500);
@@ -43,8 +44,8 @@ internal sealed class ViewportQuickEditorWindow : Form
     private readonly Button _delete = Tool("删除", "删除整个参数化组件（需二次确认，不删除宿主）");
     private FastenerComponentData _component;
     private bool _loading;
-    private bool _expanded = true;
     private bool _deleteArmed;
+    private bool _processing;
     private string _lastReportedStatus = string.Empty;
 
     public ViewportQuickEditorWindow(RhinoDoc doc, FastenerComponentData component)
@@ -59,9 +60,11 @@ internal sealed class ViewportQuickEditorWindow : Form
         Padding = new Padding(1);
         FastenerUiTheme.SetRole(this, FastenerThemeRole.CardBorder);
         _title.Wrap = WrapMode.None;
-        _title.Width = CompactWidth - 48;
+        _title.Width = TextContentWidth;
         _summary.Wrap = WrapMode.None;
         _summary.Width = TextContentWidth;
+        _health.Wrap = WrapMode.None;
+        _health.Width = TextContentWidth;
         _status.Wrap = WrapMode.None;
         _status.Width = TextContentWidth;
         _status.Height = StatusHeight;
@@ -82,7 +85,7 @@ internal sealed class ViewportQuickEditorWindow : Form
         }
         foreach (var button in new[]
         {
-            _expand, _commonLength, _zero, _flush, _cancel, _read, _delete
+            _commonLength, _zero, _flush, _cancel, _read, _delete
         })
             FastenerUiTheme.ApplySecondary(button);
         FastenerUiTheme.ApplyPrimary(_apply, true);
@@ -132,13 +135,35 @@ internal sealed class ViewportQuickEditorWindow : Form
         if (!client.IsValid)
             return false;
         var screen = view.ScreenRectangle;
+        var viewportBounds = new Rectangle(screen.Left, screen.Top, screen.Width, screen.Height);
         if (client.X < 0 || client.Y < 0 || client.X > screen.Width || client.Y > screen.Height)
             return false;
-        var x = screen.Left + (int)Math.Round(client.X) + OffsetX;
-        var y = screen.Top + (int)Math.Round(client.Y) + OffsetY;
+        var anchor = new Point(
+            screen.Left + (int)Math.Round(client.X),
+            screen.Top + (int)Math.Round(client.Y));
+        var windowWidth = Math.Max(CompactWidth, Width);
+        var windowHeight = Math.Max(ClientSize.Height, Height);
+        var candidates = new[]
+        {
+            new Point(anchor.X + OffsetX, anchor.Y + OffsetY),
+            new Point(anchor.X - windowWidth - OffsetX, anchor.Y + OffsetY),
+            new Point(anchor.X + OffsetX, anchor.Y - windowHeight - OffsetY),
+            new Point(anchor.X - windowWidth - OffsetX, anchor.Y - windowHeight - OffsetY)
+        };
+        var exclusion = TryGetComponentScreenBounds(view, out var componentBounds)
+            ? componentBounds
+            : new Rectangle(anchor.X - 18, anchor.Y - 18, 36, 36);
+        var best = candidates
+            .Select((candidate, index) => new
+            {
+                Candidate = candidate,
+                Score = PositionScore(candidate, windowWidth, windowHeight, viewportBounds, exclusion, index)
+            })
+            .OrderBy(item => item.Score)
+            .First().Candidate;
         Location = new Point(
-            Math.Clamp(x, screen.Left + 6, Math.Max(screen.Left, screen.Right - Width - 6)),
-            Math.Clamp(y, screen.Top + 6, Math.Max(screen.Top, screen.Bottom - Height - 6)));
+            Math.Clamp(best.X, screen.Left + 6, Math.Max(screen.Left + 6, screen.Right - windowWidth - 6)),
+            Math.Clamp(best.Y, screen.Top + 6, Math.Max(screen.Top + 6, screen.Bottom - windowHeight - 6)));
         return true;
     }
 
@@ -163,11 +188,11 @@ internal sealed class ViewportQuickEditorWindow : Form
 
     private Control BuildContent()
     {
-        var root = new DynamicLayout { Spacing = new Size(4, 4) };
-        root.AddRow(new TableLayout { Spacing = new Size(4, 0), Rows = { new TableRow(new TableCell(_title, true), _expand) } });
+        var root = new DynamicLayout { Spacing = new Size(FastenerUiMetrics.SpaceSmall, FastenerUiMetrics.SpaceTight) };
+        root.AddRow(_title);
         root.AddRow(_summary);
-        if (_expanded)
-            AddFields(root);
+        root.AddRow(_health);
+        AddFields(root);
         root.AddRow(_status);
         root.AddRow(new TableLayout
         {
@@ -216,7 +241,6 @@ internal sealed class ViewportQuickEditorWindow : Form
         _commonLength.Click += (_, _) => ShowLengthMenu();
         _zero.Click += (_, _) => _embed.Value = 0;
         _flush.Click += (_, _) => _embed.Value = FlushDepth(_size.SelectedKey ?? _component.Size);
-        _expand.Click += (_, _) => { _expanded = !_expanded; _expand.Text = _expanded ? "⌃" : "⌄"; RebuildContent(); };
         _apply.Click += (_, _) => ApplyUpdate();
         _cancel.Click += (_, _) => Dismiss(true);
         _read.Click += (_, _) => ReadSavedComponent();
@@ -274,16 +298,26 @@ internal sealed class ViewportQuickEditorWindow : Form
 
     private void ApplyUpdate()
     {
-        RebuildSessionDraft();
-        if (!ContextualEditSessionService.TryCommit(_doc, _component.ComponentId, out var saved, out var message) || saved is null)
-        {
-            SetStatus(false, Short(message), message);
-            RhinoApp.WriteLine($"上下文更新失败：{message}");
+        if (_processing)
             return;
+        SetProcessing(true);
+        try
+        {
+            RebuildSessionDraft();
+            if (!ContextualEditSessionService.TryCommit(_doc, _component.ComponentId, out var saved, out var message) || saved is null)
+            {
+                SetStatus(false, Short(message), message);
+                RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"上下文更新失败：{message}");
+                return;
+            }
+            FastenerTemplateLibraryService.RecordSuccessfulOperation(FastenerTemplateData.FromComponent(saved), FastenerOperationKind.Update, out _);
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
+            ViewportQuickEditorService.SuppressForComponent(saved.ComponentId);
         }
-        FastenerTemplateLibraryService.RecordSuccessfulOperation(FastenerTemplateData.FromComponent(saved), FastenerOperationKind.Update, out _);
-        RhinoApp.WriteLine(message);
-        ViewportQuickEditorService.SuppressForComponent(saved.ComponentId);
+        finally
+        {
+            SetProcessing(false);
+        }
     }
 
     private void ReadSavedComponent()
@@ -297,7 +331,7 @@ internal sealed class ViewportQuickEditorWindow : Form
         }
         Panels.OpenPanel(typeof(RhinoMMPanel).GUID);
         ComponentEditorSession.Activate(_doc, saved, false, ComponentActivationIntent.LoadIntoEditor);
-        RhinoApp.WriteLine($"已将 {FastenerLabels.Kind(saved)} {saved.Size} 读取到创建模板。 ");
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"已将 {FastenerLabels.Kind(saved)} {saved.Size} 读取到创建模板。 ");
         ViewportQuickEditorService.SuppressForComponent(saved.ComponentId);
     }
 
@@ -359,7 +393,7 @@ internal sealed class ViewportQuickEditorWindow : Form
             && !string.Equals(full, _lastReportedStatus, StringComparison.Ordinal))
         {
             _lastReportedStatus = full;
-            RhinoApp.WriteLine($"参数化紧固件快捷编辑：{full}");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"参数化紧固件快捷编辑：{full}");
         }
         else if (!_status.Visible)
         {
@@ -370,22 +404,13 @@ internal sealed class ViewportQuickEditorWindow : Form
 
     private void RebuildContent()
     {
-        var card = FastenerUiTheme.CreateCard(BuildContent(), 5);
+        var card = FastenerUiTheme.CreateCard(BuildContent(), FastenerUiMetrics.SpaceCompact);
         Content = card;
         var preferred = card.GetPreferredSize(new SizeF(CompactWidth, 1000));
-        var preferredHeight = Math.Max(96, (int)Math.Ceiling(preferred.Height));
-        var viewHeight = _doc.Views.ActiveView?.ScreenRectangle.Height ?? int.MaxValue;
-        if (_expanded && preferredHeight > Math.Max(96, viewHeight - 12))
-        {
-            _expanded = false;
-            _expand.Text = "⌄";
-            card = FastenerUiTheme.CreateCard(BuildContent(), 5);
-            Content = card;
-            preferred = card.GetPreferredSize(new SizeF(CompactWidth, 1000));
-            preferredHeight = Math.Max(96, (int)Math.Ceiling(preferred.Height));
-        }
+        var preferredHeight = Math.Max(112, (int)Math.Ceiling(preferred.Height));
         ClientSize = new Size(CompactWidth, preferredHeight);
         FastenerUiTheme.ApplyTree(this);
+        FastenerUiLocalization.ApplyTree(this);
         TryReposition();
     }
 
@@ -435,14 +460,26 @@ internal sealed class ViewportQuickEditorWindow : Form
         var size = _size.SelectedKey ?? value.Size;
         var length = component?.Length ?? _length.Value;
         var shortKind = value.Kind == FastenerKind.HexNut
-            ? _lockingNut.Checked == true ? "防松螺母" : "六角螺母"
+            ? _lockingNut.Checked == true
+                ? FastenerText.Get("Fastener.LockNut.Short")
+                : FastenerText.Get("Fastener.HexNut.Short")
             : FastenerLabels.ShortKind(value.Kind);
         var title = value.Kind == FastenerKind.HexNut ? $"{shortKind} {size}" : $"{shortKind} {size}X{CompactNumber(length)}";
-        var summary = $"{AssemblyName(value.AssemblyMode)} · 宿主 {value.Bindings.Select(item => item.TargetObjectId).Distinct().Count()} · {(ComponentHostResolver.NeedsRelink(value) ? "待重绑" : "正常")}";
-        _title.Text = FitSingleLine(_title, title, CompactWidth - 48);
+        var needsRelink = ComponentHostResolver.NeedsRelink(value);
+        var summary = $"{AssemblyName(value.AssemblyMode)} · {value.Bindings.Select(item => item.TargetObjectId).Distinct().Count()}个宿主";
+        var health = needsRelink ? "待重新绑定" : "组件正常";
+        _title.Text = FitSingleLine(_title, title, TextContentWidth);
         _summary.Text = FitSingleLine(_summary, summary, TextContentWidth);
+        _health.Text = health;
+        FastenerUiTheme.SetRole(_health, needsRelink
+            ? FastenerThemeRole.StatusWarning
+            : FastenerThemeRole.StatusSuccess);
         _title.ToolTip = $"{title} · {FastenerSelectionSummaryFormatter.Compact(value)}";
         _summary.ToolTip = summary;
+        _health.ToolTip = needsRelink
+            ? "组件宿主关系需要重新绑定后才能安全更新或导出。"
+            : "控制点、宿主和参数状态正常。";
+        FastenerUiLocalization.ApplyTree(this);
     }
 
     private void WindowKeyDown(object? sender, KeyEventArgs e)
@@ -459,7 +496,7 @@ internal sealed class ViewportQuickEditorWindow : Form
         {
             _size, _length, _embed, _outerDiameter, _depthCompensation, _assembly,
             _lockingNut, _commonLength, _zero, _flush, _apply, _cancel, _read,
-            _delete, _expand
+            _delete
         })
         {
             if (control is CommonControl common) common.Font = font;
@@ -468,8 +505,75 @@ internal sealed class ViewportQuickEditorWindow : Form
         foreach (var button in new[] { _read, _cancel, _apply, _delete })
         {
             button.Width = -1;
-            button.Height = 26;
+            button.Height = FastenerUiMetrics.QuickButtonHeight;
         }
+    }
+
+    private void SetProcessing(bool processing)
+    {
+        _processing = processing;
+        _apply.Text = processing ? "处理中" : "应用";
+        _read.Enabled = !processing;
+        _cancel.Enabled = !processing;
+        _delete.Enabled = !processing;
+        _apply.Enabled = !processing && ContextualEditSessionService.TryGet(
+            _doc,
+            _component.ComponentId,
+            out var session) && session?.Draft.IsValid == true;
+    }
+
+    private bool TryGetComponentScreenBounds(RhinoView view, out Rectangle bounds)
+    {
+        var ids = new[] { _component.ProxyObjectId }
+            .Concat(_component.Bindings.Select(binding => binding.CutterObjectId))
+            .Where(id => id != Guid.Empty)
+            .Distinct();
+        var points = new List<Point>();
+        foreach (var id in ids)
+        {
+            var geometry = _doc.Objects.FindId(id)?.Geometry;
+            if (geometry is null)
+                continue;
+            var box = geometry.GetBoundingBox(true);
+            foreach (var corner in box.GetCorners())
+            {
+                var client = view.ActiveViewport.WorldToClient(corner);
+                if (client.IsValid)
+                    points.Add(new Point(
+                        view.ScreenRectangle.Left + (int)Math.Round(client.X),
+                        view.ScreenRectangle.Top + (int)Math.Round(client.Y)));
+            }
+        }
+        if (points.Count == 0)
+        {
+            bounds = Rectangle.Empty;
+            return false;
+        }
+        var left = points.Min(point => point.X);
+        var top = points.Min(point => point.Y);
+        var right = points.Max(point => point.X);
+        var bottom = points.Max(point => point.Y);
+        bounds = new Rectangle(left - 8, top - 8, Math.Max(1, right - left + 16), Math.Max(1, bottom - top + 16));
+        return true;
+    }
+
+    private static long PositionScore(
+        Point candidate,
+        int width,
+        int height,
+        Rectangle viewport,
+        Rectangle exclusion,
+        int preference)
+    {
+        var window = new Rectangle(candidate.X, candidate.Y, width, height);
+        var overflow = Math.Max(0, viewport.Left - window.Left)
+            + Math.Max(0, window.Right - viewport.Right)
+            + Math.Max(0, viewport.Top - window.Top)
+            + Math.Max(0, window.Bottom - viewport.Bottom);
+        var overlapWidth = Math.Max(0, Math.Min(window.Right, exclusion.Right) - Math.Max(window.Left, exclusion.Left));
+        var overlapHeight = Math.Max(0, Math.Min(window.Bottom, exclusion.Bottom) - Math.Max(window.Top, exclusion.Top));
+        var overlap = overlapWidth * overlapHeight;
+        return overflow * 1_000_000L + overlap * 100L + preference;
     }
 
     private static NumericStepper Number(double increment, double min = 0, double max = 1000) => new()

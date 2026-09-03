@@ -197,11 +197,11 @@ internal sealed class OutputCenterDialog : Dialog
                 message));
             if (inspection.WarningCount > 0 && inspection.ErrorCount == 0)
                 _warnings.Visible = true;
-            RhinoApp.WriteLine(message);
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
             return;
         }
         _operation.Set(new FastenerOperationProgress(FastenerOperationState.Success, message));
-        RhinoApp.WriteLine(message);
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
         Close();
     }
 

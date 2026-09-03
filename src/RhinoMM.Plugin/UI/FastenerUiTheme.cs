@@ -5,6 +5,7 @@ using Rhino;
 using Rhino.ApplicationSettings;
 using Rhino.Runtime;
 using Rhino.UI;
+using RhinoMM.Plugin.Services;
 
 namespace RhinoMM.Plugin.UI;
 
@@ -49,16 +50,16 @@ internal readonly record struct FastenerThemePalette(
 
 internal static class FastenerUiTheme
 {
-    public const int SpaceSmall = 4;
-    public const int SpaceMedium = 8;
-    public const int SpaceLarge = 12;
-    public const int ControlHeight = 28;
-    public const int ActionButtonHeight = 40;
-    public const int DialogButtonWidth = 88;
-    public const int CompactFontSize = 9;
-    public const int BodyFontSize = 9;
-    public const int SectionFontSize = 10;
-    public const int TitleFontSize = 12;
+    public const int SpaceSmall = FastenerUiMetrics.SpaceSmall;
+    public const int SpaceMedium = FastenerUiMetrics.SpaceMedium;
+    public const int SpaceLarge = FastenerUiMetrics.SpaceLarge;
+    public const int ControlHeight = FastenerUiMetrics.ControlHeight;
+    public const int ActionButtonHeight = FastenerUiMetrics.ActionButtonHeight;
+    public const int DialogButtonWidth = FastenerUiMetrics.DialogButtonWidth;
+    public const int CompactFontSize = FastenerUiMetrics.FieldFontSize;
+    public const int BodyFontSize = FastenerUiMetrics.FieldFontSize;
+    public const int SectionFontSize = FastenerUiMetrics.SectionFontSize;
+    public const int TitleFontSize = FastenerUiMetrics.SummaryFontSize;
 
     private sealed class ThemeRoleHolder(FastenerThemeRole role)
     {
@@ -109,6 +110,7 @@ internal static class FastenerUiTheme
         else
             Roles.Add(control, new ThemeRoleHolder(role));
         ApplyRole(control, role);
+        FastenerUiLocalization.ApplyTree(control);
     }
 
     public static void ApplyTree(Control root)
@@ -128,7 +130,7 @@ internal static class FastenerUiTheme
         }, FastenerThemeRole.Card);
         return Register(new Panel
         {
-            Padding = new Padding(1),
+            Padding = new Padding(FastenerUiMetrics.CardBorder),
             Content = surface
         }, FastenerThemeRole.CardBorder);
     }
@@ -141,12 +143,14 @@ internal static class FastenerUiTheme
 
     public static Label PrimaryLabel(string text = "") => Register(new Label
     {
-        Text = text
+        Text = text,
+        Font = new Font(SystemFont.Default, FastenerUiMetrics.FieldFontSize)
     }, FastenerThemeRole.PrimaryText);
 
     public static Label SecondaryLabel(string text = "") => Register(new Label
     {
-        Text = text
+        Text = text,
+        Font = new Font(SystemFont.Default, FastenerUiMetrics.AuxiliaryFontSize)
     }, FastenerThemeRole.SecondaryText);
 
     public static void ApplyPrimary(Button button, bool primary)
@@ -173,12 +177,25 @@ internal static class FastenerUiTheme
         {
             RefreshPalette();
             ApplyTree(window);
+            FastenerUiLocalization.ApplyTree(window);
             afterApply?.Invoke();
             window.Invalidate();
         }));
         RhinoApp.AppSettingsChanged += handler;
-        window.Closed += (_, _) => RhinoApp.AppSettingsChanged -= handler;
+        EventHandler languageHandler = (_, _) => RhinoApp.InvokeOnUiThread((Action)(() =>
+        {
+            FastenerUiLocalization.ApplyTree(window);
+            afterApply?.Invoke();
+            window.Invalidate();
+        }));
+        FastenerLocalizationService.Changed += languageHandler;
+        window.Closed += (_, _) =>
+        {
+            RhinoApp.AppSettingsChanged -= handler;
+            FastenerLocalizationService.Changed -= languageHandler;
+        };
         ApplyTree(window);
+        FastenerUiLocalization.ApplyTree(window);
     }
 
     public static TableLayout CreateWindowShell(

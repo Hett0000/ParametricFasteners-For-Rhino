@@ -4,6 +4,7 @@ using Rhino.Display;
 using Rhino.Geometry;
 using Rhino.Input;
 using Rhino.Input.Custom;
+using RhinoMM.Core.Services;
 using RhinoMM.Plugin.Persistence;
 using RhinoMM.Plugin.Services;
 
@@ -23,11 +24,11 @@ public sealed class RhinoMMExportToRhinoCommand : Command
         var options = new RhinoPlacementExportOptions(includeFastenerSolids);
         if (!RhinoPlacementExportService.TryBuild(doc, hosts, options, out var result, out var message))
         {
-            RhinoApp.WriteLine($"放入 Rhino 失败：{message}");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"放入 Rhino 失败：{message}");
             return Result.Failure;
         }
         foreach (var warning in result.Warnings)
-            RhinoApp.WriteLine($"放入 Rhino 警告：{warning}");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"放入 Rhino 警告：{warning}");
 
         var anchor = result.BottomCenter;
         using var previewMaterial = new DisplayMaterial(
@@ -40,7 +41,7 @@ public sealed class RhinoMMExportToRhinoCommand : Command
             System.Drawing.Color.FromArgb(184, 138, 50),
             0.08);
         using var pointGetter = new GetPoint();
-        pointGetter.SetCommandPrompt("移动导出成果，单击确定放置位置");
+        pointGetter.SetCommandPrompt(FastenerText.Translate("移动导出成果，单击确定放置位置"));
         pointGetter.SetBasePoint(anchor, false);
         pointGetter.DynamicDraw += (_, e) => DrawPreview(
             e,
@@ -208,13 +209,13 @@ public sealed class RhinoMMExportToRhinoCommand : Command
 
     private static Result WriteSuccess(string message)
     {
-        RhinoApp.WriteLine(message);
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
         return Result.Success;
     }
 
     private static Result WriteFailure(string message)
     {
-        RhinoApp.WriteLine(message);
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
         return Result.Failure;
     }
 }

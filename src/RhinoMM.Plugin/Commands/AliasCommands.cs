@@ -54,7 +54,7 @@ public sealed class ParametricFastenersQuickRefreshCommand : Command
     protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode)
     {
         var success = ComponentMaintenanceService.QuickRefresh(doc, out var message);
-        RhinoApp.WriteLine(message);
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
         return success ? Result.Success : Result.Failure;
     }
 }
@@ -75,7 +75,7 @@ public sealed class ParametricFastenersCleanupCommand : Command
     protected override Result RunCommand(Rhino.RhinoDoc doc, RunMode mode)
     {
         var success = ComponentMaintenanceService.CleanupResiduals(doc, out var message);
-        RhinoApp.WriteLine(message);
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
         return success ? Result.Success : Result.Failure;
     }
 }
@@ -108,7 +108,7 @@ public sealed class ParametricFastenersAdaptiveUpdateCommand : Command
         var components = Persistence.ComponentRepository.ReadSelectedControlPoints(doc);
         var template = EditorState.Current.CaptureUpdateTemplate();
         var success = AdaptiveBatchUpdateService.TryApply(doc, components, template, out _, out var message);
-        RhinoApp.WriteLine(message);
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
         return success ? Result.Success : Result.Failure;
     }
 }

@@ -83,8 +83,8 @@ public static class FastenerStatisticsWorkbookWriter
         writer.WriteStartElement("workbook", SpreadsheetNamespace);
         writer.WriteAttributeString("xmlns", "r", null, RelationshipNamespace);
         writer.WriteStartElement("sheets", SpreadsheetNamespace);
-        WriteSheet(writer, "汇总", 1, "rId1");
-        WriteSheet(writer, "明细", 2, "rId2");
+        WriteSheet(writer, FastenerText.Translate("汇总"), 1, "rId1");
+        WriteSheet(writer, FastenerText.Translate("明细"), 2, "rId2");
         writer.WriteEndElement();
         writer.WriteEndElement();
     }
@@ -144,12 +144,12 @@ public static class FastenerStatisticsWorkbookWriter
         StartWorksheet(writer, 8, 9);
         WriteColumns(writer, [28, 16, 14, 14, 12]);
         writer.WriteStartElement("sheetData", SpreadsheetNamespace);
-        WriteRow(writer, 1, [Text("紧固件统计汇总", true)]);
-        WriteRow(writer, 2, [Text("文档"), Text(documentName)]);
-        WriteRow(writer, 3, [Text("统计范围"), Text(ScopeLabel(report.Scope))]);
-        WriteRow(writer, 4, [Text("导出时间"), Text(exportedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture))]);
-        WriteRow(writer, 5, [Text("总数"), Number(report.TotalCount), Text("螺丝"), Number(report.ScrewCount), Text("螺母"), Number(report.NutCount)]);
-        WriteRow(writer, 8, [Text("类型", true), Text("规格", true), Text("长度 mm", true), Text("外径 mm", true), Text("数量", true)]);
+        WriteRow(writer, 1, [Text(FastenerText.Get("Output.FastenerSummary"), true)]);
+        WriteRow(writer, 2, [Text(FastenerText.Get("Output.Document")), Text(documentName)]);
+        WriteRow(writer, 3, [Text(FastenerText.Get("Output.Scope")), LocalizedText(ScopeLabel(report.Scope))]);
+        WriteRow(writer, 4, [LocalizedText("导出时间"), Text(exportedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", FastenerText.Culture))]);
+        WriteRow(writer, 5, [Text(FastenerText.Get("Output.Total")), Number(report.TotalCount), Text(FastenerText.Get("Output.Screw")), Number(report.ScrewCount), Text(FastenerText.Get("Output.Nut")), Number(report.NutCount)]);
+        WriteRow(writer, 8, [LocalizedText("类型", true), LocalizedText("规格", true), LocalizedText("长度 mm", true), LocalizedText("外径 mm", true), LocalizedText("数量", true)]);
         var rowIndex = 9;
         foreach (var row in report.SummaryRows)
         {
@@ -183,7 +183,7 @@ public static class FastenerStatisticsWorkbookWriter
             .Concat(["装配编号", "项目分组", "用户备注", "宿主名称", "宿主图层", "装配角色"])
             .Concat(headers.Skip(21))
             .ToArray();
-        WriteRow(writer, 1, headers.Select(value => Text(value, true)).ToArray());
+        WriteRow(writer, 1, headers.Select(value => LocalizedText(value, true)).ToArray());
         var rowIndex = 2;
         foreach (var component in report.Components)
         {
@@ -222,7 +222,7 @@ public static class FastenerStatisticsWorkbookWriter
         var engagementDiameter = spec is not null && engagement is not null
             ? HoleDiameterCalculator.Calculate(component, spec, engagement).FinalDiameter
             : (double?)null;
-        var role = pairedNut ? "配套螺母" : FastenerKindTraits.IsScrew(component.Kind) ? "螺丝" : "独立螺母";
+        var role = FastenerText.Translate(pairedNut ? "配套螺母" : FastenerKindTraits.IsScrew(component.Kind) ? "螺丝" : "独立螺母");
         var type = pairedNut
             ? FastenerLabels.NutStyle(component.PairedNutStyle)
             : FastenerLabels.Kind(component.Kind);
@@ -443,6 +443,8 @@ public static class FastenerStatisticsWorkbookWriter
         scope == FastenerStatisticsScope.Selected ? "当前选择" : "全部组件";
 
     private static CellValue Text(string value, bool header = false) => new(CellKind.Text, value ?? string.Empty, header);
+    private static CellValue LocalizedText(string value, bool header = false) =>
+        Text(FastenerText.Translate(value), header);
     private static CellValue Number(double value) => new(CellKind.Number, value.ToString("0.###############", CultureInfo.InvariantCulture), false);
     private static CellValue Blank() => new(CellKind.Blank, string.Empty, false);
 

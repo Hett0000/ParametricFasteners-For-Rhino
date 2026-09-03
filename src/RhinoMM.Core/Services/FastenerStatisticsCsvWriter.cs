@@ -12,7 +12,7 @@ public static class FastenerStatisticsCsvWriter
         IReadOnlyDictionary<Guid, FastenerDeliveryHostInfo>? hostInfo = null)
     {
         var builder = new StringBuilder();
-        builder.AppendLine("序号,类型,装配角色,规格,长度mm,外径mm,数量,装配编号,项目分组,用户备注,宿主名称,宿主图层,组件ID");
+        builder.AppendLine(FastenerText.Get("Output.CsvHeaders"));
         var sequence = 1;
         foreach (var component in report.Components)
         {
@@ -30,7 +30,7 @@ public static class FastenerStatisticsCsvWriter
         bool pairedNut,
         IReadOnlyDictionary<Guid, FastenerDeliveryHostInfo>? hostInfo)
     {
-        var role = pairedNut ? "配套螺母" : FastenerKindTraits.IsScrew(component.Kind) ? "螺丝" : "独立螺母";
+        var role = FastenerText.Translate(pairedNut ? "配套螺母" : FastenerKindTraits.IsScrew(component.Kind) ? "螺丝" : "独立螺母");
         var type = pairedNut ? FastenerLabels.NutStyle(component.PairedNutStyle) : FastenerLabels.Kind(component);
         var length = !pairedNut && FastenerKindTraits.UsesLengthInStatistics(component.Kind)
             ? component.Length.ToString("0.###", CultureInfo.InvariantCulture) : string.Empty;

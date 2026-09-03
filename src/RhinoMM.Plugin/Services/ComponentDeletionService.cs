@@ -34,6 +34,7 @@ internal static class ComponentDeletionService
             controls.Add((componentId, matching[0].Id));
         }
 
+        using var healthSuppression = ComponentDocumentHealthService.SuppressDuringMutation(doc);
         var undo = doc.BeginUndoRecord($"参数化紧固件：删除 {ids.Length} 个问题组件");
         if (undo == 0)
         {

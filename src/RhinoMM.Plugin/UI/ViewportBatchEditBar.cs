@@ -118,14 +118,14 @@ internal sealed class ViewportBatchEditBar : Form
         {
             var template = EditorState.Current.CaptureUpdateTemplate();
             if (!AdaptiveBatchUpdateService.TryApply(_doc, _components, template, out _, out var adaptiveMessage))
-                RhinoApp.WriteLine($"自适应批量更新失败：{adaptiveMessage}");
+                RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"自适应批量更新失败：{adaptiveMessage}");
             else
-                RhinoApp.WriteLine(adaptiveMessage);
+                RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(adaptiveMessage);
             return;
         }
         if (!RhinoMMPanel.ApplyCurrentTemplateToSelection(out var message))
-            RhinoApp.WriteLine($"批量更新失败：{message}");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"批量更新失败：{message}");
         else
-            RhinoApp.WriteLine(message);
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
     }
 }

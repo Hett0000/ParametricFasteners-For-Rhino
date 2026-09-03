@@ -27,6 +27,7 @@ internal static class ComponentMaintenanceService
             message = "没有缺少控制点的插件残留。";
             return true;
         }
+        using var healthSuppression = ComponentDocumentHealthService.SuppressDuringMutation(doc);
         var undo = doc.BeginUndoRecord("参数化紧固件：清理残留");
         try
         {

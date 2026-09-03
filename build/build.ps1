@@ -41,10 +41,11 @@ $packageOutputStaging = Join-Path $stagingRoot ("packages-" + [Guid]::NewGuid().
 $pluginBaseName = "ParametricFasteners"
 $productDisplayName = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("5Y+C5pWw5YyW57Sn5Zu65Lu2"))
 $installReadmeName = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("5a6J6KOF6K+05piOLm1k"))
+$installEnglishReadmeName = "Installation Instructions.md"
 $installLauncherName = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("5a6J6KOF5Y+C5pWw5YyW57Sn5Zu65Lu2LmNtZA=="))
 $offlineSuffix = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("56a757q/5a6J6KOF"))
 $diagnosticLauncherName = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("6K+K5pat5a6J6KOFLmNtZA=="))
-$packageVersion = "0.38.7"
+$packageVersion = "0.40.4"
 $env:DOTNET_CLI_HOME = Join-Path $root ".tools\dotnet-home"
 $env:NUGET_PACKAGES = Join-Path $root ".tools\nuget"
 $env:DOTNET_CLI_TELEMETRY_OPTOUT = "1"
@@ -192,6 +193,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $staging "manifest.yml") -Destination $packageBuildStaging -Force
     Copy-Item -LiteralPath (Join-Path $staging "THIRD_PARTY_NOTICES.md") -Destination $packageBuildStaging -Force
     Copy-Item -LiteralPath (Join-Path $root ("packaging\" + $installReadmeName)) -Destination $packageBuildStaging -Force
+    Copy-Item -LiteralPath (Join-Path $root ("packaging\" + $installEnglishReadmeName)) -Destination $packageBuildStaging -Force
 
     Push-Location $packageBuildStaging
     try {
@@ -218,6 +220,7 @@ try {
         Copy-Item -LiteralPath (Join-Path $root "packaging\diagnose-install.ps1") -Destination $offlineStaging -Force
         Copy-Item -LiteralPath (Join-Path $root ("packaging\" + $diagnosticLauncherName)) -Destination $offlineStaging -Force
         Copy-Item -LiteralPath (Join-Path $root ("packaging\" + $installReadmeName)) -Destination $offlineStaging -Force
+        Copy-Item -LiteralPath (Join-Path $root ("packaging\" + $installEnglishReadmeName)) -Destination $offlineStaging -Force
         $hash = Get-FileHash -LiteralPath (Join-Path $offlineStaging $yakFile.Name) -Algorithm SHA256
         [IO.File]::WriteAllText(
             (Join-Path $offlineStaging "SHA256SUMS.txt"),

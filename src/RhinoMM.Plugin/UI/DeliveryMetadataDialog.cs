@@ -78,7 +78,7 @@ internal sealed class DeliveryMetadataDialog : Dialog
     {
         if (components.Count == 0)
         {
-            RhinoApp.WriteLine("请先选择一个或多个紧固件控制点。" );
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine("请先选择一个或多个紧固件控制点。" );
             return;
         }
         using var dialog = new DeliveryMetadataDialog(doc, components);
@@ -101,7 +101,7 @@ internal sealed class DeliveryMetadataDialog : Dialog
             _status.Text = message;
             return;
         }
-        RhinoApp.WriteLine(message);
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
         Close();
     }
 }

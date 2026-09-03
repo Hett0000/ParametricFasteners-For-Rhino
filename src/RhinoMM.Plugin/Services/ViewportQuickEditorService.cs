@@ -74,7 +74,7 @@ internal static class ViewportQuickEditorService
         }
         catch (Exception ex)
         {
-            RhinoApp.WriteLine($"快速编辑器设置未能保存：{ex.Message}");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"快速编辑器设置未能保存：{ex.Message}");
         }
         if (!enabled)
             Hide(false);
