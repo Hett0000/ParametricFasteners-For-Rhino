@@ -142,6 +142,7 @@ public static class FastenerComponentService
         savedComponents = [];
         message = string.Empty;
         var prepared = operationPlan.Prepared;
+        using var healthSuppression = ComponentDocumentHealthService.SuppressDuringMutation(doc);
 
         var undo = doc.BeginUndoRecord(
             requestedCount == 1 ? "参数化紧固件：更新组件" : $"参数化紧固件：批量更新 {requestedCount} 个组件");
@@ -317,7 +318,48 @@ public static class FastenerComponentService
                 throw new InvalidOperationException($"无法保存组件对象属性 {obj.Id}。");
         }
         ComponentPresentationService.RecreateGroup(doc, saved.ComponentId, geometryObjectIds);
+        StampCommittedHealthMetadata(doc, saved, prepared, journal);
         return saved;
+    }
+
+    private static void StampCommittedHealthMetadata(
+        RhinoDoc doc,
+        FastenerComponentData saved,
+        PreparedFastenerGeometry prepared,
+        ComponentMutationJournal journal)
+    {
+        var objects = ComponentRepository.FindComponentObjects(doc, saved.ComponentId).ToArray();
+        var derived = objects.Where(obj =>
+            obj.Attributes.GetUserString(ComponentRepository.RoleKey) != "ControlPoint").ToArray();
+        foreach (var obj in derived)
+        {
+            var attributes = obj.Attributes.Duplicate();
+            var partIndex = int.TryParse(
+                attributes.GetUserString(ComponentRepository.PartIndexKey),
+                out var parsedPartIndex)
+                    ? parsedPartIndex
+                    : 0;
+            ComponentRepository.WriteDerivedSignature(
+                attributes,
+                prepared.PreparationSignature,
+                ComponentReliabilitySignatureService.GeometrySignature(obj.Geometry),
+                partIndex,
+                prepared.ParameterSignature);
+            if (!journal.ModifyAttributes(obj, attributes, true))
+                throw new InvalidOperationException($"无法保存派生对象健康签名 {obj.Id}。");
+        }
+
+        var control = objects.SingleOrDefault(obj =>
+            obj.Attributes.GetUserString(ComponentRepository.RoleKey) == "ControlPoint");
+        if (control is null)
+            throw new InvalidOperationException("无法保存组件健康清单：控制点不存在。");
+        var controlAttributes = control.Attributes.Duplicate();
+        controlAttributes.SetUserString(ComponentRepository.SourceSignatureKey, prepared.ParameterSignature);
+        controlAttributes.SetUserString(
+            ComponentRepository.DerivedManifestKey,
+            ComponentRepository.DerivedManifestSignature(derived));
+        if (!journal.ModifyAttributes(control, controlAttributes, true))
+            throw new InvalidOperationException("无法保存组件派生对象健康清单。");
     }
 
 }

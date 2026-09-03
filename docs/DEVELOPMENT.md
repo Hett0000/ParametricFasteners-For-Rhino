@@ -30,8 +30,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./build/build.ps1 -Confi
 
 `artifacts/plugin/`仅用于开发加载。正式交付位于`artifacts/packages/`：
 
-- `parametric-fasteners-0.38.7-rh8_18-win.yak`
-- `参数化紧固件-0.38.7-离线安装.zip`
+- `parametric-fasteners-0.40.4-rh8_18-win.yak`
+- `参数化紧固件-0.40.4-离线安装.zip`
 - `SHA256SUMS.txt`
 
 离线 ZIP 内含一键安装和只读诊断脚本。安装器拒绝在 Rhino 运行时安装，验证 Yak 内容和 SHA256，检测系统级旧注册冲突，并确认稳定用户包目录中的 ASCII RHP。正式注册完全交给 Rhino Package Manager；升级时只清理0.38.3遗留的Yak根项简略路径，用户模板和设置不会被删除。

@@ -214,7 +214,7 @@ internal sealed class FastenerTemplateManagerDialog : Dialog
         var dialog = new Eto.Forms.SaveFileDialog
         {
             Title = "导出紧固件收藏模板",
-            FileName = "参数化紧固件-收藏模板.json",
+            FileName = $"{FastenerText.Get(FastenerTextKey.ProductName)}-{FastenerText.Translate("收藏模板")}.json",
             Filters = { new FileFilter("JSON 模板", ".json") }
         };
         if (dialog.ShowDialog(this) != DialogResult.Ok)

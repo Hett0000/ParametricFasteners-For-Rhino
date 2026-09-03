@@ -4,7 +4,7 @@ param(
 
 $ErrorActionPreference = "Continue"
 $packageId = "parametric-fasteners"
-$expectedVersion = "0.38.7"
+$expectedVersion = "0.40.4"
 $pluginGuid = "ddc747eb-360e-4629-b65b-6bb1ddb4dc8f"
 $pluginFileName = "ParametricFasteners.rhp"
 $toolbarFileName = "ParametricFasteners.rui"

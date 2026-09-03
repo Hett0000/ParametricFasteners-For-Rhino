@@ -75,6 +75,7 @@ public static class ComponentPresentationService
             message = "当前文档没有可更新的参数化紧固件。";
             return true;
         }
+        using var healthSuppression = ComponentDocumentHealthService.SuppressDuringMutation(doc);
         var undo = manageUndoRecord
             ? doc.BeginUndoRecord("参数化紧固件：更新显示设置")
             : 0;

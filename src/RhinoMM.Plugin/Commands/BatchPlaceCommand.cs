@@ -17,7 +17,7 @@ public sealed class ParametricFastenersBatchPlaceCommand : Command
     protected override Result RunCommand(RhinoDoc doc, RunMode mode)
     {
         using var get = new GetObject();
-        get.SetCommandPrompt("选择点、点云、曲线、圆形边或平面圆孔，按 Enter 预检批量放置");
+        get.SetCommandPrompt(FastenerText.Translate("选择点、点云、曲线、圆形边或平面圆孔，按 Enter 预检批量放置"));
         get.GeometryFilter = ObjectType.Point | ObjectType.PointSet | ObjectType.Curve | ObjectType.Brep;
         get.GroupSelect = true;
         get.SubObjectSelect = true;
@@ -35,7 +35,7 @@ public sealed class ParametricFastenersBatchPlaceCommand : Command
             out var unsupported);
         if (candidates.Count == 0)
         {
-            RhinoApp.WriteLine("所选对象没有可用于批量放置的点位。");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine("所选对象没有可用于批量放置的点位。");
             return Result.Nothing;
         }
 
@@ -59,7 +59,7 @@ public sealed class ParametricFastenersBatchPlaceCommand : Command
                     operation: operation));
             if (preflightRun.Cancelled)
             {
-                RhinoApp.WriteLine("批量预检已取消；模型未修改。");
+                RhinoMM.Plugin.Services.FastenerCommandText.WriteLine("批量预检已取消；模型未修改。");
                 return Result.Cancel;
             }
             preflight = preflightRun.Result;
@@ -88,7 +88,7 @@ public sealed class ParametricFastenersBatchPlaceCommand : Command
             .ToArray();
         if (creatableItems.Length == 0)
         {
-            RhinoApp.WriteLine("没有可创建的有效点位。");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine("没有可创建的有效点位。");
             return Result.Nothing;
         }
 
@@ -100,7 +100,7 @@ public sealed class ParametricFastenersBatchPlaceCommand : Command
                 out var creatable,
                 out var revalidationMessage))
         {
-            RhinoApp.WriteLine($"批量放置失败：{revalidationMessage}");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"批量放置失败：{revalidationMessage}");
             return Result.Failure;
         }
 
@@ -110,7 +110,7 @@ public sealed class ParametricFastenersBatchPlaceCommand : Command
                 out var saved,
                 out var message))
         {
-            RhinoApp.WriteLine($"批量放置失败：{message}");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"批量放置失败：{message}");
             return Result.Failure;
         }
         ViewportOperationFeedback.Show(doc, saved);
@@ -125,7 +125,7 @@ public sealed class ParametricFastenersBatchPlaceCommand : Command
             FastenerOperationKind.Placement,
             out _);
         FastenerDocumentIndexService.Invalidate(doc);
-        RhinoApp.WriteLine(
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(
             $"批量放置完成：创建 {saved.Count} 个组件"
             + (preflight.FailureCount > 0 && dialog.SkipFailures
                 ? $"，跳过 {preflight.FailureCount} 个失败点"

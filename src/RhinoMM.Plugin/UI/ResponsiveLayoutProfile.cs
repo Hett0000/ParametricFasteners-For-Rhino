@@ -11,18 +11,16 @@ internal readonly record struct ResponsiveLayoutProfile(
     int SelectFieldWidth,
     int DepthFieldWidth)
 {
-    public const int NarrowBreakpoint = 300;
-    public const int CompactBreakpoint = 340;
+    public const int NarrowBreakpoint = 280;
+    public const int CompactBreakpoint = 320;
     public const int WideBreakpoint = 420;
 
     public static ResponsiveLayoutProfile ForWidth(int clientWidth)
     {
         if (clientWidth >= WideBreakpoint)
-            return new ResponsiveLayoutProfile(5, 5, 6, true, 3, 82, 102, 96, 148);
+            return new ResponsiveLayoutProfile(5, 5, 6, true, 3, 80, 98, 94, 144);
         if (clientWidth >= CompactBreakpoint)
-            return new ResponsiveLayoutProfile(5, 5, 6, true, 3, 78, 96, 92, 140);
-        if (clientWidth >= NarrowBreakpoint)
-            return new ResponsiveLayoutProfile(4, 5, 4, false, 2, 74, 90, 88, 132);
-        return new ResponsiveLayoutProfile(3, 5, 4, false, 2, 68, 84, 82, 120);
+            return new ResponsiveLayoutProfile(5, 5, 6, true, 2, 74, 90, 88, 136);
+        return new ResponsiveLayoutProfile(5, 5, 6, false, 1, 68, 84, 82, 120);
     }
 }

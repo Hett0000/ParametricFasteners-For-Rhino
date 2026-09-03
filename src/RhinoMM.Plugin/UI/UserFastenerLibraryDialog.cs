@@ -311,7 +311,7 @@ internal sealed class UserFastenerLibraryDialog : Dialog
         var dialog = new Eto.Forms.SaveFileDialog
         {
             Title = csv ? "导出用户标准件尺寸表" : "导出用户标准件库",
-            FileName = csv ? "参数化紧固件_用户库.csv" : "参数化紧固件_用户库.json"
+            FileName = $"{FastenerText.Get(FastenerTextKey.ProductName)}_{FastenerText.Translate("用户库")}.{(csv ? "csv" : "json")}"
         };
         dialog.Filters.Add(new FileFilter(csv ? "CSV" : "JSON", csv ? ".csv" : ".json"));
         if (dialog.ShowDialog(this) != DialogResult.Ok) return;

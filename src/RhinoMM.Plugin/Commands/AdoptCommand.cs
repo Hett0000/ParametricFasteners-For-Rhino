@@ -3,6 +3,7 @@ using Rhino.Commands;
 using Rhino.DocObjects;
 using Rhino.Geometry;
 using Rhino.Input.Custom;
+using RhinoMM.Core.Services;
 using RhinoMM.Plugin.Geometry;
 using RhinoMM.Plugin.Persistence;
 using RhinoMM.Plugin.Services;
@@ -18,7 +19,7 @@ public sealed class RhinoMMAdoptFastenerCommand : Command
     internal static Result Execute(RhinoDoc doc, RunMode mode)
     {
         using var go = new GetObject();
-        go.SetCommandPrompt("选择要转换为参数化紧固件的现有模型");
+        go.SetCommandPrompt(FastenerText.Translate("选择要转换为参数化紧固件的现有模型"));
         go.GeometryFilter = ObjectType.Brep | ObjectType.Extrusion | ObjectType.InstanceReference;
         go.Get();
         if (go.CommandResult() != Result.Success)
@@ -29,7 +30,7 @@ public sealed class RhinoMMAdoptFastenerCommand : Command
             && ComponentRepository.TryReadComponent(doc, componentId, out var existing))
         {
             ComponentEditorSession.Activate(doc, existing, true);
-            RhinoApp.WriteLine("该对象已经是参数化紧固件组件，参数已读取到面板。");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine("该对象已经是参数化紧固件组件，参数已读取到面板。");
             return Result.Success;
         }
 
@@ -53,14 +54,14 @@ public sealed class RhinoMMAdoptFastenerCommand : Command
 
         if (!FastenerComponentService.CreateOrReplace(doc, draft, out var saved, out var message))
         {
-            RhinoApp.WriteLine(message);
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
             return Result.Failure;
         }
 
         source.Attributes.Visible = false;
         doc.Objects.ModifyAttributes(source, source.Attributes, true);
         ComponentEditorSession.Activate(doc, saved);
-        RhinoApp.WriteLine($"已按当前面板规格转换；原对象已隐藏并保留。{message}");
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"已按当前面板规格转换；原对象已隐藏并保留。{message}");
         return Result.Success;
     }
 }

@@ -342,13 +342,13 @@ public static class ComponentLifecycleService
                 foreach (var component in pending.Components)
                     SynchronizeMovedComponent(pending.Document, pending, component);
             if (!pending.IsRigidTransform)
-                RhinoApp.WriteLine(
+                RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(
                     "参数化紧固件提示：已同步对象位置，但缩放、剪切及非刚性变换不会改变紧固件规格；后续应用更新将按原规格尺寸重建。旋转与镜像已完整支持。");
             pending.Document.Views.Redraw();
         }
         catch (Exception ex)
         {
-            RhinoApp.WriteLine($"参数化紧固件移动同步失败：{ex.Message}");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"参数化紧固件移动同步失败：{ex.Message}");
         }
         finally
         {
@@ -408,9 +408,9 @@ public static class ComponentLifecycleService
         if (plans.Count == 0)
             return;
         if (ComponentCloneService.Normalize(doc, plans, out _, out var message))
-            RhinoApp.WriteLine(message);
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
         else
-            RhinoApp.WriteLine($"参数化紧固件{(batch.Kind == ComponentTransformKind.Paste ? "粘贴" : "导入")}同步失败：{message}");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"参数化紧固件{(batch.Kind == ComponentTransformKind.Paste ? "粘贴" : "导入")}同步失败：{message}");
     }
 
     private static void NormalizeCopiedComponents(PendingTransform pending)
@@ -448,9 +448,9 @@ public static class ComponentLifecycleService
         if (plans.Count == 0)
             return;
         if (ComponentCloneService.Normalize(pending.Document, plans, out _, out var message))
-            RhinoApp.WriteLine(message);
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
         else
-            RhinoApp.WriteLine($"参数化紧固件复制同步失败：{message}");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"参数化紧固件复制同步失败：{message}");
     }
 
     private static void SynchronizeMovedComponent(
@@ -562,7 +562,8 @@ public static class ComponentLifecycleService
                     attributes,
                     prepared!.PreparationSignature,
                     ComponentReliabilitySignatureService.GeometrySignature(obj.Geometry),
-                    partIndex);
+                    partIndex,
+                    prepared.ParameterSignature);
             }
             if (!doc.Objects.ModifyAttributes(obj, attributes, true))
                 throw new InvalidOperationException($"无法更新移动后对象属性：{obj.Id}");
@@ -574,9 +575,23 @@ public static class ComponentLifecycleService
             objects
                 .Where(obj => obj.Attributes.GetUserString(ComponentRepository.RoleKey) != "ControlPoint")
                 .Select(obj => obj.Id));
+        if (hasPreparedSignature
+            && ComponentRepository.FindControlPoint(doc, updated.ComponentId) is { } committedControl)
+        {
+            var committedObjects = ComponentRepository.FindComponentObjects(doc, updated.ComponentId).ToArray();
+            var committedDerived = committedObjects.Where(obj =>
+                obj.Attributes.GetUserString(ComponentRepository.RoleKey) != "ControlPoint").ToArray();
+            var controlAttributes = committedControl.Attributes.Duplicate();
+            controlAttributes.SetUserString(ComponentRepository.SourceSignatureKey, prepared!.ParameterSignature);
+            controlAttributes.SetUserString(
+                ComponentRepository.DerivedManifestKey,
+                ComponentRepository.DerivedManifestSignature(committedDerived));
+            if (!doc.Objects.ModifyAttributes(committedControl, controlAttributes, true))
+                throw new InvalidOperationException("无法更新移动后组件健康清单。");
+        }
         ComponentEditorSession.UpdateCache(doc, updated);
         if (ComponentHostResolver.NeedsRelink(updated))
-            RhinoApp.WriteLine(
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(
                 $"参数化紧固件 {updated.ComponentId.ToString("N")[..8]} 移动后需要重新绑定宿主；请选择对应宿主并运行“刷新 / 清理”。");
     }
 

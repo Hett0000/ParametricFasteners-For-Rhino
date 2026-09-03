@@ -225,7 +225,7 @@ public sealed class FastenerStatisticsDialog : Dialog
             Title = "导出紧固件统计 Excel",
             DefaultExt = "xlsx",
             InitialDirectory = _lastDirectory,
-            FileName = $"{SanitizeFileName(documentName)}_紧固件统计_{DateTime.Now:yyyyMMdd-HHmm}.xlsx",
+            FileName = $"{SanitizeFileName(documentName)}_{FastenerText.Get("Output.StatisticsTitle")}_{DateTime.Now:yyyyMMdd-HHmm}.xlsx",
             Filter = "Excel 工作簿 (*.xlsx)|*.xlsx"
         };
         if (!dialog.ShowSaveDialog())

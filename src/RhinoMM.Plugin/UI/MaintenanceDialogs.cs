@@ -100,7 +100,7 @@ internal sealed class MaintenanceCenterDialog : Dialog
         _status.Set(new FastenerOperationProgress(
             success ? FastenerOperationState.Success : FastenerOperationState.Failure,
             message));
-        RhinoApp.WriteLine(message);
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
     }
 
     private static (Button Button, Panel Card) Action(string title, string description)
@@ -201,13 +201,13 @@ internal sealed class RelinkWizardDialog : Dialog
             operation => ComponentMaintenanceService.BuildRelinkRequests(doc, operation));
         if (run.Cancelled)
         {
-            RhinoApp.WriteLine("重新绑定候选分析已取消；模型未修改。");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine("重新绑定候选分析已取消；模型未修改。");
             return;
         }
         var requests = run.Result;
         if (requests.Count == 0)
         {
-            RhinoApp.WriteLine("当前选择或文档中没有待重新绑定的组件。");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine("当前选择或文档中没有待重新绑定的组件。");
             return;
         }
         using var dialog = new RelinkWizardDialog(doc, requests);
@@ -256,11 +256,11 @@ internal sealed class RelinkWizardDialog : Dialog
         if (!ComponentMaintenanceService.CommitRelinks(_doc, _targets, out var message))
         {
             _status.Set(new FastenerOperationProgress(FastenerOperationState.Failure, message));
-            RhinoApp.WriteLine(message);
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
             return;
         }
         _status.Set(new FastenerOperationProgress(FastenerOperationState.Success, message));
-        RhinoApp.WriteLine(message);
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
         Close();
     }
 }

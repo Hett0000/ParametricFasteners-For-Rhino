@@ -82,7 +82,7 @@ internal static class ViewportPickRayService
         var errorText = double.IsFinite(projectionError)
             ? $"{projectionError:0.###} px"
             : "无效";
-        RhinoApp.WriteLine(
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(
             $"参数化紧固件拾取诊断：视口={viewport.Name}，投影={projection}，" +
             $"本地坐标=({clientPoint.X},{clientPoint.Y})，视口范围={bounds.Width}×{bounds.Height}，" +
             $"反投影误差={errorText}，详情={detail}");

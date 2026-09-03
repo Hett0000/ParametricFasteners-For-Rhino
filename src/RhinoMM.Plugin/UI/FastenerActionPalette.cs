@@ -2,16 +2,17 @@ using Eto.Drawing;
 using Eto.Forms;
 using Rhino;
 using Rhino.UI;
+using RhinoMM.Core.Services;
 
 namespace RhinoMM.Plugin.UI;
 
-internal sealed record FastenerActionDescriptor(
+internal sealed record FastenerPaletteActionDescriptor(
     string Group,
     string Name,
     string Keywords,
     Action Execute)
 {
-    public string Display => $"{Group}　{Name}";
+    public string Display => $"{FastenerText.Translate(Group)}　{FastenerText.Translate(Name)}";
 }
 
 internal sealed class FastenerActionPalette : Form
@@ -20,12 +21,12 @@ internal sealed class FastenerActionPalette : Form
     private const int ScreenMargin = 12;
     private static FastenerActionPalette? _current;
     private static Size _lastClientSize = new(360, 420);
-    private readonly IReadOnlyList<FastenerActionDescriptor> _actions;
+    private readonly IReadOnlyList<FastenerPaletteActionDescriptor> _actions;
     private readonly TextBox _search = new() { PlaceholderText = "搜索操作…" };
     private readonly ListBox _list = new();
-    private IReadOnlyList<FastenerActionDescriptor> _visible = [];
+    private IReadOnlyList<FastenerPaletteActionDescriptor> _visible = [];
 
-    private FastenerActionPalette(IReadOnlyList<FastenerActionDescriptor> actions)
+    private FastenerActionPalette(IReadOnlyList<FastenerPaletteActionDescriptor> actions)
     {
         _actions = actions;
         Title = "参数化紧固件操作";
@@ -70,7 +71,7 @@ internal sealed class FastenerActionPalette : Form
         };
     }
 
-    public static void Show(Control? anchor, IReadOnlyList<FastenerActionDescriptor> actions)
+    public static void Show(Control? anchor, IReadOnlyList<FastenerPaletteActionDescriptor> actions)
     {
         if (_current is { Visible: true } current)
         {
@@ -119,8 +120,11 @@ internal sealed class FastenerActionPalette : Form
         _visible = _actions
             .Where(action => query.Length == 0
                 || action.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+                || FastenerText.Translate(action.Name).Contains(query, StringComparison.OrdinalIgnoreCase)
                 || action.Group.Contains(query, StringComparison.OrdinalIgnoreCase)
-                || action.Keywords.Contains(query, StringComparison.OrdinalIgnoreCase))
+                || FastenerText.Translate(action.Group).Contains(query, StringComparison.OrdinalIgnoreCase)
+                || action.Keywords.Contains(query, StringComparison.OrdinalIgnoreCase)
+                || FastenerText.Translate(action.Keywords).Contains(query, StringComparison.OrdinalIgnoreCase))
             .ToArray();
         _list.Items.Clear();
         foreach (var action in _visible)

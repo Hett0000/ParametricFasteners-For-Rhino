@@ -36,7 +36,7 @@ internal static class SmartPlacementCommand
         }
         catch (Exception ex)
         {
-            RhinoApp.WriteLine($"无法启动智能放置：{ex.Message}");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"无法启动智能放置：{ex.Message}");
             return Result.Failure;
         }
 
@@ -50,7 +50,7 @@ internal static class SmartPlacementCommand
             {
                 if (getter.HandleOption())
                 {
-                    RhinoApp.WriteLine("已切换到经典放置。");
+                    RhinoMM.Plugin.Services.FastenerCommandText.WriteLine("已切换到经典放置。");
                     return RhinoMMPlaceHoleCommand.ExecuteClassic(doc, mode);
                 }
                 continue;
@@ -69,7 +69,7 @@ internal static class SmartPlacementCommand
                     || preview.Draft is null
                     || preview.Prepared is null)
                 {
-                    RhinoApp.WriteLine(preview?.Message ?? "当前位置无法生成紧固件。");
+                    RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(preview?.Message ?? "当前位置无法生成紧固件。");
                     continue;
                 }
             }
@@ -81,7 +81,7 @@ internal static class SmartPlacementCommand
                     out var saved,
                     out var message))
             {
-                RhinoApp.WriteLine($"该位置放置失败：{message}");
+                RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"该位置放置失败：{message}");
                 continue;
             }
 
@@ -90,7 +90,7 @@ internal static class SmartPlacementCommand
                 using var suppression = ComponentLifecycleService.Suppress(doc, saved.ComponentId);
                 foreach (var obj in ComponentRepository.FindComponentObjects(doc, saved.ComponentId).ToList())
                     doc.Objects.Delete(obj, true);
-                RhinoApp.WriteLine("放置失败：最终组件参数与点击时的预览参数不一致，已取消该组件。");
+                RhinoMM.Plugin.Services.FastenerCommandText.WriteLine("放置失败：最终组件参数与点击时的预览参数不一致，已取消该组件。");
                 continue;
             }
 
@@ -100,7 +100,7 @@ internal static class SmartPlacementCommand
                 FastenerTemplateData.FromComponent(saved),
                 FastenerOperationKind.Placement,
                 out _);
-            RhinoApp.WriteLine(
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(
                 placed.Count == 1
                     ? message
                     : $"已连续放置 {placed.Count} 颗紧固件。");
@@ -114,7 +114,7 @@ internal static class SmartPlacementCommand
             placed[^1],
             true,
             ComponentActivationIntent.SynchronizeOnly);
-        RhinoApp.WriteLine(
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(
             placed.Count == 1
                 ? "智能放置完成：已生成 1 颗紧固件。"
                 : $"智能放置完成：共生成 {placed.Count} 颗紧固件，可使用一次撤销恢复。");
@@ -148,7 +148,7 @@ internal sealed class SmartPlacementGetter : GetPoint, IDisposable
     public SmartPlacementGetter(SmartPlacementService service)
     {
         _service = service;
-        SetCommandPrompt("移动鼠标预览紧固件，单击放置；Enter、右键或 Esc 完成");
+        SetCommandPrompt(FastenerText.Translate("移动鼠标预览紧固件，单击放置；Enter、右键或 Esc 完成"));
         AcceptNothing(true);
         EnableObjectSnapCursors(true);
         EnableSnapToCurves(true);
@@ -185,7 +185,7 @@ internal sealed class SmartPlacementGetter : GetPoint, IDisposable
                 2 => SmartPlacementRecognitionMode.AllEngagement,
                 _ => SmartPlacementRecognitionMode.Automatic
             };
-            RhinoApp.WriteLine($"识别模式：{RecognitionLabel(RecognitionMode)}");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"识别模式：{RecognitionLabel(RecognitionMode)}");
         }
         return false;
     }
@@ -254,7 +254,7 @@ internal sealed class SmartPlacementGetter : GetPoint, IDisposable
             return false;
 
         using var getter = new GetObject();
-        getter.SetCommandPrompt("自动识别失败：点击后方封闭实体确认咬合体；Esc取消本次放置");
+        getter.SetCommandPrompt(FastenerText.Translate("自动识别失败：点击后方封闭实体确认咬合体；Esc取消本次放置"));
         getter.GeometryFilter = ObjectType.Brep | ObjectType.Extrusion;
         getter.SubObjectSelect = false;
         getter.EnablePreSelect(false, true);
@@ -284,7 +284,7 @@ internal sealed class SmartPlacementGetter : GetPoint, IDisposable
             host.Id);
         ReplacePreview(confirmed);
         if (confirmed.IsValid)
-            RhinoApp.WriteLine($"已确认咬合宿主 {host.Id.ToString("N")[..8]}，该选择将随组件保存。");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"已确认咬合宿主 {host.Id.ToString("N")[..8]}，该选择将随组件保存。");
         return confirmed.IsValid;
     }
 
@@ -488,7 +488,7 @@ internal sealed class SmartPlacementGetter : GetPoint, IDisposable
             || string.Equals(message, _lastReportedPreviewError, StringComparison.Ordinal))
             return;
         _lastReportedPreviewError = message;
-        RhinoApp.WriteLine($"智能放置预览：{message}");
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"智能放置预览：{message}");
     }
 
     private static void DrawStatusHud(

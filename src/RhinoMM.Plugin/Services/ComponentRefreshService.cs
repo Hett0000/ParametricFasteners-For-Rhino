@@ -178,6 +178,7 @@ public static class ComponentRefreshService
             return true;
         }
 
+        using var healthSuppression = ComponentDocumentHealthService.SuppressDuringMutation(doc);
         var undo = doc.BeginUndoRecord("参数化紧固件：刷新修复");
         var ownsUndoRecord = undo != 0;
         try

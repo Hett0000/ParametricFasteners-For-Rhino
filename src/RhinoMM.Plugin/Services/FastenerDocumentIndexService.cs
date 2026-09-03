@@ -12,12 +12,11 @@ namespace RhinoMM.Plugin.Services;
 internal enum ComponentHealthState
 {
     Healthy,
-    Warning,
-    NeedsRebuild,
-    NeedsRelink,
-    InvalidParameters,
-    BooleanDisabled,
-    PreviewHidden,
+    MaintenanceRequired,
+    RelinkRequired,
+    PresentationDrift,
+    Configuration,
+    LegacyUnverified,
     Corrupt,
     BooleanFailure
 }
@@ -243,7 +242,7 @@ internal static class FastenerDocumentIndexService
                 FastenerSpecResolver.Resolve(component, RhinoMMPlugIn.Catalog));
             if (!validation.IsValid)
             {
-                states.Add(ComponentHealthState.InvalidParameters);
+                states.Add(ComponentHealthState.Corrupt);
                 issues.AddRange(validation.Issues.Where(issue => issue.IsError).Select(issue => issue.Message));
             }
             var missingTargets = component.Bindings
@@ -252,30 +251,38 @@ internal static class FastenerDocumentIndexService
                 .ToArray();
             if (missingTargets.Length > 0 || ComponentHostResolver.NeedsRelink(component))
             {
-                states.Add(ComponentHealthState.NeedsRelink);
+                states.Add(ComponentHealthState.RelinkRequired);
                 issues.Add("存在丢失或待重新绑定的宿主。 ");
             }
             var savedOrigin = FastenerGeometryFactory.ToPlane(component.Placement).Origin;
             var actualOrigin = ((Point)control.Geometry).Location;
             var derived = objects.Where(obj => obj.Id != control.Id).ToArray();
-            if (actualOrigin.DistanceTo(savedOrigin) > Math.Max(doc.ModelAbsoluteTolerance, 1e-6)
-                || derived.Any(obj =>
-                    !string.IsNullOrWhiteSpace(obj.Attributes.GetUserString(ComponentRepository.ComponentKey))
-                    || string.IsNullOrWhiteSpace(obj.Attributes.GetUserString(ComponentRepository.PreparedSignatureKey))
-                    || string.IsNullOrWhiteSpace(obj.Attributes.GetUserString(ComponentRepository.GeometrySignatureKey))))
+            var controlSourceSignature = control.Attributes.GetUserString(ComponentRepository.SourceSignatureKey);
+            var hasCurrentHealthMetadata = !string.IsNullOrWhiteSpace(
+                    control.Attributes.GetUserString(ComponentRepository.DerivedManifestKey))
+                && !string.IsNullOrWhiteSpace(controlSourceSignature)
+                && derived.All(obj => string.Equals(
+                    obj.Attributes.GetUserString(ComponentRepository.SourceSignatureKey),
+                    controlSourceSignature,
+                    StringComparison.Ordinal));
+            var geometryChanged = hasCurrentHealthMetadata && derived.Any(obj =>
             {
-                states.Add(ComponentHealthState.NeedsRebuild);
-                issues.Add("控制点、派生对象或几何签名需要重建。 ");
+                var savedSignature = obj.Attributes.GetUserString(ComponentRepository.GeometrySignatureKey);
+                return !string.IsNullOrWhiteSpace(savedSignature)
+                    && savedSignature != ComponentReliabilitySignatureService.GeometrySignature(obj.Geometry);
+            });
+            if (actualOrigin.DistanceTo(savedOrigin) > Math.Max(doc.ModelAbsoluteTolerance, 1e-6)
+                || geometryChanged)
+            {
+                states.Add(ComponentHealthState.MaintenanceRequired);
+                issues.Add("控制点位置或派生对象几何需要同步。 ");
             }
-            if (component.Bindings.Any(binding => !binding.IsBooleanEnabled))
-                states.Add(ComponentHealthState.BooleanDisabled);
-            if (component.Bindings.Any(binding => !binding.IsPreviewVisible))
-                states.Add(ComponentHealthState.PreviewHidden);
+            if (!hasCurrentHealthMetadata)
+                states.Add(ComponentHealthState.LegacyUnverified);
+            if (component.Bindings.Any(binding => !binding.IsBooleanEnabled || !binding.IsPreviewVisible))
+                states.Add(ComponentHealthState.Configuration);
             if (states.Count == 0)
                 states.Add(ComponentHealthState.Healthy);
-            else if (!states.Contains(ComponentHealthState.InvalidParameters)
-                     && !states.Contains(ComponentHealthState.NeedsRelink))
-                states.Add(ComponentHealthState.Warning);
 
             var hostIds = component.Bindings
                 .Select(binding => binding.TargetObjectId)

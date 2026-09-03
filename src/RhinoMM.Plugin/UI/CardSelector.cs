@@ -6,7 +6,7 @@ namespace RhinoMM.Plugin.UI;
 internal sealed class CardSelector : Panel
 {
     private const int CardHeight = FastenerUiTheme.ControlHeight;
-    private const int CardSpacing = 4;
+    private const int CardSpacing = FastenerUiMetrics.SpaceTight;
     private readonly List<(string Key, ToggleButton Button)> _items = [];
     private bool _synchronizing;
     private int _columns = 3;

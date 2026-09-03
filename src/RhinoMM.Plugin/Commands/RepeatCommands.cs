@@ -16,10 +16,10 @@ public sealed class ParametricFastenersRepeatPlaceCommand : Command
         var template = FastenerTemplateLibraryService.Current.LastPlacement;
         if (template is null)
         {
-            RhinoApp.WriteLine("还没有可重复的成功放置；请先完成一次智能放置。");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine("还没有可重复的成功放置；请先完成一次智能放置。");
             return Result.Nothing;
         }
-        RhinoApp.WriteLine($"重复放置：{FastenerTemplateFormatter.Compact(template)}");
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"重复放置：{FastenerTemplateFormatter.Compact(template)}");
         return SmartPlacementCommand.Execute(doc, mode, template);
     }
 }
@@ -33,13 +33,13 @@ public sealed class ParametricFastenersRepeatUpdateCommand : Command
         var data = FastenerTemplateLibraryService.Current.LastUpdate;
         if (data is null)
         {
-            RhinoApp.WriteLine("还没有可重复的成功更新；请先完成一次组件更新。");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine("还没有可重复的成功更新；请先完成一次组件更新。");
             return Result.Nothing;
         }
         var components = ComponentRepository.ReadSelectedControlPoints(doc);
         if (components.Count == 0)
         {
-            RhinoApp.WriteLine("请先选择一个或多个参数化紧固件控制点。");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine("请先选择一个或多个参数化紧固件控制点。");
             return Result.Nothing;
         }
         var display = GlobalDisplaySettingsService.Current;
@@ -53,14 +53,14 @@ public sealed class ParametricFastenersRepeatUpdateCommand : Command
                 out _,
                 out var message))
         {
-            RhinoApp.WriteLine(message);
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
             return Result.Failure;
         }
         FastenerTemplateLibraryService.RecordSuccessfulOperation(
             data,
             FastenerOperationKind.Update,
             out _);
-        RhinoApp.WriteLine($"{message} 重复模板：{FastenerTemplateFormatter.Compact(data)}");
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"{message} 重复模板：{FastenerTemplateFormatter.Compact(data)}");
         return Result.Success;
     }
 }
@@ -73,7 +73,7 @@ public sealed class ParametricFastenersQuickEditCommand : Command
     {
         if (!ViewportQuickEditorService.ShowForCurrentSelection(doc, true))
         {
-            RhinoApp.WriteLine("请选择一个有效的参数化紧固件控制点。");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine("请选择一个有效的参数化紧固件控制点。");
             return Result.Nothing;
         }
         return Result.Success;

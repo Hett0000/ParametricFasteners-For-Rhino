@@ -6,7 +6,7 @@
     <AssemblyTitle>参数化紧固件</AssemblyTitle>
     <Product>参数化紧固件</Product>
     <RootNamespace>RhinoMM.Plugin</RootNamespace>
-    <Version>0.38.7</Version>
+    <Version>0.40.4</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
   <ItemGroup>

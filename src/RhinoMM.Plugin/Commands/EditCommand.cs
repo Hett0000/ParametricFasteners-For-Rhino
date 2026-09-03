@@ -18,12 +18,12 @@ public sealed class RhinoMMEditHoleCommand : Command
         var components = ComponentRepository.ReadSelectedControlPoints(doc);
         if (components.Count == 0)
         {
-            RhinoApp.WriteLine("请选择一个或多个参数化紧固件控制点后重试。");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine("请选择一个或多个参数化紧固件控制点后重试。");
             return Result.Nothing;
         }
 
         ComponentEditorSession.ActivateMany(doc, components, false);
-        RhinoApp.WriteLine(
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(
             components.Count == 1
                 ? $"已读取 {components[0].Size} / {components[0].Kind}。请在面板修改后点击“应用更新”。"
                 : $"已读取 {components.Count} 个控制点；基础参数将批量应用。");

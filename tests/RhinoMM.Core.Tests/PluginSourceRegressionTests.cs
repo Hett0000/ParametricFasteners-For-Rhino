@@ -74,7 +74,7 @@ public sealed class PluginSourceRegressionTests
         Assert.DoesNotContain("EditorState.Current", quickWindow, StringComparison.Ordinal);
         Assert.Contains("ContextualEditSessionService.TrySetDraft", quickWindow, StringComparison.Ordinal);
         Assert.Contains("ContextualEditSessionService.TryCommit", quickWindow, StringComparison.Ordinal);
-        Assert.Contains("CompactWidth = 280", quickWindow, StringComparison.Ordinal);
+        Assert.Contains("CompactWidth = 268", quickWindow, StringComparison.Ordinal);
         Assert.Contains("Text = \"应用\"", quickWindow, StringComparison.Ordinal);
         Assert.Contains("Text = \"取消\"", quickWindow, StringComparison.Ordinal);
         Assert.Contains("$\"{shortKind} {size}X{CompactNumber(length)}\"", quickWindow, StringComparison.Ordinal);
@@ -132,6 +132,7 @@ public sealed class PluginSourceRegressionTests
     public void ResponsivePanel_ReusesOneParameterLayout()
     {
         var source = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
+        var actions = ReadSource("src", "RhinoMM.Plugin", "UI", "FastenerUiActions.cs");
 
         Assert.Contains("_parameterLayout.Clear();", source, StringComparison.Ordinal);
         Assert.Contains("_parameterLayout.Create();", source, StringComparison.Ordinal);
@@ -145,23 +146,23 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("private readonly CardSelector _kind", source, StringComparison.Ordinal);
         Assert.Contains("private readonly CardSelector _size", source, StringComparison.Ordinal);
         Assert.Contains("CommonLengths = [8, 10, 12, 15, 20, 25, 30, 35, 40, 45, 50, 60]", source, StringComparison.Ordinal);
-        Assert.Contains("ResponsiveLayoutProfile.ForWidth(AvailableContentWidth())", source, StringComparison.Ordinal);
+        Assert.Contains("ResponsiveLayoutProfile.ForWidth(availableWidth)", source, StringComparison.Ordinal);
         Assert.Contains("_scrollable.ClientSize.Width", source, StringComparison.Ordinal);
         Assert.Contains("_kind.SetColumns(profile.KindColumns)", source, StringComparison.Ordinal);
         Assert.Contains("_size.SetColumns(profile.SizeColumns)", source, StringComparison.Ordinal);
         Assert.Contains("_lengthCards.SetColumns(profile.LengthColumns)", source, StringComparison.Ordinal);
-        Assert.Contains("刷新 / 清理", source, StringComparison.Ordinal);
-        Assert.Contains("FastenerUiTheme.SectionTitle(\"紧固件尺寸\")", source, StringComparison.Ordinal);
+        Assert.Contains("刷新 / 维护", actions, StringComparison.Ordinal);
+        Assert.Contains("FastenerUiTheme.SectionTitle(\"基础尺寸\")", source, StringComparison.Ordinal);
         Assert.Contains("FastenerUiTheme.SectionTitle(\"孔与切割\")", source, StringComparison.Ordinal);
         Assert.DoesNotContain("宿主切割模块（", source, StringComparison.Ordinal);
         Assert.Contains("KindCardText", source, StringComparison.Ordinal);
-        Assert.Contains("PanelActionIcon.Rhino", source, StringComparison.Ordinal);
-        Assert.Contains("PanelActionIcon.Step", source, StringComparison.Ordinal);
+        Assert.Contains("PanelActionIcon.Rhino", actions, StringComparison.Ordinal);
+        Assert.Contains("PanelActionIcon.Step", actions, StringComparison.Ordinal);
         Assert.Contains("RebuildActionLayout", source, StringComparison.Ordinal);
         Assert.Contains("MinimumSize = new Size(0", source, StringComparison.Ordinal);
-        Assert.Contains("ToolTip = toolTip", source, StringComparison.Ordinal);
+        Assert.Contains("descriptor.ToolTip", source, StringComparison.Ordinal);
         Assert.Contains("_-ParametricFastenersExportStl", source, StringComparison.Ordinal);
-        Assert.Contains("_-ParametricFastenersExportStep", source, StringComparison.Ordinal);
+        Assert.Contains("_-ParametricFastenersExportStep", actions, StringComparison.Ordinal);
         Assert.Contains("RunExport", source, StringComparison.Ordinal);
         Assert.Contains("ApplyDraftForExport()", source, StringComparison.Ordinal);
         Assert.Contains("ComponentActivationIntent.SynchronizeOnly", source, StringComparison.Ordinal);
@@ -536,10 +537,11 @@ public sealed class PluginSourceRegressionTests
         var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
         var icons = ReadSource("src", "RhinoMM.Plugin", "UI", "PanelIconProvider.cs");
         var theme = ReadSource("src", "RhinoMM.Plugin", "UI", "FastenerUiTheme.cs");
+        var actionDefinitions = ReadSource("src", "RhinoMM.Plugin", "UI", "FastenerUiActions.cs");
 
         foreach (var icon in new[] { "Place", "Apply", "Refresh", "Rhino", "Step", "Statistics", "Inspector", "More" })
-            Assert.Contains($"PanelActionIcon.{icon}", panel, StringComparison.Ordinal);
-        Assert.DoesNotContain("PanelActionIcon.Read,", panel, StringComparison.Ordinal);
+            Assert.Contains($"PanelActionIcon.{icon}", actionDefinitions, StringComparison.Ordinal);
+        Assert.DoesNotContain("PanelActionIcon.Read,", actionDefinitions, StringComparison.Ordinal);
         Assert.Contains("[(1f, 24), (1.5f, 36), (2f, 48)]", icons, StringComparison.Ordinal);
         Assert.Contains("IconFrame", icons, StringComparison.Ordinal);
         Assert.Contains("LogicalSize = 24", icons, StringComparison.Ordinal);
@@ -551,9 +553,9 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("FastenerThemeRole.SecondaryAction", panel, StringComparison.Ordinal);
         Assert.DoesNotContain("new Graphics", icons, StringComparison.Ordinal);
         Assert.DoesNotContain("ArtworkScale", icons, StringComparison.Ordinal);
-        Assert.Contains("ActionButtonHeight = 40", theme, StringComparison.Ordinal);
-        Assert.Contains("Spacing = new Size(2, 0)", panel, StringComparison.Ordinal);
-        Assert.Contains("index is 3 or 6", panel, StringComparison.Ordinal);
+        Assert.Contains("ActionButtonHeight = FastenerUiMetrics.ActionButtonHeight", theme, StringComparison.Ordinal);
+        Assert.Contains("FastenerUiActionCoordinator.Get", panel, StringComparison.Ordinal);
+        Assert.Contains("descriptor.Group != previousGroup", panel, StringComparison.Ordinal);
         Assert.DoesNotContain("FooterSingleRowBreakpoint", panel, StringComparison.Ordinal);
     }
 
@@ -592,16 +594,16 @@ public sealed class PluginSourceRegressionTests
         var profile = ReadSource("src", "RhinoMM.Plugin", "UI", "ResponsiveLayoutProfile.cs");
         var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
 
-        Assert.Contains("NarrowBreakpoint = 300", profile, StringComparison.Ordinal);
-        Assert.Contains("CompactBreakpoint = 340", profile, StringComparison.Ordinal);
+        Assert.Contains("NarrowBreakpoint = 280", profile, StringComparison.Ordinal);
+        Assert.Contains("CompactBreakpoint = 320", profile, StringComparison.Ordinal);
         Assert.Contains("WideBreakpoint = 420", profile, StringComparison.Ordinal);
         Assert.Contains("new ResponsiveLayoutProfile(5, 5, 6, true, 3", profile, StringComparison.Ordinal);
-        Assert.Contains("new ResponsiveLayoutProfile(3, 5, 4, false, 2", profile, StringComparison.Ordinal);
+        Assert.Contains("new ResponsiveLayoutProfile(5, 5, 6, false, 1", profile, StringComparison.Ordinal);
         Assert.Contains("NumericFieldWidth", profile, StringComparison.Ordinal);
         Assert.Contains("DepthFieldWidth", profile, StringComparison.Ordinal);
         Assert.DoesNotContain("DepthPresetRow()", panel, StringComparison.Ordinal);
         Assert.Contains("var assemblyMode = SelectedAssemblyMode()", panel, StringComparison.Ordinal);
-        Assert.Contains("FieldStack(\"装配方式\", _assemblyMode)", panel, StringComparison.Ordinal);
+        Assert.Contains("_assemblyLayout.AddRow(_assemblyMode)", panel, StringComparison.Ordinal);
         Assert.Contains("FieldStack(\"追加深度 mm\", _presetBlindDepth)", panel, StringComparison.Ordinal);
     }
 
@@ -655,6 +657,7 @@ public sealed class PluginSourceRegressionTests
         var command = ReadSource("src", "RhinoMM.Plugin", "Commands", "ExportToRhinoCommand.cs");
         var aliases = ReadSource("src", "RhinoMM.Plugin", "Commands", "AliasCommands.cs");
         var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
+        var actions = ReadSource("src", "RhinoMM.Plugin", "UI", "FastenerUiActions.cs");
 
         Assert.Contains("RhinoPlacementExportOptions", placement, StringComparison.Ordinal);
         Assert.Contains("includeFastenerSolids", command, StringComparison.Ordinal);
@@ -662,8 +665,8 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("MouseButtons.Alternate", panel, StringComparison.Ordinal);
         Assert.Contains("e.Handled = true", panel, StringComparison.Ordinal);
         Assert.Contains("Application.Instance.AsyncInvoke", panel, StringComparison.Ordinal);
-        Assert.Contains("左击：仅布尔宿主", panel, StringComparison.Ordinal);
-        Assert.Contains("右击：布尔宿主 + 紧固件实体", panel, StringComparison.Ordinal);
+        Assert.Contains("左击：仅布尔宿主", actions, StringComparison.Ordinal);
+        Assert.Contains("右击：布尔宿主 + 紧固件实体", actions, StringComparison.Ordinal);
         Assert.DoesNotContain("RhinoPlacementExportSettingsService", panel, StringComparison.Ordinal);
         Assert.Contains("booleanResult.RelatedComponents", placement, StringComparison.Ordinal);
         Assert.Contains("DistinctBy(component => component.ComponentId)", placement, StringComparison.Ordinal);
@@ -961,8 +964,8 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("NutFastenedHostResolver.Resolve", placement, StringComparison.Ordinal);
         Assert.Contains("TryReconcileNutFastened", binding, StringComparison.Ordinal);
         Assert.Contains("CreatePairedNutPocketCutter", cutter, StringComparison.Ordinal);
-        Assert.Contains("FieldStack(\"装配方式\", _assemblyMode)", panel, StringComparison.Ordinal);
-        Assert.Contains("螺母槽补偿 mm", panel, StringComparison.Ordinal);
+        Assert.Contains("_assemblyLayout.AddRow(_assemblyMode)", panel, StringComparison.Ordinal);
+        Assert.Contains("槽补偿 mm", panel, StringComparison.Ordinal);
         Assert.Contains("末端露出 mm", panel, StringComparison.Ordinal);
         Assert.Contains("ClearanceAssignments", resolver, StringComparison.Ordinal);
     }
@@ -1080,6 +1083,7 @@ public sealed class PluginSourceRegressionTests
         var dialog = ReadSource("src", "RhinoMM.Plugin", "UI", "FastenerStatisticsDialog.cs");
         var commands = ReadSource("src", "RhinoMM.Plugin", "Commands", "StatisticsCommand.cs");
         var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
+        var actionDefinitions = ReadSource("src", "RhinoMM.Plugin", "UI", "FastenerUiActions.cs");
         var toolbar = ReadSource("build", "generate-toolbar.ps1");
 
         Assert.Contains("FastenerStatisticsScope.Selected", dialog, StringComparison.Ordinal);
@@ -1090,7 +1094,7 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("FastenerUiTheme.ApplyPrimary(_exportButton, true)", dialog, StringComparison.Ordinal);
         Assert.Contains("ParametricFastenersStatistics", commands, StringComparison.Ordinal);
         Assert.Contains("ParametricFastenersExportExcel", commands, StringComparison.Ordinal);
-        Assert.Contains("_-ParametricFastenersStatistics", panel, StringComparison.Ordinal);
+        Assert.Contains("_-ParametricFastenersStatistics", actionDefinitions, StringComparison.Ordinal);
         Assert.DoesNotContain("_-ParametricFastenersExportExcel", panel, StringComparison.Ordinal);
         Assert.Contains("ParametricFastenersStatistics", toolbar, StringComparison.Ordinal);
         Assert.DoesNotContain("ParametricFastenersExportExcel", toolbar, StringComparison.Ordinal);
@@ -1119,8 +1123,10 @@ public sealed class PluginSourceRegressionTests
 
         Assert.Contains("OffsetX = 36", editor, StringComparison.Ordinal);
         Assert.Contains("OffsetY = 40", editor, StringComparison.Ordinal);
-        Assert.Contains("Math.Clamp(x, screen.Left + 6", editor, StringComparison.Ordinal);
-        Assert.Contains("Math.Clamp(y, screen.Top + 6", editor, StringComparison.Ordinal);
+        Assert.Contains("PositionScore", editor, StringComparison.Ordinal);
+        Assert.Contains("TryGetComponentScreenBounds", editor, StringComparison.Ordinal);
+        Assert.Contains("Math.Clamp(best.X", editor, StringComparison.Ordinal);
+        Assert.Contains("Math.Clamp(best.Y", editor, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1168,8 +1174,8 @@ public sealed class PluginSourceRegressionTests
         var project = ReadSource("src", "RhinoMM.Plugin", "RhinoMM.Plugin.csproj");
 
         Assert.Contains("ShortKind(FastenerComponentData component)", labels, StringComparison.Ordinal);
-        Assert.Contains("FastenerKind.SocketCap => \"杯头\"", labels, StringComparison.Ordinal);
-        Assert.Contains("? \"防松螺母\" : \"六角螺母\"", editor, StringComparison.Ordinal);
+        Assert.Contains("FastenerKind.SocketCap => FastenerText.Get(\"Fastener.SocketCap.Short\")", labels, StringComparison.Ordinal);
+        Assert.Contains("FastenerText.Get(\"Fastener.LockNut.Short\")", editor, StringComparison.Ordinal);
         Assert.Contains("FastenerLabels.ShortKind(value.Kind)", editor, StringComparison.Ordinal);
         Assert.Contains("$\"{shortKind} {size}X{CompactNumber(length)}\"", editor, StringComparison.Ordinal);
         Assert.Contains("PanelIconProvider.PanelResourceName", plugin, StringComparison.Ordinal);
@@ -1260,8 +1266,8 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("RhinoDoc.DeselectAllObjects += DocumentSelectionCleared", panel, StringComparison.Ordinal);
         Assert.Contains("private void SynchronizeSelectedTargets()", panel, StringComparison.Ordinal);
         Assert.Contains("_selectedSummary = SelectedComponentSummary.Capture(doc)", panel, StringComparison.Ordinal);
-        Assert.Contains("UpdateTemplateStrip();\n        // Parameter edits", panel, StringComparison.Ordinal);
-        Assert.Contains("_selectedSummary = SelectedComponentSummary.Capture(doc);\n            ShowSelectionSummary();", panel, StringComparison.Ordinal);
+        Assert.Contains("SynchronizeSelectedTargets();", panel, StringComparison.Ordinal);
+        Assert.Contains("_selectionSummary.Text = text", panel, StringComparison.Ordinal);
         Assert.Contains("将面板模板应用到 {selected.Components.Count} 个控制点组件", panel, StringComparison.Ordinal);
         Assert.Contains("SynchronizeRedirectedSelection(doc)", lifecycle, StringComparison.Ordinal);
         Assert.Contains("ComponentActivationIntent.SynchronizeOnly", lifecycle, StringComparison.Ordinal);
@@ -1275,11 +1281,12 @@ public sealed class PluginSourceRegressionTests
         var theme = ReadSource("src", "RhinoMM.Plugin", "UI", "FastenerUiTheme.cs");
         var about = ReadSource("src", "RhinoMM.Plugin", "UI", "FastenerAboutDialog.cs");
         var toolbar = ReadSource("build", "generate-toolbar.ps1");
+        var actionDefinitions = ReadSource("src", "RhinoMM.Plugin", "UI", "FastenerUiActions.cs");
         Assert.Contains("new TableCell(_read, true)", quick, StringComparison.Ordinal);
         Assert.Contains("ComponentRepository.TryReadComponent", quick, StringComparison.Ordinal);
         Assert.Contains("ComponentActivationIntent.LoadIntoEditor", quick, StringComparison.Ordinal);
         Assert.Contains("读取选中组件参数", panel, StringComparison.Ordinal);
-        Assert.Contains("PanelActionIcon.Inspector", panel, StringComparison.Ordinal);
+        Assert.Contains("PanelActionIcon.Inspector", actionDefinitions, StringComparison.Ordinal);
         Assert.Contains("ParametricFastenersAssemblyInspector", toolbar, StringComparison.Ordinal);
         Assert.Contains("window.UseRhinoStyle()", theme, StringComparison.Ordinal);
         Assert.Contains("AssemblyInformationalVersionAttribute", about, StringComparison.Ordinal);
@@ -1336,7 +1343,7 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("var shaftReach = component.HeadEmbedDepth + component.Length", cutters, StringComparison.Ordinal);
         Assert.Contains("减小离面距离", cutters, StringComparison.Ordinal);
         Assert.Contains("CurrentSchemaVersion = 21", models, StringComparison.Ordinal);
-        Assert.Contains("<Version>0.38.7</Version>", project, StringComparison.Ordinal);
+        Assert.Contains("<Version>0.40.4</Version>", project, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1363,7 +1370,7 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("packages", build, StringComparison.Ordinal);
         Assert.Contains("Yak.exe", installer, StringComparison.Ordinal);
         Assert.Contains("Get-Process -Name Rhino", installer, StringComparison.Ordinal);
-        Assert.Contains("version: 0.38.7", manifest, StringComparison.Ordinal);
+        Assert.Contains("version: 0.40.4", manifest, StringComparison.Ordinal);
         Assert.Contains("guid:ddc747eb-360e-4629-b65b-6bb1ddb4dc8f", manifest, StringComparison.Ordinal);
         Assert.Contains("$pluginBaseName = \"ParametricFasteners\"", build, StringComparison.Ordinal);
         Assert.Contains("DestinationFiles=\"$(TargetDir)ParametricFasteners.rhp\"", project, StringComparison.Ordinal);
@@ -1428,7 +1435,7 @@ public sealed class PluginSourceRegressionTests
         Assert.Contains("point.DistanceTo(savedPlane.Origin)", reliability, StringComparison.Ordinal);
         Assert.Contains("timer.ElapsedMilliseconds < 12", health, StringComparison.Ordinal);
         Assert.Contains("RepairDeterministic", health, StringComparison.Ordinal);
-        Assert.Contains("DocumentComponentHealthState.NeedsRebuild", health, StringComparison.Ordinal);
+        Assert.Contains("DocumentComponentHealthState.MaintenanceRequired", health, StringComparison.Ordinal);
         Assert.Contains("ComponentMutationJournal", component, StringComparison.Ordinal);
         Assert.Contains("CutterGeometryService.TryBuild", export, StringComparison.Ordinal);
         Assert.Contains("Dictionary<uint, IReadOnlyList<Guid>>", session, StringComparison.Ordinal);
@@ -1469,8 +1476,8 @@ public sealed class PluginSourceRegressionTests
         Assert.DoesNotContain("ParametricFastenersSectionView", repeat, StringComparison.Ordinal);
         Assert.DoesNotContain("FastenerSectionViewService", plugin, StringComparison.Ordinal);
         Assert.Contains("PlaceholderText = \"搜索操作…\"", actions, StringComparison.Ordinal);
-        Assert.Contains("创建模板 ·", panel, StringComparison.Ordinal);
-        Assert.Contains("选择目标 ·", panel, StringComparison.Ordinal);
+        Assert.Contains("模板 ·", panel, StringComparison.Ordinal);
+        Assert.Contains("目标 ·", panel, StringComparison.Ordinal);
         Assert.DoesNotContain("ParametricFastenersSectionView", panel, StringComparison.Ordinal);
     }
 
@@ -1555,6 +1562,129 @@ public sealed class PluginSourceRegressionTests
         Assert.DoesNotContain("_read.Width = _delete.Width = 80", quick, StringComparison.Ordinal);
         Assert.Contains("DestructiveAction", theme, StringComparison.Ordinal);
         Assert.Contains("DestructiveConfirm", theme, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Version0390_UsesOneCompactVisualSystemAndUnifiedActions()
+    {
+        var metrics = ReadSource("src", "RhinoMM.Plugin", "UI", "FastenerUiMetrics.cs");
+        var actions = ReadSource("src", "RhinoMM.Plugin", "UI", "FastenerUiActions.cs");
+        var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
+        var quick = ReadSource("src", "RhinoMM.Plugin", "UI", "ViewportQuickEditorWindow.cs");
+        var profile = ReadSource("src", "RhinoMM.Plugin", "UI", "ResponsiveLayoutProfile.cs");
+
+        Assert.Contains("ControlHeight = 26", metrics, StringComparison.Ordinal);
+        Assert.Contains("ActionButtonHeight = 36", metrics, StringComparison.Ordinal);
+        Assert.Contains("SummaryFontSize = 11", metrics, StringComparison.Ordinal);
+        Assert.Contains("SpaceTight = 3", metrics, StringComparison.Ordinal);
+        Assert.Contains("enum FastenerUiActionId", actions, StringComparison.Ordinal);
+        Assert.Contains("FastenerUiActionCoordinator", actions, StringComparison.Ordinal);
+        Assert.Contains("AlternateCommand", actions, StringComparison.Ordinal);
+        Assert.Contains("Items = { _summary, _selectionSummary, _templateStripHost }", panel, StringComparison.Ordinal);
+        Assert.Contains("CreateSectionDivider()", panel, StringComparison.Ordinal);
+        Assert.Contains("ModuleRoleRow", panel, StringComparison.Ordinal);
+        Assert.Contains("_statusHost", panel, StringComparison.Ordinal);
+        Assert.Contains("new ResponsiveLayoutProfile(5, 5, 6", profile, StringComparison.Ordinal);
+        Assert.Contains("CompactWidth = 268", quick, StringComparison.Ordinal);
+        Assert.DoesNotContain("_expand", quick, StringComparison.Ordinal);
+        Assert.Contains("PositionScore", quick, StringComparison.Ordinal);
+        Assert.Contains("new TableCell(_read, true)", quick, StringComparison.Ordinal);
+        Assert.Contains("new TableCell(_delete, true)", quick, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Version040_UsesEmbeddedBilingualResourcesAndPersistentRuntimeSwitching()
+    {
+        var coreProject = ReadSource("src", "RhinoMM.Core", "RhinoMM.Core.csproj");
+        var text = ReadSource("src", "RhinoMM.Core", "Services", "FastenerLocalization.cs");
+        var service = ReadSource("src", "RhinoMM.Plugin", "Services", "FastenerLocalizationService.cs");
+        var plugin = ReadSource("src", "RhinoMM.Plugin", "RhinoMMPlugIn.cs");
+        var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
+        var theme = ReadSource("src", "RhinoMM.Plugin", "UI", "FastenerUiTheme.cs");
+        var output = ReadSource("src", "RhinoMM.Plugin", "Services", "OutputCenterService.cs");
+
+        Assert.Contains("strings.zh-CN.json", coreProject, StringComparison.Ordinal);
+        Assert.Contains("strings.en-US.json", coreProject, StringComparison.Ordinal);
+        Assert.Equal(2, CountOccurrences(coreProject, "WithCulture=\"false\""));
+        Assert.Contains("ResourcesHaveMatchingKeys", text, StringComparison.Ordinal);
+        Assert.Contains("Localization.LanguageMode", service, StringComparison.Ordinal);
+        Assert.Contains("AppearanceSettings.LanguageIdentifier", service, StringComparison.Ordinal);
+        Assert.True(plugin.IndexOf("FastenerLocalizationService.Load", StringComparison.Ordinal)
+            < plugin.IndexOf("Panels.RegisterPanel", StringComparison.Ordinal));
+        Assert.Contains("FastenerLanguageMode.Auto", panel, StringComparison.Ordinal);
+        Assert.Contains("FastenerLanguageMode.SimplifiedChinese", panel, StringComparison.Ordinal);
+        Assert.Contains("FastenerLanguageMode.English", panel, StringComparison.Ordinal);
+        Assert.Contains("FastenerLocalizationService.Changed", theme, StringComparison.Ordinal);
+        Assert.Contains("FastenerText.Get(\"Output.Delivery\")", output, StringComparison.Ordinal);
+        Assert.Contains("FastenerText.Get(\"Output.Assembly\")", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Version0401_UsesQuietStructuralHealthChecksAndPostCommitSignatures()
+    {
+        var repository = ReadSource("src", "RhinoMM.Plugin", "Persistence", "ComponentRepository.cs");
+        var health = ReadSource("src", "RhinoMM.Plugin", "Services", "ComponentDocumentHealthService.cs");
+        var component = ReadSource("src", "RhinoMM.Plugin", "Services", "FastenerComponentService.cs");
+        var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
+        var navigator = ReadSource("src", "RhinoMM.Plugin", "UI", "ComponentNavigatorPanel.cs");
+
+        Assert.Contains("SourceSignatureKey", repository, StringComparison.Ordinal);
+        Assert.Contains("DerivedManifestKey", repository, StringComparison.Ordinal);
+        Assert.Contains("DerivedManifestSignature", repository, StringComparison.Ordinal);
+        Assert.Contains("SuppressDuringMutation", health, StringComparison.Ordinal);
+        Assert.Contains("CurrentRevision(active.Document) != active.Revision", health, StringComparison.Ordinal);
+        Assert.Contains("StableCandidates", health, StringComparison.Ordinal);
+        Assert.Contains("ReportChanged?.Invoke", health, StringComparison.Ordinal);
+        Assert.Contains("DocumentComponentHealthState.PresentationDrift", health, StringComparison.Ordinal);
+        Assert.Contains("DocumentComponentHealthState.Configuration", health, StringComparison.Ordinal);
+        Assert.Contains("DocumentComponentHealthState.LegacyUnverified", health, StringComparison.Ordinal);
+        Assert.DoesNotContain("FastenerGeometryPreparationService.TryPrepare", health, StringComparison.Ordinal);
+        Assert.DoesNotContain("SmartHostBindingService", health, StringComparison.Ordinal);
+        Assert.Contains("StampCommittedHealthMetadata", component, StringComparison.Ordinal);
+        Assert.Contains("GeometrySignature(obj.Geometry)", component, StringComparison.Ordinal);
+        Assert.DoesNotContain("_healthBadge", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetStatus(e.Report.Summary", panel, StringComparison.Ordinal);
+        Assert.Contains("IsProblem(row.States)", navigator, StringComparison.Ordinal);
+        Assert.Contains("ComponentHealthState.Configuration", navigator, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Version0403_RemovesDuplicateTemplateTextAndKeepsQuickEditorVisible()
+    {
+        var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
+        var project = ReadSource("src", "RhinoMM.Plugin", "RhinoMM.Plugin.csproj");
+        var manifest = ReadSource("packaging", "manifest.yml");
+
+        Assert.Contains("_templateStripHost", panel, StringComparison.Ordinal);
+        Assert.Contains("RebuildTemplateStripLayout", panel, StringComparison.Ordinal);
+        Assert.Contains("PreferredTextControlWidth(_quickEditorToggle, 74, 28)", panel, StringComparison.Ordinal);
+        Assert.Contains("maximumMenuWidth", panel, StringComparison.Ordinal);
+        Assert.Contains("_favoriteTemplateButton,", panel, StringComparison.Ordinal);
+        Assert.Contains("_templateMenuButton,", panel, StringComparison.Ordinal);
+        Assert.Contains("new TableCell(new Panel { MinimumSize = new Size(0, 0) }, true)", panel, StringComparison.Ordinal);
+        Assert.Contains("_quickEditorToggle)", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("_activeTemplate", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("FitSingleLine(Label", panel, StringComparison.Ordinal);
+        Assert.Contains("RebuildTemplateStripLayout(AvailableContentWidth(), force: true)", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text = \"快速小窗\",\r\n        Width = 74", panel, StringComparison.Ordinal);
+        Assert.Contains("<Version>0.40.4</Version>", project, StringComparison.Ordinal);
+        Assert.Contains("version: 0.40.4", manifest, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Version0404_HidesBackgroundHealthFromMainPanelOnly()
+    {
+        var panel = ReadSource("src", "RhinoMM.Plugin", "UI", "RhinoMMPanel.cs");
+        var navigator = ReadSource("src", "RhinoMM.Plugin", "UI", "ComponentNavigatorPanel.cs");
+        var actions = ReadSource("src", "RhinoMM.Plugin", "UI", "FastenerUiActions.cs");
+
+        Assert.DoesNotContain("_healthBadge", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("UpdateHealthBadge", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("ComponentDocumentHealthService.ReportChanged", panel, StringComparison.Ordinal);
+        Assert.Contains("Items = { _summary, _selectionSummary, _templateStripHost }", panel, StringComparison.Ordinal);
+        Assert.Contains("ComponentDocumentHealthService.ReportChanged", navigator, StringComparison.Ordinal);
+        Assert.Contains("刷新 / 维护", actions, StringComparison.Ordinal);
+        Assert.Contains("SetStatus(message, StatusKind.Error)", panel, StringComparison.Ordinal);
     }
 
     private static string ReadSource(params string[] relativePath)

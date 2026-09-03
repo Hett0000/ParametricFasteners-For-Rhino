@@ -361,7 +361,7 @@ internal sealed class AssemblyInspectorDialog : Form
             SetBusy(false);
             return;
         }
-        RhinoApp.WriteLine(message);
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
         SetBusy(false);
         RunInspection();
     }
@@ -444,7 +444,7 @@ internal sealed class AssemblyInspectorDialog : Form
             ShowMessage(message, FastenerOperationState.Failure);
             return;
         }
-        RhinoApp.WriteLine(message);
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
         RunInspection();
     }
 
@@ -508,7 +508,7 @@ internal sealed class AssemblyInspectorDialog : Form
     private void ShowMessage(string message, FastenerOperationState state)
     {
         _operation.Set(new FastenerOperationProgress(state, message));
-        RhinoApp.WriteLine(message);
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
     }
 
     private void ResizeColumns()

@@ -4,6 +4,7 @@ using Rhino.DocObjects;
 using Rhino.FileIO;
 using Rhino.Input.Custom;
 using Rhino.UI;
+using RhinoMM.Core.Services;
 using RhinoMM.Plugin.Services;
 
 namespace RhinoMM.Plugin.Commands;
@@ -30,11 +31,11 @@ public sealed class RhinoMMExportPrintCommand : Command
             return selectionResult;
         if (!BooleanExportService.TryBuild(doc, hosts, out var result, out var message))
         {
-            RhinoApp.WriteLine($"导出失败：{message}");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"导出失败：{message}");
             return Result.Failure;
         }
         foreach (var warning in result.Warnings)
-            RhinoApp.WriteLine($"导出警告：{warning}");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"导出警告：{warning}");
 
         if (!TryGetPath(requestedFormat, out var path))
             return Result.Cancel;
@@ -45,11 +46,11 @@ public sealed class RhinoMMExportPrintCommand : Command
         var options = new FileWriteOptions { SuppressDialogBoxes = true };
         if (!exportDoc.WriteFile(path, options))
         {
-            RhinoApp.WriteLine("写入导出文件失败。");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine("写入导出文件失败。");
             return Result.Failure;
         }
         _lastDirectory = Path.GetDirectoryName(path) ?? _lastDirectory;
-        RhinoApp.WriteLine(
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(
             $"已在临时副本上完成布尔并导出：{path}。原模型未修改。"
             + (result.Warnings.Count == 0 ? string.Empty : $" 警告：{string.Join(" ", result.Warnings)}"));
         return Result.Success;
@@ -58,7 +59,7 @@ public sealed class RhinoMMExportPrintCommand : Command
     internal static Result SelectHosts(out IReadOnlyList<RhinoObject> hosts)
     {
         using var go = new GetObject();
-        go.SetCommandPrompt("选择要导出的实体（将在临时副本上应用参数化紧固件孔）");
+        go.SetCommandPrompt(FastenerText.Translate("选择要导出的实体（将在临时副本上应用参数化紧固件孔）"));
         go.GeometryFilter = ObjectType.Brep | ObjectType.Extrusion;
         go.GroupSelect = true;
         go.SetCustomGeometryFilter((obj, _, _) => string.IsNullOrWhiteSpace(
@@ -86,7 +87,7 @@ public sealed class RhinoMMExportPrintCommand : Command
             Title = requestedFormat is null ? "布尔导出 STL / STEP" : $"导出 {extension.ToUpperInvariant()}",
             DefaultExt = extension,
             InitialDirectory = _lastDirectory,
-            FileName = $"参数化紧固件-导出.{extension}",
+            FileName = $"{FastenerText.Get(FastenerTextKey.ProductName)}-{FastenerText.Translate("导出")}.{extension}",
             Filter = requestedFormat switch
             {
                 PrintExportFormat.Stl => "STL 文件 (*.stl)|*.stl",

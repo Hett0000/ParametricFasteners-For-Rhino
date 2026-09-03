@@ -40,7 +40,7 @@ public sealed class RhinoMMPlaceHoleCommand : Command
                 : SelectTargets("选择需要与螺丝咬合的物体（负补偿孔）");
         if (clearanceTargets.Count + engagementTargets.Count == 0)
         {
-            RhinoApp.WriteLine("至少需要选择一个被切割体。");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine("至少需要选择一个被切割体。");
             return Result.Cancel;
         }
 
@@ -56,7 +56,7 @@ public sealed class RhinoMMPlaceHoleCommand : Command
 
         if (!TryPlaceAt(doc, state, clearanceTargets, engagementTargets, plane, placementObjectId, out var saved, out var message))
         {
-            RhinoApp.WriteLine(message);
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
             return Result.Failure;
         }
 
@@ -67,7 +67,7 @@ public sealed class RhinoMMPlaceHoleCommand : Command
             while (true)
             {
                 using var pointGetter = new GetPoint();
-                pointGetter.SetCommandPrompt("继续捕捉放置点，按 Enter、右键或 Esc 完成");
+                pointGetter.SetCommandPrompt(FastenerText.Translate("继续捕捉放置点，按 Enter、右键或 Esc 完成"));
                 pointGetter.AcceptNothing(true);
                 var pointResult = pointGetter.Get();
                 if (pointResult is GetResult.Nothing or GetResult.Cancel)
@@ -91,11 +91,11 @@ public sealed class RhinoMMPlaceHoleCommand : Command
                         out var nextSaved,
                         out var nextMessage))
                 {
-                    RhinoApp.WriteLine($"该点放置失败：{nextMessage}");
+                    RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"该点放置失败：{nextMessage}");
                     continue;
                 }
                 placed.Add(nextSaved);
-                RhinoApp.WriteLine($"已连续放置 {placed.Count} 颗紧固件。");
+                RhinoMM.Plugin.Services.FastenerCommandText.WriteLine($"已连续放置 {placed.Count} 颗紧固件。");
             }
         }
 
@@ -108,7 +108,7 @@ public sealed class RhinoMMPlaceHoleCommand : Command
             FastenerTemplateData.FromComponent(placed[^1]),
             FastenerOperationKind.Placement,
             out _);
-        RhinoApp.WriteLine(
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(
             placed.Count == 1
                 ? message
                 : $"连续放置完成：共生成 {placed.Count} 颗紧固件，可使用一次撤销恢复。");
@@ -118,10 +118,10 @@ public sealed class RhinoMMPlaceHoleCommand : Command
     private static Result ExecuteSingleHostPlacement(RhinoDoc doc, EditorState state)
     {
         using var getter = new GetObject();
-        getter.SetCommandPrompt(
+        getter.SetCommandPrompt(FastenerText.Translate(
             state.Kind == FastenerKind.HexNut
                 ? "单击封闭宿主表面放置六角螺母槽"
-                : "单击封闭宿主表面放置热熔螺母孔");
+                : "单击封闭宿主表面放置热熔螺母孔"));
         getter.GeometryFilter = ObjectType.Surface;
         getter.SubObjectSelect = true;
         getter.GroupSelect = false;
@@ -135,7 +135,7 @@ public sealed class RhinoMMPlaceHoleCommand : Command
         var selectionPoint = reference.SelectionPoint();
         if (face is null || !face.Brep.IsSolid)
         {
-            RhinoApp.WriteLine("螺母安装槽/孔只能放置到封闭实体宿主上。");
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine("螺母安装槽/孔只能放置到封闭实体宿主上。");
             return Result.Failure;
         }
         if (!selectionPoint.IsValid || !face.ClosestPoint(selectionPoint, out var u, out var v))
@@ -180,7 +180,7 @@ public sealed class RhinoMMPlaceHoleCommand : Command
         };
         if (!FastenerComponentService.CreateOrReplace(doc, draft, out var saved, out var message))
         {
-            RhinoApp.WriteLine(message);
+            RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
             return Result.Failure;
         }
         ComponentEditorSession.Activate(
@@ -192,7 +192,7 @@ public sealed class RhinoMMPlaceHoleCommand : Command
             FastenerTemplateData.FromComponent(saved),
             FastenerOperationKind.Placement,
             out _);
-        RhinoApp.WriteLine(message);
+        RhinoMM.Plugin.Services.FastenerCommandText.WriteLine(message);
         return Result.Success;
     }
 
@@ -238,7 +238,7 @@ public sealed class RhinoMMPlaceHoleCommand : Command
     private static List<Guid> SelectTargets(string prompt)
     {
         using var go = new GetObject();
-        go.SetCommandPrompt($"{prompt}；单击一个对象立即完成，或切换“多选”");
+        go.SetCommandPrompt(FastenerText.Translate($"{prompt}；单击一个对象立即完成，或切换“多选”"));
         go.GeometryFilter = ObjectType.Brep | ObjectType.Extrusion;
         go.GroupSelect = false;
         go.SubObjectSelect = false;
@@ -266,7 +266,7 @@ public sealed class RhinoMMPlaceHoleCommand : Command
     private static List<Guid> SelectSingleTarget(string prompt)
     {
         using var getter = new GetObject();
-        getter.SetCommandPrompt(prompt);
+        getter.SetCommandPrompt(FastenerText.Translate(prompt));
         getter.GeometryFilter = ObjectType.Brep | ObjectType.Extrusion;
         getter.GroupSelect = false;
         getter.SubObjectSelect = false;
@@ -289,7 +289,7 @@ public sealed class RhinoMMPlaceHoleCommand : Command
         placementObjectId = Guid.Empty;
         continuousPointPlacement = false;
         using var faceGetter = new GetObject();
-        faceGetter.SetCommandPrompt("选择放置面，或选择“捕捉点”使用端点、中点、圆心等对象捕捉");
+        faceGetter.SetCommandPrompt(FastenerText.Translate("选择放置面，或选择“捕捉点”使用端点、中点、圆心等对象捕捉"));
         faceGetter.GeometryFilter = ObjectType.Surface;
         faceGetter.SubObjectSelect = true;
         faceGetter.GroupSelect = false;
@@ -338,7 +338,7 @@ public sealed class RhinoMMPlaceHoleCommand : Command
         if (pointResult != Result.Success)
             return pointResult;
         using var axisGetter = new GetPoint();
-        axisGetter.SetCommandPrompt("指定孔的轴向");
+        axisGetter.SetCommandPrompt(FastenerText.Translate("指定孔的轴向"));
         axisGetter.SetBasePoint(origin, true);
         axisGetter.DrawLineFromPoint(origin, true);
         if (axisGetter.Get() != GetResult.Point)

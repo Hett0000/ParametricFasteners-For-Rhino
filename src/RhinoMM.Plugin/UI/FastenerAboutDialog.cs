@@ -7,6 +7,7 @@ using Rhino.UI;
 using RhinoMM.Core.Domain;
 using RhinoMM.Core.Services;
 using RhinoMM.Plugin;
+using RhinoMM.Plugin.Services;
 
 namespace RhinoMM.Plugin.UI;
 
@@ -60,7 +61,7 @@ internal static class FastenerVersionInfo
         && File.Exists(RhinoMMPlugIn.ExpectedToolbarPath)
         && string.Equals(RhinoMMPlugIn.ToolbarHealth, "安装正常", StringComparison.Ordinal);
 
-    public static string Details => string.Join(Environment.NewLine,
+    public static string Details => FastenerText.Translate(string.Join(Environment.NewLine,
     [
         $"参数化紧固件 v{PluginVersion}",
         $"Rhino {RhinoApp.Version}",
@@ -70,10 +71,14 @@ internal static class FastenerVersionInfo
         $"安装方式：{InstallationType}",
         $"RHP：{RhinoMMPlugIn.AssemblyPath}",
         $"工具栏：{RhinoMMPlugIn.ActiveToolbarPath ?? RhinoMMPlugIn.ExpectedToolbarPath}",
-        $"状态：{(IsHealthy ? "安装正常" : "建议使用当前版本离线安装包重新安装")}"
-    ]);
+        $"状态：{(IsHealthy ? "安装正常" : "建议使用当前版本离线安装包重新安装")}",
+        $"语言模式：{FastenerLocalizationService.ModeLabel()}",
+        $"实际语言：{FastenerText.Language}",
+        $"Rhino 语言 ID：{FastenerLocalizationService.RhinoLanguageId}",
+        $"翻译资源版本：{FastenerText.ResourceVersion}"
+    ]));
 
-    public static string InstallationDiagnostics => string.Join(Environment.NewLine,
+    public static string InstallationDiagnostics => FastenerText.Translate(string.Join(Environment.NewLine,
     [
         $"参数化紧固件 v{PluginVersion}",
         $"Rhino {RhinoApp.Version}",
@@ -86,8 +91,12 @@ internal static class FastenerVersionInfo
         $"工具栏：{SanitizePath(RhinoMMPlugIn.ActiveToolbarPath ?? RhinoMMPlugIn.ExpectedToolbarPath)}",
         $"工具栏状态：{RhinoMMPlugIn.ToolbarHealth}",
         $"发现命令：{CommandTypeCount}",
-        $"安装状态：{(IsHealthy ? "安装正常" : "建议使用当前版本离线安装包重新安装")}"
-    ]);
+        $"安装状态：{(IsHealthy ? "安装正常" : "建议使用当前版本离线安装包重新安装")}",
+        $"语言模式：{FastenerLocalizationService.ModeLabel()}",
+        $"实际语言：{FastenerText.Language}",
+        $"Rhino 语言 ID：{FastenerLocalizationService.RhinoLanguageId}",
+        $"翻译资源版本：{FastenerText.ResourceVersion}"
+    ]));
 
     private static string SanitizePath(string path)
     {

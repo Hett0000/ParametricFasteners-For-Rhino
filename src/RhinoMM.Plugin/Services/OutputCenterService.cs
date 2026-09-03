@@ -146,7 +146,11 @@ internal static class OutputCenterService
         if (string.IsNullOrWhiteSpace(cleanProject))
             cleanProject = "参数化紧固件";
         var timestamp = DateTimeOffset.Now.ToString("yyyyMMdd-HHmm");
-        var finalDirectory = UniqueDirectory(Path.Combine(request.ParentDirectory, $"{cleanProject}_交付_{timestamp}"));
+        var delivery = FastenerText.Get("Output.Delivery");
+        var assembly = FastenerText.Get("Output.Assembly");
+        var model = FastenerText.Get("Output.Model");
+        var print = FastenerText.Get("Output.Print");
+        var finalDirectory = UniqueDirectory(Path.Combine(request.ParentDirectory, $"{cleanProject}_{delivery}_{timestamp}"));
         var staging = Path.Combine(request.ParentDirectory, $".{Path.GetFileName(finalDirectory)}.{Guid.NewGuid():N}.tmp");
         var files = new List<string>();
         try
@@ -164,7 +168,7 @@ internal static class OutputCenterService
             {
                 if (!ContinueFormat(operation, "写入 3DM", formatIndex++, formatCount))
                     throw new OperationCanceledException();
-                var name = $"{cleanProject}_装配.3dm";
+                var name = $"{cleanProject}_{assembly}.3dm";
                 WriteGeometry(Path.Combine(staging, name), booleanResult, fasteners, request.IncludeFastenerSolids);
                 files.Add(name);
             }
@@ -172,7 +176,7 @@ internal static class OutputCenterService
             {
                 if (!ContinueFormat(operation, "写入 STEP", formatIndex++, formatCount))
                     throw new OperationCanceledException();
-                var name = $"{cleanProject}_模型.step";
+                var name = $"{cleanProject}_{model}.step";
                 WriteGeometry(Path.Combine(staging, name), booleanResult, fasteners, request.IncludeFastenerSolids);
                 files.Add(name);
             }
@@ -180,7 +184,7 @@ internal static class OutputCenterService
             {
                 if (!ContinueFormat(operation, "写入 STL", formatIndex++, formatCount))
                     throw new OperationCanceledException();
-                var name = $"{cleanProject}_打印.stl";
+                var name = $"{cleanProject}_{print}.stl";
                 WriteGeometry(Path.Combine(staging, name), booleanResult, [], false);
                 files.Add(name);
             }
